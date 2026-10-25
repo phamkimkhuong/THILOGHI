@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
 import {
   Truck,
   Ship,
@@ -14,18 +12,15 @@ import {
   FileCheck,
   Clock,
   CheckCircle2,
-  Search,
   PlusCircle,
   BarChart3,
   Building2,
   MapPin,
-  HelpCircle,
   Phone,
   Mail,
 } from "lucide-react";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"overview" | "workflow">("overview");
 
   const kpis = [
     { title: "Báo Giá Chờ Phê Duyệt", value: "08", unit: "hồ sơ", change: "+2 hôm nay", icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
@@ -80,14 +75,13 @@ export default function Home() {
 
           {/* Quick Action Navigation */}
           <div className="flex items-center gap-3">
-            <button className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors">
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              Tra Cứu Bảng Giá Mua
-            </button>
-            <button className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all">
+            <Link
+              href="/quotations/new"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+            >
               <PlusCircle className="w-3.5 h-3.5" />
               Lập Báo Giá Mới
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -197,23 +191,46 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            {workflowSteps.map((s) => (
-              <div
-                key={s.step}
-                className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 hover:border-blue-500/40 transition-colors flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-mono font-bold text-cyan-400">BƯỚC {s.step}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
-                      {s.role}
-                    </span>
+            {workflowSteps.map((s) => {
+              const isQuotationStep = s.step === "01" || s.step === "02" || s.step === "03" || s.step === "04";
+              const CardContent = (
+                <div
+                  className={`p-4 rounded-xl border transition-all h-full flex flex-col justify-between ${
+                    isQuotationStep
+                      ? "bg-slate-950/90 border-blue-500/30 hover:border-blue-500/70 hover:shadow-lg hover:shadow-blue-500/10 cursor-pointer group"
+                      : "bg-slate-950/70 border-slate-800/80 hover:border-slate-700"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-mono font-bold text-cyan-400">BƯỚC {s.step}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                        {s.role}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-xs text-white mb-1.5 group-hover:text-blue-400 transition-colors">
+                      {s.name}
+                    </h3>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{s.desc}</p>
                   </div>
-                  <h3 className="font-bold text-xs text-white mb-1.5">{s.name}</h3>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">{s.desc}</p>
+                  {isQuotationStep && (
+                    <div className="mt-2 text-[10px] text-blue-400 flex items-center gap-1 font-semibold">
+                      Mở Workspace <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+
+              return isQuotationStep ? (
+                <Link key={s.step} href="/quotations/new" className="block h-full">
+                  {CardContent}
+                </Link>
+              ) : (
+                <div key={s.step} className="block h-full">
+                  {CardContent}
+                </div>
+              );
+            })}
           </div>
         </div>
       </main>

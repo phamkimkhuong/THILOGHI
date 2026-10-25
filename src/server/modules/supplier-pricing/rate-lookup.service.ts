@@ -1,5 +1,4 @@
 import { pool } from "@/server/db";
-import Decimal from "decimal.js";
 
 export interface RateLookupQuery {
   pickupLocationId: string;
