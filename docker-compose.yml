@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # ====================================================================
+  # Dịch vụ Cơ sở Dữ liệu Quan hệ PostgreSQL 16
+  # Tích hợp sẵn extension btree_gist và nạp Schema Release 1 tự động
+  # ====================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: thilogi-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-thilogi_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-thilogi_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-thilogi_db}
+    ports:
+      - "5432:5432" # Mở cổng kết nối trực tiếp cho Drizzle Studio / DBeaver / Next.js Dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro # Tự động chạy 01-init-extensions.sql & 02-schema-r1.sql khi khởi tạo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-thilogi_admin} -d ${POSTGRES_DB:-thilogi_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - thilogi-network
+
+  # ====================================================================
+  # Ứng dụng Next.js 15 Full-Stack (App Router + Server Actions)
+  # ====================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: thilogi-web-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-thilogi_admin}:${POSTGRES_PASSWORD:-thilogi_secure_2026}@postgres:5432/${POSTGRES_DB:-thilogi_db}
+      - NODE_ENV=production
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - thilogi-network
+
+networks:
+  thilogi-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: thilogi_postgres_data
