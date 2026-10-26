@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_no VARCHAR(50) NOT NULL UNIQUE,
     quotation_id UUID NOT NULL REFERENCES customer_quotations(quotation_id),
     quotation_version INT NOT NULL,
-    customerId VARCHAR(50) NOT NULL REFERENCES customers(customer_id),
+    customer_id VARCHAR(50) NOT NULL REFERENCES customers(customer_id),
     region_id VARCHAR(50) NOT NULL REFERENCES regions(region_id),
     status "OrderStatus" NOT NULL DEFAULT 'CONFIRMED',
     

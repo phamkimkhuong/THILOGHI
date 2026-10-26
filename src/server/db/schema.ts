@@ -1,4 +1,10 @@
-import { pgTable, varchar, numeric, text, boolean, timestamp, integer, uuid, pgEnum, date } from "drizzle-orm/pg-core";
+import { pgTable, varchar, numeric, text, boolean, timestamp, integer, uuid, pgEnum, date, customType } from "drizzle-orm/pg-core";
+
+export const daterange = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "daterange";
+  },
+});
 
 // --------------------------------------------------------------------
 // 1. PostgreSQL ENUMs
@@ -126,6 +132,7 @@ export const roadRates = pgTable("road_rates", {
   equipmentType: varchar("equipment_type", { length: 30 }).notNull(), // 40HC, 40RH, 20DC...
   buyRate: numeric("buy_rate", { precision: 15, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).default("VND"),
+  validityRange: daterange("validity_range").notNull(),
   status: varchar("status", { length: 20 }).default("APPROVED"),
   remarks: text("remarks"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -151,6 +158,7 @@ export const customerQuotations = pgTable("customer_quotations", {
 
   currency: varchar("currency", { length: 3 }).default("VND"),
   paymentTermsDays: integer("payment_terms_days").default(30),
+  validUntil: date("valid_until"),
   immutableLocked: boolean("immutable_locked").default(false),
   createdBy: varchar("created_by", { length: 100 }),
   approvedBy: varchar("approved_by", { length: 100 }),
@@ -197,6 +205,18 @@ export const quotationBuySnapshots = pgTable("quotation_buy_snapshots", {
   validityStart: date("validity_start").notNull(),
   validityEnd: date("validity_end").notNull(),
   snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow(),
+});
+
+export const quotationApprovalLog = pgTable("quotation_approval_log", {
+  logId: uuid("log_id").defaultRandom().primaryKey(),
+  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId),
+  version: integer("version").notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  actorId: varchar("actor_id", { length: 100 }).notNull(),
+  actorName: varchar("actor_name", { length: 255 }),
+  comment: text("comment"),
+  snapshotMarginPercent: numeric("snapshot_margin_percent", { precision: 5, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 // --------------------------------------------------------------------

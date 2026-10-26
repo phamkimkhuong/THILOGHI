@@ -7,6 +7,10 @@ const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
 };
 
+if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required in production mode.");
+}
+
 const connectionString =
   process.env.DATABASE_URL ||
   "postgres://thilogi_admin:thilogi_secure_2026@localhost:5432/thilogi_db";

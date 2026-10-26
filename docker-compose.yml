@@ -14,7 +14,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-thilogi_secure_2026}
       POSTGRES_DB: ${POSTGRES_DB:-thilogi_db}
     ports:
-      - "5432:5432" # Mở cổng kết nối trực tiếp cho Drizzle Studio / DBeaver / Next.js Dev
+      # BẢO MẬT: Chỉ bind vào loopback 127.0.0.1 cho dev nội bộ; TUYỆT ĐỐI không mở 0.0.0.0 ra Internet trên VPS
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro # Tự động chạy 01-init-extensions.sql & 02-schema-r1.sql khi khởi tạo

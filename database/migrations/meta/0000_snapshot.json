@@ -1,0 +1,2132 @@
+{
+  "id": "7e301b37-7113-4aa9-b2b0-c876fd175186",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.commodities": {
+      "name": "commodities",
+      "schema": "",
+      "columns": {
+        "commodity_id": {
+          "name": "commodity_id",
+          "type": "varchar(50)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_dangerous_goods": {
+          "name": "is_dangerous_goods",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "temperature_required": {
+          "name": "temperature_required",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.customer_invoice_allocations": {
+      "name": "customer_invoice_allocations",
+      "schema": "",
+      "columns": {
+        "allocation_id": {
+          "name": "allocation_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_item_id": {
+          "name": "order_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allocated_amount_vnd": {
+          "name": "allocated_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_invoice_allocations_invoice_id_customer_invoices_invoice_id_fk": {
+          "name": "customer_invoice_allocations_invoice_id_customer_invoices_invoice_id_fk",
+          "tableFrom": "customer_invoice_allocations",
+          "tableTo": "customer_invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "invoice_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "customer_invoice_allocations_order_id_orders_order_id_fk": {
+          "name": "customer_invoice_allocations_order_id_orders_order_id_fk",
+          "tableFrom": "customer_invoice_allocations",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "customer_invoice_allocations_order_item_id_order_service_items_order_item_id_fk": {
+          "name": "customer_invoice_allocations_order_item_id_order_service_items_order_item_id_fk",
+          "tableFrom": "customer_invoice_allocations",
+          "tableTo": "order_service_items",
+          "columnsFrom": [
+            "order_item_id"
+          ],
+          "columnsTo": [
+            "order_item_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.customer_invoices": {
+      "name": "customer_invoices",
+      "schema": "",
+      "columns": {
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "invoice_no": {
+          "name": "invoice_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_date": {
+          "name": "invoice_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_amount_vnd": {
+          "name": "total_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settled_amount_vnd": {
+          "name": "settled_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "open_balance_vnd": {
+          "name": "open_balance_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "InvoiceStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ISSUED'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_invoices_customer_id_customers_customer_id_fk": {
+          "name": "customer_invoices_customer_id_customers_customer_id_fk",
+          "tableFrom": "customer_invoices",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "customer_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "customer_invoices_invoice_no_unique": {
+          "name": "customer_invoices_invoice_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "invoice_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.customer_quotations": {
+      "name": "customer_quotations",
+      "schema": "",
+      "columns": {
+        "quotation_id": {
+          "name": "quotation_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quotation_no": {
+          "name": "quotation_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commodity_id": {
+          "name": "commodity_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "QuotationStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "total_sell_amount": {
+          "name": "total_sell_amount",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "total_estimated_buy": {
+          "name": "total_estimated_buy",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "total_worst_case_buy": {
+          "name": "total_worst_case_buy",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "estimated_gp": {
+          "name": "estimated_gp",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "estimated_margin_percent": {
+          "name": "estimated_margin_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'VND'"
+        },
+        "payment_terms_days": {
+          "name": "payment_terms_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 30
+        },
+        "valid_until": {
+          "name": "valid_until",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "immutable_locked": {
+          "name": "immutable_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customer_quotations_customer_id_customers_customer_id_fk": {
+          "name": "customer_quotations_customer_id_customers_customer_id_fk",
+          "tableFrom": "customer_quotations",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "customer_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "customer_quotations_region_id_regions_region_id_fk": {
+          "name": "customer_quotations_region_id_regions_region_id_fk",
+          "tableFrom": "customer_quotations",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "region_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "customer_quotations_commodity_id_commodities_commodity_id_fk": {
+          "name": "customer_quotations_commodity_id_commodities_commodity_id_fk",
+          "tableFrom": "customer_quotations",
+          "tableTo": "commodities",
+          "columnsFrom": [
+            "commodity_id"
+          ],
+          "columnsTo": [
+            "commodity_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.customers": {
+      "name": "customers",
+      "schema": "",
+      "columns": {
+        "customer_id": {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tax_code": {
+          "name": "tax_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customer_name": {
+          "name": "customer_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "short_name": {
+          "name": "short_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credit_limit_vnd": {
+          "name": "credit_limit_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "payment_terms_days": {
+          "name": "payment_terms_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 30
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'ACTIVE'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "customers_region_id_regions_region_id_fk": {
+          "name": "customers_region_id_regions_region_id_fk",
+          "tableFrom": "customers",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "region_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.locations": {
+      "name": "locations",
+      "schema": "",
+      "columns": {
+        "location_id": {
+          "name": "location_id",
+          "type": "varchar(50)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_type": {
+          "name": "location_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country_code": {
+          "name": "country_code",
+          "type": "varchar(2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'VN'"
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "locations_region_id_regions_region_id_fk": {
+          "name": "locations_region_id_regions_region_id_fk",
+          "tableFrom": "locations",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "region_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "locations_code_unique": {
+          "name": "locations_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ocean_work_requests": {
+      "name": "ocean_work_requests",
+      "schema": "",
+      "columns": {
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_item_id": {
+          "name": "order_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pol_location_id": {
+          "name": "pol_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pod_location_id": {
+          "name": "pod_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "equipment_type": {
+          "name": "equipment_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "container_qty": {
+          "name": "container_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'PENDING_BOOKING'"
+        },
+        "booking_no": {
+          "name": "booking_no",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sea_shipment_id": {
+          "name": "sea_shipment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ocean_work_requests_order_id_orders_order_id_fk": {
+          "name": "ocean_work_requests_order_id_orders_order_id_fk",
+          "tableFrom": "ocean_work_requests",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocean_work_requests_order_item_id_order_service_items_order_item_id_fk": {
+          "name": "ocean_work_requests_order_item_id_order_service_items_order_item_id_fk",
+          "tableFrom": "ocean_work_requests",
+          "tableTo": "order_service_items",
+          "columnsFrom": [
+            "order_item_id"
+          ],
+          "columnsTo": [
+            "order_item_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocean_work_requests_pol_location_id_locations_location_id_fk": {
+          "name": "ocean_work_requests_pol_location_id_locations_location_id_fk",
+          "tableFrom": "ocean_work_requests",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "pol_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ocean_work_requests_pod_location_id_locations_location_id_fk": {
+          "name": "ocean_work_requests_pod_location_id_locations_location_id_fk",
+          "tableFrom": "ocean_work_requests",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "pod_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.order_service_items": {
+      "name": "order_service_items",
+      "schema": "",
+      "columns": {
+        "order_item_id": {
+          "name": "order_item_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_package": {
+          "name": "service_package",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin_location_id": {
+          "name": "origin_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destination_location_id": {
+          "name": "destination_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipment_type": {
+          "name": "equipment_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "planned_trip_qty": {
+          "name": "planned_trip_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "released_trip_qty": {
+          "name": "released_trip_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sell_amount_vnd": {
+          "name": "sell_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "estimated_buy_vnd": {
+          "name": "estimated_buy_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "actual_buy_vnd": {
+          "name": "actual_buy_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "order_service_items_order_id_orders_order_id_fk": {
+          "name": "order_service_items_order_id_orders_order_id_fk",
+          "tableFrom": "order_service_items",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "order_service_items_origin_location_id_locations_location_id_fk": {
+          "name": "order_service_items_origin_location_id_locations_location_id_fk",
+          "tableFrom": "order_service_items",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "origin_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "order_service_items_destination_location_id_locations_location_id_fk": {
+          "name": "order_service_items_destination_location_id_locations_location_id_fk",
+          "tableFrom": "order_service_items",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "destination_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.orders": {
+      "name": "orders",
+      "schema": "",
+      "columns": {
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_no": {
+          "name": "order_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quotation_id": {
+          "name": "quotation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quotation_version": {
+          "name": "quotation_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "OrderStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CONFIRMED'"
+        },
+        "revenue_vnd": {
+          "name": "revenue_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "cost_vnd": {
+          "name": "cost_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "gp_vnd": {
+          "name": "gp_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "margin_percent": {
+          "name": "margin_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "orders_quotation_id_customer_quotations_quotation_id_fk": {
+          "name": "orders_quotation_id_customer_quotations_quotation_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "customer_quotations",
+          "columnsFrom": [
+            "quotation_id"
+          ],
+          "columnsTo": [
+            "quotation_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "orders_customer_id_customers_customer_id_fk": {
+          "name": "orders_customer_id_customers_customer_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "customer_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "orders_region_id_regions_region_id_fk": {
+          "name": "orders_region_id_regions_region_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "region_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "orders_order_no_unique": {
+          "name": "orders_order_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "order_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.quotation_approval_log": {
+      "name": "quotation_approval_log",
+      "schema": "",
+      "columns": {
+        "log_id": {
+          "name": "log_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quotation_id": {
+          "name": "quotation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_name": {
+          "name": "actor_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "snapshot_margin_percent": {
+          "name": "snapshot_margin_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quotation_approval_log_quotation_id_customer_quotations_quotation_id_fk": {
+          "name": "quotation_approval_log_quotation_id_customer_quotations_quotation_id_fk",
+          "tableFrom": "quotation_approval_log",
+          "tableTo": "customer_quotations",
+          "columnsFrom": [
+            "quotation_id"
+          ],
+          "columnsTo": [
+            "quotation_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.quotation_buy_snapshots": {
+      "name": "quotation_buy_snapshots",
+      "schema": "",
+      "columns": {
+        "snapshot_id": {
+          "name": "snapshot_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quotation_id": {
+          "name": "quotation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_rate_id": {
+          "name": "source_rate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vendor_id": {
+          "name": "vendor_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vendor_name": {
+          "name": "vendor_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_amount": {
+          "name": "rate_amount",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_currency": {
+          "name": "original_currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_to_vnd": {
+          "name": "fx_rate_to_vnd",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1.0000'"
+        },
+        "rate_amount_vnd": {
+          "name": "rate_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "validity_start": {
+          "name": "validity_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "validity_end": {
+          "name": "validity_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_at": {
+          "name": "snapshot_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quotation_buy_snapshots_quotation_id_customer_quotations_quotation_id_fk": {
+          "name": "quotation_buy_snapshots_quotation_id_customer_quotations_quotation_id_fk",
+          "tableFrom": "quotation_buy_snapshots",
+          "tableTo": "customer_quotations",
+          "columnsFrom": [
+            "quotation_id"
+          ],
+          "columnsTo": [
+            "quotation_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quotation_buy_snapshots_item_id_quotation_service_items_item_id_fk": {
+          "name": "quotation_buy_snapshots_item_id_quotation_service_items_item_id_fk",
+          "tableFrom": "quotation_buy_snapshots",
+          "tableTo": "quotation_service_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "item_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quotation_buy_snapshots_vendor_id_vendors_vendor_id_fk": {
+          "name": "quotation_buy_snapshots_vendor_id_vendors_vendor_id_fk",
+          "tableFrom": "quotation_buy_snapshots",
+          "tableTo": "vendors",
+          "columnsFrom": [
+            "vendor_id"
+          ],
+          "columnsTo": [
+            "vendor_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.quotation_service_items": {
+      "name": "quotation_service_items",
+      "schema": "",
+      "columns": {
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "quotation_id": {
+          "name": "quotation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_package": {
+          "name": "service_package",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pricing_inclusion": {
+          "name": "pricing_inclusion",
+          "type": "PricingInclusion",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'INCLUDED'"
+        },
+        "origin_location_id": {
+          "name": "origin_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destination_location_id": {
+          "name": "destination_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equipment_type": {
+          "name": "equipment_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "planned_quantity": {
+          "name": "planned_quantity",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1'"
+        },
+        "unit": {
+          "name": "unit",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'TRIP'"
+        },
+        "unit_sell_price": {
+          "name": "unit_sell_price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "total_sell_price": {
+          "name": "total_sell_price",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "selected_buy_rate_id": {
+          "name": "selected_buy_rate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estimated_buy_amount": {
+          "name": "estimated_buy_amount",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "worst_case_buy_amount": {
+          "name": "worst_case_buy_amount",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "item_gp": {
+          "name": "item_gp",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "item_margin_percent": {
+          "name": "item_margin_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "quotation_service_items_quotation_id_customer_quotations_quotation_id_fk": {
+          "name": "quotation_service_items_quotation_id_customer_quotations_quotation_id_fk",
+          "tableFrom": "quotation_service_items",
+          "tableTo": "customer_quotations",
+          "columnsFrom": [
+            "quotation_id"
+          ],
+          "columnsTo": [
+            "quotation_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quotation_service_items_origin_location_id_locations_location_id_fk": {
+          "name": "quotation_service_items_origin_location_id_locations_location_id_fk",
+          "tableFrom": "quotation_service_items",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "origin_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "quotation_service_items_destination_location_id_locations_location_id_fk": {
+          "name": "quotation_service_items_destination_location_id_locations_location_id_fk",
+          "tableFrom": "quotation_service_items",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "destination_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.regions": {
+      "name": "regions",
+      "schema": "",
+      "columns": {
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "RegionScope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.road_rates": {
+      "name": "road_rates",
+      "schema": "",
+      "columns": {
+        "rate_id": {
+          "name": "rate_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "vendor_id": {
+          "name": "vendor_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pickup_location_id": {
+          "name": "pickup_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivery_location_id": {
+          "name": "delivery_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "equipment_type": {
+          "name": "equipment_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "buy_rate": {
+          "name": "buy_rate",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'VND'"
+        },
+        "validity_range": {
+          "name": "validity_range",
+          "type": "daterange",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'APPROVED'"
+        },
+        "remarks": {
+          "name": "remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "road_rates_vendor_id_vendors_vendor_id_fk": {
+          "name": "road_rates_vendor_id_vendors_vendor_id_fk",
+          "tableFrom": "road_rates",
+          "tableTo": "vendors",
+          "columnsFrom": [
+            "vendor_id"
+          ],
+          "columnsTo": [
+            "vendor_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "road_rates_pickup_location_id_locations_location_id_fk": {
+          "name": "road_rates_pickup_location_id_locations_location_id_fk",
+          "tableFrom": "road_rates",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "pickup_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "road_rates_delivery_location_id_locations_location_id_fk": {
+          "name": "road_rates_delivery_location_id_locations_location_id_fk",
+          "tableFrom": "road_rates",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "delivery_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.shipping_orders": {
+      "name": "shipping_orders",
+      "schema": "",
+      "columns": {
+        "shipping_order_id": {
+          "name": "shipping_order_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "shipping_order_no": {
+          "name": "shipping_order_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_item_id": {
+          "name": "order_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vendor_id": {
+          "name": "vendor_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pickup_location_id": {
+          "name": "pickup_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delivery_location_id": {
+          "name": "delivery_location_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "equipment_type": {
+          "name": "equipment_type",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "container_no": {
+          "name": "container_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seal_no": {
+          "name": "seal_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sea_ref_id": {
+          "name": "sea_ref_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "ShippingOrderStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "delivery_proof_file": {
+          "name": "delivery_proof_file",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_proof_verified": {
+          "name": "delivery_proof_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "delivery_proof_at": {
+          "name": "delivery_proof_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shipping_orders_order_id_orders_order_id_fk": {
+          "name": "shipping_orders_order_id_orders_order_id_fk",
+          "tableFrom": "shipping_orders",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shipping_orders_order_item_id_order_service_items_order_item_id_fk": {
+          "name": "shipping_orders_order_item_id_order_service_items_order_item_id_fk",
+          "tableFrom": "shipping_orders",
+          "tableTo": "order_service_items",
+          "columnsFrom": [
+            "order_item_id"
+          ],
+          "columnsTo": [
+            "order_item_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shipping_orders_vendor_id_vendors_vendor_id_fk": {
+          "name": "shipping_orders_vendor_id_vendors_vendor_id_fk",
+          "tableFrom": "shipping_orders",
+          "tableTo": "vendors",
+          "columnsFrom": [
+            "vendor_id"
+          ],
+          "columnsTo": [
+            "vendor_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shipping_orders_pickup_location_id_locations_location_id_fk": {
+          "name": "shipping_orders_pickup_location_id_locations_location_id_fk",
+          "tableFrom": "shipping_orders",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "pickup_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shipping_orders_delivery_location_id_locations_location_id_fk": {
+          "name": "shipping_orders_delivery_location_id_locations_location_id_fk",
+          "tableFrom": "shipping_orders",
+          "tableTo": "locations",
+          "columnsFrom": [
+            "delivery_location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shipping_orders_shipping_order_no_unique": {
+          "name": "shipping_orders_shipping_order_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "shipping_order_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vendor_invoice_allocations": {
+      "name": "vendor_invoice_allocations",
+      "schema": "",
+      "columns": {
+        "allocation_id": {
+          "name": "allocation_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shipping_order_id": {
+          "name": "shipping_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allocated_amount_vnd": {
+          "name": "allocated_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vendor_invoice_allocations_invoice_id_vendor_invoices_invoice_id_fk": {
+          "name": "vendor_invoice_allocations_invoice_id_vendor_invoices_invoice_id_fk",
+          "tableFrom": "vendor_invoice_allocations",
+          "tableTo": "vendor_invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "invoice_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vendor_invoice_allocations_order_id_orders_order_id_fk": {
+          "name": "vendor_invoice_allocations_order_id_orders_order_id_fk",
+          "tableFrom": "vendor_invoice_allocations",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vendor_invoice_allocations_shipping_order_id_shipping_orders_shipping_order_id_fk": {
+          "name": "vendor_invoice_allocations_shipping_order_id_shipping_orders_shipping_order_id_fk",
+          "tableFrom": "vendor_invoice_allocations",
+          "tableTo": "shipping_orders",
+          "columnsFrom": [
+            "shipping_order_id"
+          ],
+          "columnsTo": [
+            "shipping_order_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vendor_invoices": {
+      "name": "vendor_invoices",
+      "schema": "",
+      "columns": {
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "invoice_no": {
+          "name": "invoice_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vendor_id": {
+          "name": "vendor_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_date": {
+          "name": "invoice_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_amount_vnd": {
+          "name": "total_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_amount_vnd": {
+          "name": "paid_amount_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'0'"
+        },
+        "open_balance_vnd": {
+          "name": "open_balance_vnd",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "InvoiceStatus",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ISSUED'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vendor_invoices_vendor_id_vendors_vendor_id_fk": {
+          "name": "vendor_invoices_vendor_id_vendors_vendor_id_fk",
+          "tableFrom": "vendor_invoices",
+          "tableTo": "vendors",
+          "columnsFrom": [
+            "vendor_id"
+          ],
+          "columnsTo": [
+            "vendor_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vendors": {
+      "name": "vendors",
+      "schema": "",
+      "columns": {
+        "vendor_id": {
+          "name": "vendor_id",
+          "type": "varchar(50)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tax_code": {
+          "name": "tax_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vendor_name": {
+          "name": "vendor_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vendor_type": {
+          "name": "vendor_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'ACTIVE'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vendors_region_id_regions_region_id_fk": {
+          "name": "vendors_region_id_regions_region_id_fk",
+          "tableFrom": "vendors",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "region_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.InvoiceStatus": {
+      "name": "InvoiceStatus",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "ISSUED",
+        "PARTIALLY_SETTLED",
+        "SETTLED",
+        "CANCELLED"
+      ]
+    },
+    "public.OrderStatus": {
+      "name": "OrderStatus",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "CONFIRMED",
+        "IN_PROGRESS",
+        "OPERATIONALLY_CLOSED",
+        "FINANCIALLY_CLOSED",
+        "CANCELLED"
+      ]
+    },
+    "public.PricingInclusion": {
+      "name": "PricingInclusion",
+      "schema": "public",
+      "values": [
+        "INCLUDED",
+        "SEPARATELY_BILLED",
+        "PASS_THROUGH_ACTUAL"
+      ]
+    },
+    "public.QuotationStatus": {
+      "name": "QuotationStatus",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "PENDING_APPROVAL",
+        "APPROVED",
+        "REJECTED",
+        "SUPERSEDED"
+      ]
+    },
+    "public.RecoveryStatus": {
+      "name": "RecoveryStatus",
+      "schema": "public",
+      "values": [
+        "NON_RECOVERABLE",
+        "BILLABLE_TO_CUSTOMER",
+        "CLAIM_TO_VENDOR"
+      ]
+    },
+    "public.RegionScope": {
+      "name": "RegionScope",
+      "schema": "public",
+      "values": [
+        "QUANG_NAM_NEIGHBORS",
+        "SOUTH_LAOS",
+        "NORTH_CAMBODIA_CENTRAL_HIGHLANDS",
+        "NORTHERN_REGION",
+        "SOUTHERN_REGION_SNUOL"
+      ]
+    },
+    "public.ShippingOrderStatus": {
+      "name": "ShippingOrderStatus",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "DISPATCHED",
+        "AT_PICKUP",
+        "IN_TRANSIT",
+        "AT_DELIVERY",
+        "DELIVERED",
+        "DELIVERY_PROOF_COLLECTED",
+        "CLOSED"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

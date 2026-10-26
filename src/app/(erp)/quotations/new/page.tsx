@@ -509,7 +509,19 @@ export default function NewQuotationWorkspacePage() {
                   value={currentItem.originLocationId}
                   onChange={(e) =>
                     setItems((prev) =>
-                      prev.map((it, idx) => (idx === activeItemIndex ? { ...it, originLocationId: e.target.value } : it))
+                      prev.map((it, idx) =>
+                        idx === activeItemIndex
+                          ? {
+                              ...it,
+                              originLocationId: e.target.value,
+                              // P1.3: Tự động vô hiệu hóa BUY selection cũ để tránh Stale Rate
+                              lookupResult: undefined,
+                              selectedCandidate: undefined,
+                              unitBuyPrice: 0,
+                              worstCaseBuyPrice: 0,
+                            }
+                          : it
+                      )
                     )
                   }
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
@@ -530,7 +542,17 @@ export default function NewQuotationWorkspacePage() {
                   onChange={(e) =>
                     setItems((prev) =>
                       prev.map((it, idx) =>
-                        idx === activeItemIndex ? { ...it, destinationLocationId: e.target.value } : it
+                        idx === activeItemIndex
+                          ? {
+                              ...it,
+                              destinationLocationId: e.target.value,
+                              // P1.3: Tự động vô hiệu hóa BUY selection cũ khi đổi điểm dỡ
+                              lookupResult: undefined,
+                              selectedCandidate: undefined,
+                              unitBuyPrice: 0,
+                              worstCaseBuyPrice: 0,
+                            }
+                          : it
                       )
                     )
                   }
@@ -551,7 +573,19 @@ export default function NewQuotationWorkspacePage() {
                   value={currentItem.equipmentType}
                   onChange={(e) =>
                     setItems((prev) =>
-                      prev.map((it, idx) => (idx === activeItemIndex ? { ...it, equipmentType: e.target.value } : it))
+                      prev.map((it, idx) =>
+                        idx === activeItemIndex
+                          ? {
+                              ...it,
+                              equipmentType: e.target.value,
+                              // P1.3: Tự động vô hiệu hóa BUY selection cũ khi đổi loại cont
+                              lookupResult: undefined,
+                              selectedCandidate: undefined,
+                              unitBuyPrice: 0,
+                              worstCaseBuyPrice: 0,
+                            }
+                          : it
+                      )
                     )
                   }
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
