@@ -3,5 +3,5 @@ node_modules
 .git
 THILOGI
 scratch
-.env*.local
+.env*
 README.md
