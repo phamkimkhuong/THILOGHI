@@ -92,15 +92,15 @@ jobs:
             echo ">>> [3/5] Kiểm tra tệp môi trường .env..."
             if [ ! -f .env ]; then
               echo "Tạo tệp .env mới trên VPS..."
-              cat << 'EOF' | sed -e 's/^[[:space:]]*//' > .env
-              POSTGRES_USER=${{ secrets.POSTGRES_USER || 'thilogi_admin' }}
-              POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}
-              POSTGRES_DB=${{ secrets.POSTGRES_DB || 'thilogi_db' }}
-              JWT_SECRET=${{ secrets.JWT_SECRET || 'thilogi_super_secure_jwt_secret_key_2026_production' }}
-              NODE_ENV=production
-              PORT=3000
-              DATABASE_URL=postgres://${{ secrets.POSTGRES_USER || 'thilogi_admin' }}:${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}@postgres:5432/${{ secrets.POSTGRES_DB || 'thilogi_db' }}
-              EOF
+              printf '%s\n' \
+                "POSTGRES_USER=${{ secrets.POSTGRES_USER || 'thilogi_admin' }}" \
+                "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}" \
+                "POSTGRES_DB=${{ secrets.POSTGRES_DB || 'thilogi_db' }}" \
+                "JWT_SECRET=${{ secrets.JWT_SECRET || 'thilogi_super_secure_jwt_secret_key_2026_production' }}" \
+                "NODE_ENV=production" \
+                "PORT=3000" \
+                "DATABASE_URL=postgres://${{ secrets.POSTGRES_USER || 'thilogi_admin' }}:${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}@postgres:5432/${{ secrets.POSTGRES_DB || 'thilogi_db' }}" \
+                > .env
               chmod 600 .env
             else
               echo "File .env đã tồn tại trên VPS. Giữ nguyên cấu hình của bạn."
