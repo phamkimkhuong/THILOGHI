@@ -47,6 +47,7 @@ export const quotationServiceItemSchema = z.object({
 });
 
 export const createQuotationSchema = z.object({
+  quotationId: z.string().optional(),
   customerId: z.string().min(1, "Vui lòng chọn Khách hàng"),
   regionId: z.string().min(1, "Vui lòng chọn Phân vùng áp dụng"),
   commodityId: z.string().optional(),

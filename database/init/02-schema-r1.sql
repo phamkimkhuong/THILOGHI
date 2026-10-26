@@ -92,6 +92,21 @@ CREATE TABLE IF NOT EXISTS regions (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 2.1. Quản lý Người dùng & Phân quyền Vùng (Users & Roles)
+CREATE TABLE IF NOT EXISTS users (
+    user_id VARCHAR(50) PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL, -- PRICING_MANAGER, SALES, OPERATIONS, DIRECTOR, ADMIN
+    region_scopes TEXT[] NOT NULL DEFAULT '{}',
+    email VARCHAR(255),
+    company VARCHAR(100),
+    department VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS locations (
     location_id VARCHAR(50) PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
@@ -171,6 +186,8 @@ ON road_rates(pickup_location_id, delivery_location_id, equipment_type, status);
 -- --------------------------------------------------------------------
 -- 4. QUOTATION SYSTEM (BÁO GIÁ THƯƠNG MẠI)
 -- --------------------------------------------------------------------
+CREATE SEQUENCE IF NOT EXISTS quotation_no_seq START WITH 10001;
+
 CREATE TABLE IF NOT EXISTS customer_quotations (
     quotation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     quotation_no VARCHAR(50) NOT NULL,
@@ -378,46 +395,3 @@ CREATE TABLE IF NOT EXISTS vendor_invoice_allocations (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- --------------------------------------------------------------------
--- 7. SEED DATA MẪU
--- --------------------------------------------------------------------
-INSERT INTO regions (region_id, name, scope, description) VALUES
-('REG_QNG_QNM', 'Khu vực Quảng Nam - Quảng Ngãi - Lân cận', 'QUANG_NAM_NEIGHBORS', 'Cảng Chu Lai, Dung Quất, KCN Chu Lai, Đà Nẵng'),
-('REG_SOUTH_LAOS', 'Khu vực Nam Lào', 'SOUTH_LAOS', 'Sekong, Attapeu, Salavan qua Cửa khẩu Bờ Y / La Lay / Nam Giang'),
-('REG_NORTH_CAM', 'Khu vực Bắc Campuchia - Tây Nguyên', 'NORTH_CAMBODIA_CENTRAL_HIGHLANDS', 'Kratie, Ratanakiri, Stung Treng qua Cửa khẩu Lệ Thanh')
-ON CONFLICT (region_id) DO NOTHING;
-
-INSERT INTO locations (location_id, code, name, location_type, region_id, country_code) VALUES
-('LOC_PORT_CHULAI', 'VNCHL', 'Cảng Quốc tế Chu Lai (Chu Lai Port)', 'PORT', 'REG_QNG_QNM', 'VN'),
-('LOC_PORT_TIENSA', 'VNTIS', 'Cảng Tiên Sa Đà Nẵng (Tien Sa Port)', 'PORT', 'REG_QNG_QNM', 'VN'),
-('LOC_GATE_NAMGIANG', 'VNNAM', 'Cửa khẩu Quốc tế Nam Giang', 'BORDER_GATE', 'REG_QNG_QNM', 'VN'),
-('LOC_GATE_BOY', 'VNBOY', 'Cửa khẩu Quốc tế Bờ Y', 'BORDER_GATE', 'REG_SOUTH_LAOS', 'VN'),
-('LOC_GATE_LAOBAO', 'VNLBO', 'Cửa khẩu Quốc tế Lao Bảo', 'BORDER_GATE', 'REG_SOUTH_LAOS', 'VN'),
-('LOC_KCN_TAMHIEP', 'KCNTAMHIEP', 'KCN Tam Hiệp - Chu Lai', 'FACTORY', 'REG_QNG_QNM', 'VN'),
-('LOC_LAOS_HINBOUN', 'LAHINBOUN', 'Khu mỏ / Nông trường Hinboun (Lào)', 'FACTORY', 'REG_SOUTH_LAOS', 'LA')
-ON CONFLICT (location_id) DO NOTHING;
-
-INSERT INTO customers (customer_id, tax_code, customer_name, short_name, region_id, credit_limit_vnd) VALUES
-('CUST_APFCO', '4300321456', 'Công ty Cổ phần Nông sản Thực phẩm Quảng Ngãi', 'APFCO QUẢNG NGÃI', 'REG_QNG_QNM', 1000000000),
-('CUST_TTC', '3600287123', 'Công ty Cổ phần Thành Thành Công - Biên Hòa', 'TTC BIÊN HÒA', 'REG_QNG_QNM', 2000000000),
-('CUST_SMC', '0303123890', 'Công ty TNHH Thương mại SMC Logistics', 'SMC LOGISTICS', 'REG_QNG_QNM', 500000000)
-ON CONFLICT (customer_id) DO NOTHING;
-
-INSERT INTO vendors (vendor_id, tax_code, vendor_name, vendor_type, region_id) VALUES
-('VEND_TRUCK_THILOGI', '4001122334', 'Đội xe Đường bộ Nội bộ THILOGI Trucking', 'TRUCK_VENDOR', 'REG_QNG_QNM'),
-('VEND_TRUCK_ANPHAT', '4300998877', 'Công ty TNHH Vận tải An Phát Container', 'TRUCK_VENDOR', 'REG_QNG_QNM'),
-('VEND_OCEAN_SITC', '0102030405', 'Hãng tàu SITC Container Lines (Vietnam)', 'OCEAN_CARRIER', 'REG_QNG_QNM')
-ON CONFLICT (vendor_id) DO NOTHING;
-
-INSERT INTO commodities (commodity_id, name, category) VALUES
-('COMM_TINH_BOT_SAN', 'Tinh bột sắn xuất khẩu', 'NONG_SAN'),
-('COMM_CHUOI_TUOI', 'Chuối tươi xuất khẩu đóng cont lạnh', 'NONG_SAN'),
-('COMM_QUANG_BAUXITE', 'Quặng Bauxite / Thạch cao', 'KHOANG_SAN')
-ON CONFLICT (commodity_id) DO NOTHING;
-
--- Bảng giá mẫu kiểm thử (Nhiều Vendor cho cùng tuyến Chu Lai -> Tiên Sa)
-INSERT INTO road_rates (vendor_id, pickup_location_id, delivery_location_id, equipment_type, buy_rate, currency, validity_range) VALUES
-('VEND_TRUCK_THILOGI', 'LOC_PORT_CHULAI', 'LOC_PORT_TIENSA', '40HC', 4500000, 'VND', daterange('2026-01-01', '2026-12-31', '[]')),
-('VEND_TRUCK_ANPHAT', 'LOC_PORT_CHULAI', 'LOC_PORT_TIENSA', '40HC', 4800000, 'VND', daterange('2026-01-01', '2026-12-31', '[]')),
-('VEND_TRUCK_THILOGI', 'LOC_LAOS_HINBOUN', 'LOC_PORT_TIENSA', '40HC', 32000000, 'VND', daterange('2026-01-01', '2026-12-31', '[]')
-ON CONFLICT DO NOTHING;

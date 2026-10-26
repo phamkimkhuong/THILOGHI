@@ -13,6 +13,8 @@ export interface RateCandidate {
   vendorName: string;
   buyRate: number;
   currency: string;
+  fxRateToVnd: number;
+  buyRateVnd: number;
   validityRange: string;
 }
 
@@ -25,8 +27,22 @@ export interface RateLookupResult {
 }
 
 /**
- * Thuật toán Tra cứu Giá mua Đầu vào (BUY Rate Lookup Engine)
- * Tuân thủ quy tắc 4 bước: Search Candidates -> Validate Overlap -> Select -> Worst-case
+ * Tỷ giá quy đổi cố định nội bộ chuẩn hóa về VND (có thể mở rộng từ bảng fx_rates)
+ */
+export const FX_RATES_TO_VND: Record<string, number> = {
+  VND: 1.0,
+  USD: 25450.0,
+  LAK: 1.18,
+  KHR: 6.25,
+};
+
+export function getFxRateToVnd(currency: string): number {
+  return FX_RATES_TO_VND[currency?.toUpperCase()] || 1.0;
+}
+
+/**
+ * Thuật toán Tra cứu Giá mua Đầu vào (BUY Rate Lookup Engine v1.1)
+ * Tuân thủ quy tắc 4 bước: Search Candidates -> Validate Overlap -> Normalize FX -> Select -> Worst-case
  */
 export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLookupResult> {
   // 1. Tìm kiếm tất cả các bảng giá của các Vendor còn hiệu lực tại ngày pricingDate
@@ -45,7 +61,6 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
       AND r.equipment_type = $3
       AND r.status = 'APPROVED'
       AND r.validity_range @> $4::date
-    ORDER BY r.buy_rate ASC;
   `;
 
   const { rows } = await pool.query(sql, [
@@ -63,17 +78,30 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
     };
   }
 
-  const candidates: RateCandidate[] = rows.map((r) => ({
-    rateId: r.rate_id,
-    vendorId: r.vendor_id,
-    vendorName: r.vendor_name,
-    buyRate: Number(r.buy_rate),
-    currency: r.currency,
-    validityRange: r.validity_range,
-  }));
+  // 2. Chuẩn hóa tỷ giá ngoại tệ về VND cho từng candidate
+  const candidates: RateCandidate[] = rows.map((r) => {
+    const rawRate = Number(r.buy_rate);
+    const curr = (r.currency || "VND").toUpperCase();
+    const fx = getFxRateToVnd(curr);
+    const buyVnd = Math.round(rawRate * fx);
 
-  // 2. Kiểm tra xung đột: Cùng 1 vendor có >1 bảng giá trùng dải ngày không?
-  // (Lưu ý: PostgreSQL Exclusion Constraint đã chặn ở tầng DB, đây là tầng phòng thủ bổ trợ)
+    return {
+      rateId: r.rate_id,
+      vendorId: r.vendor_id,
+      vendorName: r.vendor_name,
+      buyRate: rawRate,
+      currency: curr,
+      fxRateToVnd: fx,
+      buyRateVnd: buyVnd,
+      validityRange: r.validity_range,
+    };
+  });
+
+  // 3. Sắp xếp các lựa chọn theo giá quy đổi VND tăng dần (lợi thế chi phí nhất lên đầu)
+  candidates.sort((a, b) => a.buyRateVnd - b.buyRateVnd);
+
+  // 4. Kiểm tra xung đột: Cùng 1 vendor có >1 bảng giá trùng dải ngày không?
+  // (PostgreSQL Exclusion Constraint đã chặn ở tầng DB, đây là tầng phòng thủ bổ trợ)
   const vendorCounts = new Map<string, number>();
   for (const c of candidates) {
     vendorCounts.set(c.vendorId, (vendorCounts.get(c.vendorId) || 0) + 1);
@@ -86,10 +114,10 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
     }
   }
 
-  // 3. Tính Worst-case BUY (giá cao nhất trong các phương án bắt buộc)
+  // 5. Tính Worst-case BUY (giá cao nhất theo VND trong các phương án bắt buộc)
   const worstCase = candidates.reduce(
-    (max, c) => (c.buyRate > max ? c.buyRate : max),
-    candidates[0].buyRate
+    (max, c) => (c.buyRateVnd > max ? c.buyRateVnd : max),
+    candidates[0].buyRateVnd
   );
 
   if (candidates.length === 1) {

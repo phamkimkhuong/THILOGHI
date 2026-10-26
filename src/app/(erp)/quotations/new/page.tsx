@@ -16,6 +16,9 @@ import {
   Save,
   Send,
   Building,
+  Check,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
 import { ServicePackage } from "@/shared/schemas/quotation.schema";
 import {
@@ -23,6 +26,9 @@ import {
   lookupRoadRatesAction,
   saveDraftQuotationAction,
   submitQuotationAction,
+  approveQuotationAction,
+  rejectQuotationAction,
+  returnQuotationToDraftAction,
 } from "@/features/quotation/actions";
 import { RateLookupResult, RateCandidate } from "@/server/modules/supplier-pricing/rate-lookup.service";
 import { MasterOption } from "@/server/modules/master-data/master-data.service";
@@ -67,14 +73,14 @@ export default function NewQuotationWorkspacePage() {
     {
       id: "item-1",
       servicePackage: "TRUCKING",
-      originLocationId: "LOC_PORT_CHULAI",
-      destinationLocationId: "LOC_PORT_TIENSA",
+      originLocationId: "",
+      destinationLocationId: "",
       equipmentType: "40HC",
-      plannedQuantity: 5,
+      plannedQuantity: 1,
       unit: "TRIP",
       unitBuyPrice: 0,
       worstCaseBuyPrice: 0,
-      unitSellPrice: 5500000, // Giá bán dự kiến: 5.500.000 đ
+      unitSellPrice: 0,
     },
   ]);
 
@@ -83,22 +89,30 @@ export default function NewQuotationWorkspacePage() {
   // Result state
   const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
   const [savedQuotationNo, setSavedQuotationNo] = useState<string | null>(null);
+  const [quotationStatus, setQuotationStatus] = useState<"DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED">("DRAFT");
   const [isImmutableLocked, setIsImmutableLocked] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Load Master Data
   useEffect(() => {
     startTransition(async () => {
-      const data = await getQuotationMasterDataAction();
-      setCustomers(data.customers);
-      setRegions(data.regions);
-      setLocations(data.locations);
-      setCommodities(data.commodities);
-      setEquipmentTypes(data.equipmentTypes);
+      const res = await getQuotationMasterDataAction();
+      setCustomers(res.customers);
+      setRegions(res.regions);
+      setLocations(res.locations);
+      setCommodities(res.commodities);
+      setEquipmentTypes(res.equipmentTypes);
 
-      if (data.customers.length > 0) setCustomerId(data.customers[0].id);
-      if (data.regions.length > 0) setRegionId(data.regions[0].id);
-      if (data.commodities.length > 0) setCommodityId(data.commodities[0].id);
+      if (res.error) {
+        setActionMessage({
+          type: "error",
+          text: `${res.error}. Vui lòng kiểm tra kết nối PostgreSQL hoặc import dữ liệu master data.`,
+        });
+      }
+
+      if (res.customers.length > 0) setCustomerId(res.customers[0].id);
+      if (res.regions.length > 0) setRegionId(res.regions[0].id);
+      if (res.commodities.length > 0) setCommodityId(res.commodities[0].id);
     });
   }, []);
 
@@ -128,7 +142,7 @@ export default function NewQuotationWorkspacePage() {
             ...it,
             lookupResult: result,
             selectedCandidate: selected,
-            unitBuyPrice: selected ? selected.buyRate : 0,
+            unitBuyPrice: selected ? selected.buyRateVnd : 0,
             worstCaseBuyPrice: result.worstCaseBuy || 0,
           };
         })
@@ -136,7 +150,7 @@ export default function NewQuotationWorkspacePage() {
     });
   };
 
-  // Chọn nhà cung cấp ứng viên
+  // Chọn nhà cung cấp ứng viên (PR-04 Server-Authoritative)
   const handleSelectCandidate = (index: number, candidate: RateCandidate) => {
     setItems((prev) =>
       prev.map((it, idx) => {
@@ -144,7 +158,7 @@ export default function NewQuotationWorkspacePage() {
         return {
           ...it,
           selectedCandidate: candidate,
-          unitBuyPrice: candidate.buyRate,
+          unitBuyPrice: candidate.buyRateVnd,
         };
       })
     );
@@ -184,10 +198,11 @@ export default function NewQuotationWorkspacePage() {
   const grossProfit = totalSell - totalBuy;
   const marginPercent = totalSell > 0 ? (grossProfit / totalSell) * 100 : 0;
 
-  // Lưu Báo giá Nháp
+  // Lưu Báo giá Nháp (PR-05 Create vs Update Draft)
   const handleSaveDraft = () => {
     startTransition(async () => {
       const res = await saveDraftQuotationAction({
+        quotationId: savedQuotationId || undefined,
         customerId,
         regionId,
         commodityId,
@@ -214,8 +229,9 @@ export default function NewQuotationWorkspacePage() {
       });
 
       if (res.success && res.data) {
-        setSavedQuotationId(res.data.quotationId);
+        setSavedQuotationId(res.data.quotationId || null);
         setSavedQuotationNo(res.data.quotationNo);
+        setQuotationStatus("DRAFT");
         setActionMessage({
           type: "success",
           text: `Đã lưu thành công Báo giá Nháp [${res.data.quotationNo}].`,
@@ -226,8 +242,16 @@ export default function NewQuotationWorkspacePage() {
     });
   };
 
-  // Trình Thẩm định & Khóa Bất Biến (Immutable Lock)
+  // Trình Thẩm định (PR-05 State Transition: DRAFT -> PENDING_APPROVAL)
   const handleSubmitForApproval = () => {
+    if (!savedQuotationId) {
+      setActionMessage({
+        type: "error",
+        text: "Vui lòng bấm 'Lưu Nháp Báo Giá' trước khi trình duyệt Hội đồng Định giá.",
+      });
+      return;
+    }
+
     // Kiểm tra có thiếu giá mua đầu vào không (P0 rule)
     const hasMissingBuy = items.some((it) => it.unitBuyPrice === 0);
     if (hasMissingBuy) {
@@ -236,16 +260,72 @@ export default function NewQuotationWorkspacePage() {
     }
 
     startTransition(async () => {
-      const targetId = savedQuotationId || "mock-quote-uuid";
-      const res = await submitQuotationAction(targetId);
+      const res = await submitQuotationAction(savedQuotationId);
       if (res.success) {
-        setIsImmutableLocked(true);
+        setQuotationStatus("PENDING_APPROVAL");
         setActionMessage({
           type: "success",
-          text: res.message || "Báo giá đã được KHÓA BẤT BIẾN (Immutable Lock) và gửi Hội đồng Định giá phê duyệt.",
+          text: res.message || "Báo giá đã được chuyển sang trạng thái CHỜ PHÊ DUYỆT (PENDING_APPROVAL).",
         });
       } else {
         setActionMessage({ type: "error", text: res.error || "Lỗi khi trình duyệt" });
+      }
+    });
+  };
+
+  // Phê duyệt Báo giá (PR-05 Approval Matrix)
+  const handleApprove = () => {
+    if (!savedQuotationId) return;
+    startTransition(async () => {
+      const res = await approveQuotationAction(savedQuotationId);
+      if (res.success) {
+        setQuotationStatus("APPROVED");
+        setIsImmutableLocked(true);
+        setActionMessage({
+          type: "success",
+          text: res.message || "Báo giá đã được PHÊ DUYỆT CHÍNH THỨC và KHÓA BẤT BIẾN.",
+        });
+      } else {
+        setActionMessage({ type: "error", text: res.error || "Lỗi khi phê duyệt báo giá" });
+      }
+    });
+  };
+
+  // Từ chối Báo giá (PR-05)
+  const handleReject = () => {
+    if (!savedQuotationId) return;
+    const comment = prompt("Vui lòng nhập lý do từ chối báo giá:");
+    if (!comment) return;
+    startTransition(async () => {
+      const res = await rejectQuotationAction(savedQuotationId, comment);
+      if (res.success) {
+        setQuotationStatus("REJECTED");
+        setActionMessage({
+          type: "success",
+          text: res.message || "Báo giá đã bị từ chối.",
+        });
+      } else {
+        setActionMessage({ type: "error", text: res.error || "Lỗi khi từ chối báo giá" });
+      }
+    });
+  };
+
+  // Trả về Bản Nháp để chỉnh sửa (PR-05)
+  const handleReturnToDraft = () => {
+    if (!savedQuotationId) return;
+    const comment = prompt("Vui lòng nhập ý kiến yêu cầu điều chỉnh lại báo giá:");
+    if (!comment) return;
+    startTransition(async () => {
+      const res = await returnQuotationToDraftAction(savedQuotationId, comment);
+      if (res.success) {
+        setQuotationStatus("DRAFT");
+        setIsImmutableLocked(false);
+        setActionMessage({
+          type: "success",
+          text: res.message || "Báo giá đã được mở lại ở trạng thái NHÁP để chỉnh sửa.",
+        });
+      } else {
+        setActionMessage({ type: "error", text: res.error || "Lỗi khi trả về bản nháp" });
       }
     });
   };
@@ -269,36 +349,98 @@ export default function NewQuotationWorkspacePage() {
                 {savedQuotationNo}
               </span>
             )}
-            {isImmutableLocked && (
-              <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                KHÓA BẤT BIẾN (IMMUTABLE)
+            {quotationStatus === "DRAFT" && (
+              <span className="px-2.5 py-0.5 rounded bg-slate-500/20 text-slate-300 font-mono text-xs font-bold border border-slate-500/30">
+                BẢN NHÁP (DRAFT)
+              </span>
+            )}
+            {quotationStatus === "PENDING_APPROVAL" && (
+              <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-xs font-bold border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                CHỜ PHÊ DUYỆT (PENDING APPROVAL)
+              </span>
+            )}
+            {quotationStatus === "APPROVED" && (
+              <span className="px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold border border-emerald-500/30 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" />
+                ĐÃ PHÊ DUYỆT (IMMUTABLE LOCKED)
+              </span>
+            )}
+            {quotationStatus === "REJECTED" && (
+              <span className="px-2.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-xs font-bold border border-red-500/30 flex items-center gap-1.5">
+                <XCircle className="w-3.5 h-3.5" />
+                BỊ TỪ CHỐI (REJECTED)
               </span>
             )}
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Quy chuẩn P0 & P1: Tra cứu đa Nhà cung cấp, snapshot giá vốn, cấu thành giá bán SELL và kiểm soát biên lợi nhuận GP thời gian thực.
+            Quy chuẩn P0 & P1: Tra cứu đa Nhà cung cấp, snapshot giá vốn, cấu thành giá bán SELL và ma trận phê duyệt biên lợi nhuận thời gian thực.
           </p>
         </div>
 
         {/* Global Action Buttons */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveDraft}
-            disabled={isPending || isImmutableLocked}
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 flex items-center gap-2 transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4 text-slate-400" />
-            Lưu Nháp (Draft)
-          </button>
-          <button
-            onClick={handleSubmitForApproval}
-            disabled={isPending || isImmutableLocked}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-500/25 flex items-center gap-2 transition-all disabled:opacity-50"
-          >
-            <Send className="w-4 h-4" />
-            Trình Duyệt & Khóa Giá
-          </button>
+          {quotationStatus === "DRAFT" && (
+            <>
+              <button
+                onClick={handleSaveDraft}
+                disabled={isPending || isImmutableLocked}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <Save className="w-4 h-4 text-slate-400" />
+                Lưu Nháp (Draft)
+              </button>
+              <button
+                onClick={handleSubmitForApproval}
+                disabled={isPending || isImmutableLocked}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-blue-500/25 flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                Trình Duyệt Hội Đồng
+              </button>
+            </>
+          )}
+
+          {quotationStatus === "PENDING_APPROVAL" && (
+            <>
+              <button
+                onClick={handleReturnToDraft}
+                disabled={isPending}
+                className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                title="Trả về bản nháp để điều chỉnh giá bán / chi phí mua"
+              >
+                <RotateCcw className="w-4 h-4 text-slate-400" />
+                Trả Về Nháp
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={isPending}
+                className="px-3.5 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                <XCircle className="w-4 h-4" />
+                Từ Chối
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isPending}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                Phê Duyệt (Approve)
+              </button>
+            </>
+          )}
+
+          {quotationStatus === "REJECTED" && (
+            <button
+              onClick={handleReturnToDraft}
+              disabled={isPending}
+              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="w-4 h-4 text-slate-400" />
+              Mở Lại Bản Nháp Để Chỉnh Sửa
+            </button>
+          )}
         </div>
       </div>
 
@@ -715,7 +857,12 @@ export default function NewQuotationWorkspacePage() {
                                 {cand.validityRange}
                               </td>
                               <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-400">
-                                {formatVND(cand.buyRate)}
+                                <div>{formatVND(cand.buyRateVnd)}</div>
+                                {cand.currency !== "VND" && (
+                                  <div className="text-[10px] text-slate-400 font-normal">
+                                    ({new Intl.NumberFormat().format(cand.buyRate)} {cand.currency})
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           );

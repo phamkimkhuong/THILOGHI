@@ -77,6 +77,20 @@ export const regions = pgTable("regions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export const users = pgTable("users", {
+  userId: varchar("user_id", { length: 50 }).primaryKey(),
+  username: varchar("username", { length: 100 }).notNull().unique(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  role: varchar("role", { length: 50 }).notNull(),
+  regionScopes: text("region_scopes").array().notNull(),
+  email: varchar("email", { length: 255 }),
+  company: varchar("company", { length: 100 }),
+  department: varchar("department", { length: 100 }),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const locations = pgTable("locations", {
   locationId: varchar("location_id", { length: 50 }).primaryKey(),
   code: varchar("code", { length: 50 }).notNull().unique(),

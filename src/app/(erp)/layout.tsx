@@ -5,6 +5,7 @@ import {
   TrendingUp,
   LayoutDashboard,
 } from "lucide-react";
+import { UserProfileBar } from "@/features/auth/user-profile-bar";
 
 export default function ErpLayout({
   children,
@@ -62,25 +63,7 @@ export default function ErpLayout({
           </div>
 
           {/* User & Region Scope Badge */}
-          <div className="flex items-center gap-4">
-            <div className="hidden lg:flex flex-col text-right">
-              <span className="text-xs font-semibold text-slate-200">
-                Nguyễn Văn Tuấn
-              </span>
-              <span className="text-[11px] text-blue-400 font-medium">
-                Trưởng phòng Định giá & Thương mại
-              </span>
-            </div>
-
-            <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-semibold text-xs">
-              NVT
-            </div>
-
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Phân vùng: Chu Lai - Nam Lào</span>
-            </div>
-          </div>
+          <UserProfileBar />
         </div>
       </header>
 
