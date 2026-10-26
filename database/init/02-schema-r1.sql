@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS regions (
 CREATE TABLE IF NOT EXISTS users (
     user_id VARCHAR(50) PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
     full_name VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL, -- PRICING_MANAGER, SALES, OPERATIONS, DIRECTOR, ADMIN
     region_scopes TEXT[] NOT NULL DEFAULT '{}',
@@ -148,9 +149,12 @@ CREATE TABLE IF NOT EXISTS vendors (
 CREATE TABLE IF NOT EXISTS commodities (
     commodity_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    english_name VARCHAR(255),
     category VARCHAR(100),
-    is_dangerous_goods BOOLEAN DEFAULT FALSE,
-    temperature_required VARCHAR(50),
+    specifications VARCHAR(255),
+    origin VARCHAR(100),
+    purpose VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'Đã duyệt',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

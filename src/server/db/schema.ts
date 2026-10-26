@@ -80,6 +80,7 @@ export const regions = pgTable("regions", {
 export const users = pgTable("users", {
   userId: varchar("user_id", { length: 50 }).primaryKey(),
   username: varchar("username", { length: 100 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   role: varchar("role", { length: 50 }).notNull(),
   regionScopes: text("region_scopes").array().notNull(),
@@ -129,9 +130,12 @@ export const vendors = pgTable("vendors", {
 export const commodities = pgTable("commodities", {
   commodityId: varchar("commodity_id", { length: 50 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  englishName: varchar("english_name", { length: 255 }),
   category: varchar("category", { length: 100 }),
-  isDangerousGoods: boolean("is_dangerous_goods").default(false),
-  temperatureRequired: varchar("temperature_required", { length: 50 }),
+  specifications: varchar("specifications", { length: 255 }),
+  origin: varchar("origin", { length: 100 }),
+  purpose: varchar("purpose", { length: 255 }),
+  status: varchar("status", { length: 50 }).default("Đã duyệt"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
