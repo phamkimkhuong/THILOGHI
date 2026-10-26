@@ -1,0 +1,48 @@
+# ====================================================================
+# THILOGI Web Logistics Operating Platform
+# Caddyfile - Caddy Web Server & Automatic HTTPS Reverse Proxy
+# ====================================================================
+
+# Cấu hình Global
+{
+    # Tự động quản lý và gia hạn chứng chỉ SSL Let's Encrypt / ZeroSSL
+    auto_https disable_redirects # Đổi thành auto_https on khi đã trỏ tên miền chính thức
+    # admin off
+}
+
+# Cấu hình Reverse Proxy cho domain của bạn (Thay thế ':80' bằng tên miền, ví dụ: 'erp.thilogi.vn')
+:80 {
+    # Nén tự động định dạng Gzip và Zstandard tối ưu hiệu năng
+    encode gzip zstd
+
+    # Giới hạn dung lượng upload file (chứng từ hải quan, bill vận đơn, excel)
+    request_body {
+        max_size 50MB
+    }
+
+    # Security Headers chuẩn doanh nghiệp
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Ẩn thông tin Server header vì lý do bảo mật
+        -Server
+    }
+
+    # Reverse Proxy đến Next.js standalone container chạy trên port 3000
+    reverse_proxy 127.0.0.1:3000 {
+        # Tự động forward WebSocket, Real-IP, Host headers
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Thiết lập timeouts cho các tác vụ xuất dữ liệu lớn
+        transport http {
+            response_header_timeout 120s
+            read_timeout 120s
+            write_timeout 120s
+        }
+    }
+}

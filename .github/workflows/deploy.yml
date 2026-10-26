@@ -1,0 +1,125 @@
+name: THILOGI Production CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  # ====================================================================
+  # GIAI ĐOẠN 1: Quality Gate & Automated Testing (CI)
+  # ====================================================================
+  quality-gate:
+    name: 🛡️ Typecheck, Lint & Build Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies (Clean Install)
+        run: npm ci
+
+      - name: 🔍 TypeScript Static Type Check (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: 🧹 ESLint Code Quality Inspection
+        run: npm run lint
+
+      - name: 🏗️ Production Next.js Standalone Build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npm run build
+
+  # ====================================================================
+  # GIAI ĐOẠN 2: Automated Deployment to VPS via SSH & Docker (CD)
+  # ====================================================================
+  deploy-vps:
+    name: 🚀 Deploy to Production VPS
+    needs: [quality-gate]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 🔐 Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            echo "=========================================================="
+            echo "🚀 [THILOGI DEPLOY] Bắt đầu triển khai tự động lên VPS"
+            echo "Thời gian: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "=========================================================="
+
+            DEPLOY_DIR="${{ secrets.VPS_DEPLOY_DIR || '/var/www/thilogi' }}"
+
+            # 1. Khởi tạo thư mục dự án nếu chưa tồn tại
+            if [ ! -d "$DEPLOY_DIR/.git" ]; then
+              echo ">>> [1/5] Thư mục dự án chưa có, đang clone từ GitHub..."
+              mkdir -p "$DEPLOY_DIR" 2>/dev/null || sudo mkdir -p "$DEPLOY_DIR"
+              sudo chown -R $USER:$USER "$DEPLOY_DIR" 2>/dev/null || true
+              git clone https://github.com/phamkimkhuong/THILOGHI.git "$DEPLOY_DIR"
+            fi
+
+            cd "$DEPLOY_DIR"
+
+            # 2. Đồng bộ mã nguồn mới nhất từ nhánh main
+            echo ">>> [2/5] Kéo mã nguồn mới nhất từ commit: ${{ github.sha }}..."
+            git fetch --all --prune
+            git reset --hard origin/main
+
+            # 3. Cấu hình biến môi trường an toàn (.env.production)
+            echo ">>> [3/5] Cập nhật tệp môi trường .env.production..."
+            cat << 'EOF' > .env
+            POSTGRES_USER=${{ secrets.POSTGRES_USER || 'thilogi_admin' }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB || 'thilogi_db' }}
+            JWT_SECRET=${{ secrets.JWT_SECRET || 'thilogi_super_secure_jwt_secret_key_2026_production' }}
+            NODE_ENV=production
+            PORT=3000
+            DATABASE_URL=postgres://${{ secrets.POSTGRES_USER || 'thilogi_admin' }}:${{ secrets.POSTGRES_PASSWORD || 'thilogi_secure_2026' }}@postgres:5432/${{ secrets.POSTGRES_DB || 'thilogi_db' }}
+            EOF
+            chmod 600 .env
+
+            # 4. Build và khởi động lại Docker Containers
+            echo ">>> [4/5] Build và khởi chạy Docker Compose..."
+            docker compose down --remove-orphans || true
+            docker compose up -d --build
+
+            # 5. Kiểm tra trạng thái hoạt động (Healthcheck)
+            echo ">>> [5/5] Đang đợi hệ thống sẵn sàng và kiểm tra Healthcheck..."
+            sleep 10
+            docker compose ps
+
+            # Kiểm tra endpoint /api/health
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health || echo "000")
+            if [ "$HEALTH_STATUS" = "200" ]; then
+              echo "✅ Healthcheck THÀNH CÔNG (HTTP 200) - Ứng dụng đã sẵn sàng phục vụ!"
+            else
+              echo "⚠️ Healthcheck trả về mã: $HEALTH_STATUS. Kiểm tra log ứng dụng:"
+              docker compose logs --tail=40 app
+            fi
+
+            # Dọn dẹp images cũ để tiết kiệm dung lượng ổ cứng VPS
+            docker image prune -f
+            echo "🎉 [THILOGI DEPLOY] Quá trình triển khai hoàn tất thành công!"
