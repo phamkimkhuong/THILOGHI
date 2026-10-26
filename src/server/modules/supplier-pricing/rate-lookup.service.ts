@@ -36,8 +36,20 @@ export const FX_RATES_TO_VND: Record<string, number> = {
   KHR: 6.25,
 };
 
+export class UnsupportedCurrencyError extends Error {
+  constructor(currency: string) {
+    super(`Loại tiền tệ [${currency}] chưa được cấu hình tỷ giá quy đổi sang VND. Vui lòng kiểm tra bảng tỷ giá.`);
+    this.name = "UnsupportedCurrencyError";
+  }
+}
+
 export function getFxRateToVnd(currency: string): number {
-  return FX_RATES_TO_VND[currency?.toUpperCase()] || 1.0;
+  const code = (currency || "").trim().toUpperCase();
+  const rate = FX_RATES_TO_VND[code];
+  if (rate === undefined) {
+    throw new UnsupportedCurrencyError(currency);
+  }
+  return rate;
 }
 
 /**

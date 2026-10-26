@@ -18,6 +18,8 @@ import {
   approveQuotation,
   rejectQuotation,
   returnQuotationToDraft,
+  getQuotationsList,
+  getQuotationDetail,
 } from "@/server/modules/quotation/quotation.service";
 import { CreateQuotationInput } from "@/shared/schemas/quotation.schema";
 import { requireAuth, requireRegionScope } from "@/server/auth/authorize";
@@ -175,4 +177,43 @@ export async function getAvailableUsersAction() {
 export async function switchUserAction(userId: string) {
   const actor = await switchSessionUser(userId);
   return { success: true, actor };
+}
+
+/**
+ * Lấy danh sách Báo giá từ PostgreSQL (phục vụ Quotation List & Approval Worklist)
+ */
+export async function getQuotationsListAction(filters?: {
+  status?: string;
+  regionId?: string;
+  search?: string;
+}) {
+  try {
+    const list = await getQuotationsList(filters);
+    return { success: true, data: list, error: null };
+  } catch (error) {
+    return {
+      success: false,
+      data: [],
+      error: error instanceof Error ? error.message : "Lỗi khi tải danh sách báo giá",
+    };
+  }
+}
+
+/**
+ * Lấy chi tiết Báo giá kèm các dòng dịch vụ (phục vụ xem chi tiết và in Báo giá thương mại)
+ */
+export async function getQuotationDetailAction(quotationId: string) {
+  try {
+    const detail = await getQuotationDetail(quotationId);
+    if (!detail) {
+      return { success: false, data: null, error: "Không tìm thấy báo giá yêu cầu" };
+    }
+    return { success: true, data: detail, error: null };
+  } catch (error) {
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : "Lỗi khi tải chi tiết báo giá",
+    };
+  }
 }

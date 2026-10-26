@@ -1,15 +1,25 @@
 import { getSessionActor } from "./session";
+import { findUserById } from "./users";
 import { CurrentActor, AuthorizationError, UserRole } from "./types";
 
 /**
- * Xác thực danh tính người dùng bắt buộc từ Session JWT
+ * Xác thực danh tính người dùng bắt buộc từ Session JWT và kiểm tra trạng thái hoạt động trong CSDL
  */
 export async function requireAuth(): Promise<CurrentActor> {
   const actor = await getSessionActor();
   if (!actor || !actor.userId) {
     throw new AuthorizationError("Yêu cầu đăng nhập: Phiên làm việc không hợp lệ hoặc đã hết hạn.");
   }
-  return actor;
+
+  // Tái xác thực thẩm quyền trực tiếp từ PostgreSQL để đảm bảo tài khoản đang active và đúng vai trò
+  const dbUser = await findUserById(actor.userId);
+  if (!dbUser) {
+    throw new AuthorizationError(
+      `Tài khoản [${actor.userId}] không tồn tại hoặc đã bị vô hiệu hóa trong hệ thống.`
+    );
+  }
+
+  return dbUser;
 }
 
 /**

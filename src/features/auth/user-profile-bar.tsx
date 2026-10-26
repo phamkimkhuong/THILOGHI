@@ -92,16 +92,17 @@ export function UserProfileBar() {
         </span>
       </div>
 
-      {/* Dropdown chuyển đổi tài khoản từ danh sách thực tế trong PostgreSQL */}
-      {availableUsers.length > 0 && (
-        <div className="relative">
-          <select
-            value={currentUser.userId}
-            onChange={(e) => handleSwitchUser(e.target.value)}
-            disabled={isPending}
-            className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-            title="Chuyển đổi tài khoản người dùng thực tế từ PostgreSQL"
-          >
+      {/* Dropdown chuyển đổi tài khoản (Chỉ hiển thị trong môi trường Dev/UAT để test phân quyền) */}
+      {(process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_AUTH === "true") &&
+        availableUsers.length > 0 && (
+          <div className="relative">
+            <select
+              value={currentUser.userId}
+              onChange={(e) => handleSwitchUser(e.target.value)}
+              disabled={isPending}
+              className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              title="Chuyển đổi tài khoản người dùng thực tế từ PostgreSQL (UAT Testing)"
+            >
             {availableUsers.map((u) => (
               <option key={u.userId} value={u.userId}>
                 {u.fullName} ({u.role} - {u.regionScopes.join("/")})

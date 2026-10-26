@@ -2,33 +2,65 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 
-// Cấu hình Singleton Pool để tránh tràn kết nối khi Next.js chạy dev hot-reload
+// Cấu hình Singleton Pool lazy để tránh lỗi trong quá trình Docker build và tránh tràn kết nối khi Next.js chạy dev hot-reload
 const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
+  drizzleDb: ReturnType<typeof drizzle> | undefined;
 };
 
-if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required in production mode.");
+export function getDbPool(): Pool {
+  if (!globalForDb.conn) {
+    const connectionString =
+      process.env.DATABASE_URL ||
+      (process.env.NODE_ENV === "production"
+        ? undefined
+        : "postgres://thilogi_admin:thilogi_secure_2026@localhost:5432/thilogi_db");
+
+    if (!connectionString) {
+      throw new Error(
+        "DATABASE_URL is not configured. Please set DATABASE_URL in your environment variables at runtime."
+      );
+    }
+
+    globalForDb.conn = new Pool({
+      connectionString,
+      max: 20, // Giới hạn tối đa 20 connections trên VPS
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+  }
+  return globalForDb.conn;
 }
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgres://thilogi_admin:thilogi_secure_2026@localhost:5432/thilogi_db";
+// Transparent Proxy để giữ nguyên cú pháp gọi pool.query(...), pool.connect(...)
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    const p = getDbPool();
+    const val = (p as unknown as Record<string, unknown>)[prop as string];
+    if (typeof val === "function") {
+      return (val as (...args: unknown[]) => unknown).bind(p);
+    }
+    return val;
+  },
+});
 
-export const pool =
-  globalForDb.conn ??
-  new Pool({
-    connectionString,
-    max: 20, // Giới hạn tối đa 20 connections trên VPS
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.conn = pool;
+export function getDrizzleDb() {
+  if (!globalForDb.drizzleDb) {
+    globalForDb.drizzleDb = drizzle(pool, { schema });
+  }
+  return globalForDb.drizzleDb;
 }
 
-export const db = drizzle(pool, { schema });
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, prop) {
+    const d = getDrizzleDb();
+    const val = (d as unknown as Record<string, unknown>)[prop as string];
+    if (typeof val === "function") {
+      return (val as (...args: unknown[]) => unknown).bind(d);
+    }
+    return val;
+  },
+});
 
 /**
  * Hàm kiểm tra kết nối CSDL và xác thực trạng thái extension btree_gist

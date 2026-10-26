@@ -154,31 +154,72 @@ export async function saveQuotationDraft(
       let validityStart: string | null = null;
       let validityEnd: string | null = null;
 
-      // PR-04: Server tra cứu lại giá gốc từ PostgreSQL, quy đổi FX về VND, không tin client
+      // PR-04 & Blocker 4: Server tra cứu lại giá gốc từ PostgreSQL theo đúng ngữ cảnh, không tin client
       if (item.selectedBuyRateId) {
-        const rateCheck = await client.query(
+        // 1. Kiểm tra bảng giá đã chọn có đúng tuyến đường, thiết bị và còn hiệu lực không
+        const selectedCheck = await client.query(
           `SELECT 
              r.rate_id, r.vendor_id, v.vendor_name, r.buy_rate, r.currency,
              lower(r.validity_range)::text as val_start,
              upper(r.validity_range)::text as val_end
            FROM road_rates r
            JOIN vendors v ON r.vendor_id = v.vendor_id
-           WHERE r.rate_id = $1 AND r.status = 'APPROVED'`,
-          [item.selectedBuyRateId]
+           WHERE r.rate_id = $1
+             AND r.pickup_location_id = $2
+             AND r.delivery_location_id = $3
+             AND r.equipment_type = $4
+             AND r.status = 'APPROVED'
+             AND r.validity_range @> CURRENT_DATE`,
+          [
+            item.selectedBuyRateId,
+            item.originLocationId,
+            item.destinationLocationId,
+            item.equipmentType,
+          ]
         );
 
-        if (rateCheck.rows.length > 0) {
-          const row = rateCheck.rows[0];
-          verifiedOriginalRate = new Decimal(row.buy_rate);
-          verifiedOriginalCurrency = (row.currency || "VND").toUpperCase();
-          verifiedFxRate = getFxRateToVnd(verifiedOriginalCurrency);
-          verifiedBuyRateVnd = verifiedOriginalRate.mul(verifiedFxRate);
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
-          verifiedVendorId = row.vendor_id;
-          verifiedVendorName = row.vendor_name;
-          validityStart = row.val_start;
-          validityEnd = row.val_end;
+        if (selectedCheck.rows.length === 0) {
+          throw new Error(
+            `Bảng giá mua [${item.selectedBuyRateId}] không hợp lệ, đã hết hạn hoặc không khớp với tuyến đường [${item.originLocationId} -> ${item.destinationLocationId}] / loại thiết bị [${item.equipmentType}].`
+          );
         }
+
+        const selRow = selectedCheck.rows[0];
+        verifiedOriginalRate = new Decimal(selRow.buy_rate);
+        verifiedOriginalCurrency = (selRow.currency || "VND").toUpperCase();
+        verifiedFxRate = getFxRateToVnd(verifiedOriginalCurrency);
+        verifiedBuyRateVnd = verifiedOriginalRate.mul(verifiedFxRate);
+        verifiedVendorId = selRow.vendor_id;
+        verifiedVendorName = selRow.vendor_name;
+        validityStart = selRow.val_start;
+        validityEnd = selRow.val_end;
+
+        // 2. Tính Worst-Case BUY thực thụ (lấy MAX quy đổi VND trong tất cả các nhà cung cấp hợp lệ cùng tuyến)
+        const allCandidates = await client.query(
+          `SELECT r.buy_rate, r.currency
+           FROM road_rates r
+           WHERE r.pickup_location_id = $1
+             AND r.delivery_location_id = $2
+             AND r.equipment_type = $3
+             AND r.status = 'APPROVED'
+             AND r.validity_range @> CURRENT_DATE`,
+          [
+            item.originLocationId,
+            item.destinationLocationId,
+            item.equipmentType,
+          ]
+        );
+
+        let maxCandidateBuyVnd = verifiedBuyRateVnd;
+        for (const cand of allCandidates.rows) {
+          const candRate = new Decimal(cand.buy_rate);
+          const candFx = getFxRateToVnd(cand.currency || "VND");
+          const candVnd = candRate.mul(candFx);
+          if (candVnd.gt(maxCandidateBuyVnd)) {
+            maxCandidateBuyVnd = candVnd;
+          }
+        }
+        verifiedWorstBuyVnd = maxCandidateBuyVnd;
       }
 
       const itemBuyTotal = verifiedBuyRateVnd.mul(itemQty);
@@ -266,7 +307,8 @@ export async function saveQuotationDraft(
         ]
       );
 
-      // Xóa các dòng dịch vụ cũ để tái đồng bộ
+      // Xóa snapshot và các dòng dịch vụ cũ theo thứ tự an toàn để tránh lỗi Foreign Key
+      await client.query("DELETE FROM quotation_buy_snapshots WHERE quotation_id = $1", [quotationId]);
       await client.query("DELETE FROM quotation_service_items WHERE quotation_id = $1", [quotationId]);
     } else {
       // --- CREATE NEW DRAFT ---
@@ -517,7 +559,7 @@ export async function approveQuotation(
     await client.query("BEGIN");
 
     const quoteCheck = await client.query(
-      `SELECT quotation_id, quotation_no, version, region_id, status, immutable_locked, estimated_margin_percent 
+      `SELECT quotation_id, quotation_no, version, region_id, status, immutable_locked, estimated_margin_percent, created_by 
        FROM customer_quotations 
        WHERE quotation_id = $1`,
       [quotationId]
@@ -548,6 +590,19 @@ export async function approveQuotation(
       };
     }
 
+    // Kiểm tra nguyên tắc 4 mắt (Four-Eyes Principle): Người lập không được tự phê duyệt báo giá của chính mình
+    if (
+      actor.role !== "DIRECTOR" &&
+      currentQuote.created_by &&
+      (currentQuote.created_by.includes(actor.fullName) || currentQuote.created_by.includes(actor.userId))
+    ) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: `Vi phạm nguyên tắc 4 mắt (Four-Eyes Principle): Bạn [${actor.fullName}] là người lập báo giá này nên không thể tự phê duyệt. Báo giá cần được thẩm định bởi cấp quản lý độc lập.`,
+      };
+    }
+
     // Kiểm tra Ma trận Phê duyệt dựa trên Margin %
     const margin = Number(currentQuote.estimated_margin_percent || 0);
     const authority = evaluateApprovalAuthority(margin, actor.role);
@@ -557,6 +612,15 @@ export async function approveQuotation(
       return {
         success: false,
         error: authority.reason || "Bạn không đủ thẩm quyền phê duyệt báo giá này.",
+      };
+    }
+
+    // Bắt buộc nhập lý do (Reason) khi biên lợi nhuận dưới mức chuẩn 15%
+    if (margin < 15 && (!comment || comment.trim().length < 5)) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: `Biên lợi nhuận ${margin}% thấp hơn mức tiêu chuẩn (15%). Bắt buộc phải nhập Lý do phê duyệt ngoại lệ (tối thiểu 5 ký tự) để phục vụ giải trình kiểm toán.`,
       };
     }
 
@@ -638,11 +702,21 @@ export async function rejectQuotation(
       };
     }
 
-    if (actor.role === "SALES") {
+    // Kiểm tra Region Scope
+    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
       await client.query("ROLLBACK");
       return {
         success: false,
-        error: "Chuyên viên Kinh doanh không có quyền từ chối báo giá của Hội đồng.",
+        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
+      };
+    }
+
+    // Kiểm tra vai trò người từ chối
+    if (actor.role === "SALES" || actor.role === "OPERATIONS" || actor.role === "ACCOUNTANT") {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: `Từ chối thẩm quyền: Vai trò [${actor.role}] không có quyền từ chối báo giá thương mại.`,
       };
     }
 
@@ -717,6 +791,33 @@ export async function returnQuotationToDraft(
       };
     }
 
+    // Bắt buộc nhập lý do khi trả về nháp
+    if (!comment || comment.trim().length === 0) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: "Vui lòng nhập lý do trả báo giá về bản nháp để nhân viên lập chỉnh sửa.",
+      };
+    }
+
+    // Kiểm tra Region Scope
+    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
+      };
+    }
+
+    // Kiểm tra vai trò người trả về nháp
+    if (actor.role === "SALES" || actor.role === "OPERATIONS" || actor.role === "ACCOUNTANT") {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: `Từ chối thẩm quyền: Vai trò [${actor.role}] không có quyền trả báo giá về bản nháp.`,
+      };
+    }
+
     await client.query(
       `UPDATE customer_quotations 
        SET status = 'DRAFT', immutable_locked = false, updated_at = NOW() 
@@ -752,4 +853,164 @@ export async function returnQuotationToDraft(
   } finally {
     client.release();
   }
+}
+
+export interface QuotationListItem {
+  quotationId: string;
+  quotationNo: string;
+  version: number;
+  customerId: string;
+  customerName: string;
+  regionId: string;
+  regionName: string;
+  commodityName?: string;
+  status: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+  totalSellAmount: number;
+  totalEstimatedBuy: number;
+  estimatedGp: number;
+  estimatedMarginPercent: number;
+  paymentTermsDays: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+/**
+ * Lấy danh sách Báo giá từ PostgreSQL phục vụ Quotation List & Approval Worklist
+ */
+export async function getQuotationsList(filters?: {
+  status?: string;
+  regionId?: string;
+  search?: string;
+}): Promise<QuotationListItem[]> {
+  let query = `
+    SELECT 
+      q.quotation_id as "quotationId",
+      q.quotation_no as "quotationNo",
+      q.version,
+      q.customer_id as "customerId",
+      c.customer_name as "customerName",
+      q.region_id as "regionId",
+      r.name as "regionName",
+      cm.name as "commodityName",
+      q.status,
+      q.total_sell_amount as "totalSellAmount",
+      q.total_estimated_buy as "totalEstimatedBuy",
+      q.estimated_gp as "estimatedGp",
+      q.estimated_margin_percent as "estimatedMarginPercent",
+      q.payment_terms_days as "paymentTermsDays",
+      q.created_by as "createdBy",
+      q.created_at as "createdAt"
+    FROM customer_quotations q
+    LEFT JOIN customers c ON q.customer_id = c.customer_id
+    LEFT JOIN regions r ON q.region_id = r.region_id
+    LEFT JOIN commodities cm ON q.commodity_id = cm.commodity_id
+    WHERE 1=1
+  `;
+  const params: unknown[] = [];
+
+  if (filters?.status) {
+    params.push(filters.status);
+    query += ` AND q.status = $${params.length}`;
+  }
+  if (filters?.regionId) {
+    params.push(filters.regionId);
+    query += ` AND q.region_id = $${params.length}`;
+  }
+  if (filters?.search) {
+    params.push(`%${filters.search}%`);
+    query += ` AND (q.quotation_no ILIKE $${params.length} OR c.customer_name ILIKE $${params.length})`;
+  }
+
+  query += ` ORDER BY q.created_at DESC LIMIT 50`;
+
+  const { rows } = await pool.query(query, params);
+  return rows.map((r) => ({
+    quotationId: r.quotationId,
+    quotationNo: r.quotationNo,
+    version: Number(r.version || 1),
+    customerId: r.customerId,
+    customerName: r.customerName || r.customerId,
+    regionId: r.regionId,
+    regionName: r.regionName || r.regionId,
+    commodityName: r.commodityName || undefined,
+    status: r.status,
+    totalSellAmount: Number(r.totalSellAmount || 0),
+    totalEstimatedBuy: Number(r.totalEstimatedBuy || 0),
+    estimatedGp: Number(r.estimatedGp || 0),
+    estimatedMarginPercent: Number(r.estimatedMarginPercent || 0),
+    paymentTermsDays: Number(r.paymentTermsDays || 30),
+    createdBy: r.createdBy || "System",
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+  }));
+}
+
+/**
+ * Lấy chi tiết Báo giá kèm các dòng dịch vụ (phục vụ xem chi tiết và in Báo giá thương mại)
+ */
+export async function getQuotationDetail(quotationId: string) {
+  const quoteRes = await pool.query(
+    `SELECT 
+       q.quotation_id as "quotationId",
+       q.quotation_no as "quotationNo",
+       q.version,
+       q.customer_id as "customerId",
+       c.customer_name as "customerName",
+       c.tax_code as "taxCode",
+       q.region_id as "regionId",
+       r.name as "regionName",
+       q.commodity_id as "commodityId",
+       cm.name as "commodityName",
+       q.status,
+       q.total_sell_amount as "totalSellAmount",
+       q.total_estimated_buy as "totalEstimatedBuy",
+       q.total_worst_case_buy as "totalWorstCaseBuy",
+       q.estimated_gp as "estimatedGp",
+       q.estimated_margin_percent as "estimatedMarginPercent",
+       q.payment_terms_days as "paymentTermsDays",
+       q.immutable_locked as "immutableLocked",
+       q.created_by as "createdBy",
+       q.approved_by as "approvedBy",
+       q.approved_at as "approvedAt",
+       q.created_at as "createdAt"
+     FROM customer_quotations q
+     LEFT JOIN customers c ON q.customer_id = c.customer_id
+     LEFT JOIN regions r ON q.region_id = r.region_id
+     LEFT JOIN commodities cm ON q.commodity_id = cm.commodity_id
+     WHERE q.quotation_id = $1`,
+    [quotationId]
+  );
+  if (quoteRes.rows.length === 0) return null;
+  const quote = quoteRes.rows[0];
+
+  const itemsRes = await pool.query(
+    `SELECT 
+       i.item_id as "itemId",
+       i.service_package as "servicePackage",
+       i.pricing_inclusion as "pricingInclusion",
+       i.origin_location_id as "originLocationId",
+       orig.name as "originName",
+       i.destination_location_id as "destinationLocationId",
+       dest.name as "destinationName",
+       i.equipment_type as "equipmentType",
+       i.planned_quantity as "plannedQuantity",
+       i.unit,
+       i.unit_sell_price as "unitSellPrice",
+       i.total_sell_price as "totalSellPrice",
+       i.selected_buy_rate_id as "selectedBuyRateId",
+       i.estimated_buy_amount as "estimatedBuyAmount",
+       i.worst_case_buy_amount as "worstCaseBuyAmount",
+       i.item_gp as "itemGp",
+       i.item_margin_percent as "itemMarginPercent"
+     FROM quotation_service_items i
+     LEFT JOIN locations orig ON i.origin_location_id = orig.location_id
+     LEFT JOIN locations dest ON i.destination_location_id = dest.location_id
+     WHERE i.quotation_id = $1
+     ORDER BY i.created_at ASC`,
+    [quotationId]
+  );
+
+  return {
+    quote,
+    items: itemsRes.rows,
+  };
 }

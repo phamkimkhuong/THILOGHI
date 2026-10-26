@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   FileText,
   Search,
+  ArrowLeft,
   Plus,
   Trash2,
   CheckCircle2,
@@ -380,6 +382,13 @@ export default function NewQuotationWorkspacePage() {
 
         {/* Global Action Buttons */}
         <div className="flex items-center gap-3">
+          <Link
+            href="/quotations"
+            className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs sm:text-sm font-medium border border-slate-700 flex items-center gap-1.5 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-400" />
+            <span className="hidden sm:inline">Danh Sách Báo Giá</span>
+          </Link>
           {quotationStatus === "DRAFT" && (
             <>
               <button

@@ -74,6 +74,13 @@ export async function setSessionActor(actor: CurrentActor): Promise<void> {
 }
 
 export async function switchSessionUser(userId: string): Promise<CurrentActor> {
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd && process.env.ENABLE_DEMO_AUTH !== "true") {
+    throw new Error(
+      "Từ chối quyền (403): Chức năng chuyển đổi tài khoản (impersonation) bị vô hiệu hóa trên môi trường Production."
+    );
+  }
+
   const dbUser = await findUserById(userId);
   if (!dbUser) {
     throw new Error(`Không tìm thấy người dùng [${userId}] trong CSDL.`);

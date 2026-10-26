@@ -45,7 +45,7 @@ export default function ErpLayout({
                 Tổng Quan
               </Link>
               <Link
-                href="/quotations/new"
+                href="/quotations"
                 className="px-3 py-1.5 rounded-md bg-blue-600/15 text-blue-400 font-medium border border-blue-500/30 flex items-center gap-2"
               >
                 <FileText className="w-4 h-4" />

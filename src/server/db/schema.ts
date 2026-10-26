@@ -184,7 +184,7 @@ export const customerQuotations = pgTable("customer_quotations", {
 // P0.2: Ancillary services chỉ tạo qua các dòng dịch vụ tường minh này
 export const quotationServiceItems = pgTable("quotation_service_items", {
   itemId: uuid("item_id").defaultRandom().primaryKey(),
-  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId),
+  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId, { onDelete: "cascade" }),
   servicePackage: varchar("service_package", { length: 50 }).notNull(), // TRUCKING, OCEAN, PORT, CUSTOMS, BORDER_GATE, WAREHOUSING, INSURANCE, OTHER
   pricingInclusion: pricingInclusionEnum("pricing_inclusion").default("INCLUDED"),
   originLocationId: varchar("origin_location_id", { length: 50 }).references(() => locations.locationId),
@@ -207,8 +207,8 @@ export const quotationServiceItems = pgTable("quotation_service_items", {
 
 export const quotationBuySnapshots = pgTable("quotation_buy_snapshots", {
   snapshotId: uuid("snapshot_id").defaultRandom().primaryKey(),
-  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId),
-  itemId: uuid("item_id").notNull().references(() => quotationServiceItems.itemId),
+  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => quotationServiceItems.itemId, { onDelete: "cascade" }),
   sourceRateId: uuid("source_rate_id").notNull(),
   vendorId: varchar("vendor_id", { length: 50 }).notNull().references(() => vendors.vendorId),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
@@ -223,7 +223,7 @@ export const quotationBuySnapshots = pgTable("quotation_buy_snapshots", {
 
 export const quotationApprovalLog = pgTable("quotation_approval_log", {
   logId: uuid("log_id").defaultRandom().primaryKey(),
-  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId),
+  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId, { onDelete: "cascade" }),
   version: integer("version").notNull(),
   action: varchar("action", { length: 50 }).notNull(),
   actorId: varchar("actor_id", { length: 100 }).notNull(),
