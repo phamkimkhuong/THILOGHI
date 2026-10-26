@@ -112,36 +112,56 @@ CREATE TABLE IF NOT EXISTS locations (
     location_id VARCHAR(50) PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
-    location_type VARCHAR(50) NOT NULL, -- PORT, DEPOT, BORDER_GATE, WAREHOUSE, FACTORY, CUSTOMER_SITE
+    location_type VARCHAR(50) NOT NULL,
     region_id VARCHAR(50) REFERENCES regions(region_id),
-    country_code VARCHAR(2) NOT NULL DEFAULT 'VN',
+    country_code VARCHAR(10) DEFAULT 'VN',
+    province VARCHAR(100),
     address TEXT,
+    gps_coordinates VARCHAR(100),
+    company VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'Active',
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2.3. Khách hàng (Customers)
+-- 2.3. Khách hàng (Customers & Đối tác hợp nhất)
 CREATE TABLE IF NOT EXISTS customers (
     customer_id VARCHAR(50) PRIMARY KEY,
-    tax_code VARCHAR(50),
-    customer_name VARCHAR(255) NOT NULL,
     short_name VARCHAR(100),
+    customer_name VARCHAR(255) NOT NULL,
+    partner_type VARCHAR(50),
+    country VARCHAR(100),
+    address TEXT,
+    gps_coordinates VARCHAR(100),
+    bank_account VARCHAR(100),
+    bank_name VARCHAR(255),
+    tax_code VARCHAR(50),
+    description TEXT,
+    signing_date DATE,
+    represented_by VARCHAR(255),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    logo_url TEXT,
+    note TEXT,
     region_id VARCHAR(50) REFERENCES regions(region_id),
     credit_limit_vnd NUMERIC(15, 2) DEFAULT 0,
     payment_terms_days INT DEFAULT 30,
-    status VARCHAR(20) DEFAULT 'ACTIVE',
+    status VARCHAR(50) DEFAULT 'Đã duyệt',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 2.4. Nhà cung cấp, Nhà xe, Hãng tàu (Vendors)
 CREATE TABLE IF NOT EXISTS vendors (
     vendor_id VARCHAR(50) PRIMARY KEY,
-    tax_code VARCHAR(50),
+    short_name VARCHAR(100),
     vendor_name VARCHAR(255) NOT NULL,
     vendor_type VARCHAR(50) NOT NULL,
-    region_id VARCHAR(50) REFERENCES regions(region_id),
+    tax_code VARCHAR(50),
     contact_phone VARCHAR(50),
-    status VARCHAR(20) DEFAULT 'ACTIVE',
+    email VARCHAR(255),
+    address TEXT,
+    region_id VARCHAR(50) REFERENCES regions(region_id),
+    status VARCHAR(50) DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

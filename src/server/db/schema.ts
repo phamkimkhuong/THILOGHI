@@ -96,34 +96,54 @@ export const locations = pgTable("locations", {
   locationId: varchar("location_id", { length: 50 }).primaryKey(),
   code: varchar("code", { length: 50 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
-  locationType: varchar("location_type", { length: 50 }).notNull(), // PORT, DEPOT, BORDER_GATE, WAREHOUSE, FACTORY, CUSTOMER_SITE
+  locationType: varchar("location_type", { length: 50 }).notNull(), // Stuffing Place, Port, Depot, Warehouse, Border
   regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
-  countryCode: varchar("country_code", { length: 2 }).default("VN"),
+  countryCode: varchar("country_code", { length: 10 }).default("VN"),
+  province: varchar("province", { length: 100 }),
   address: text("address"),
+  gpsCoordinates: varchar("gps_coordinates", { length: 100 }),
+  company: varchar("company", { length: 100 }),
+  status: varchar("status", { length: 50 }).default("Active"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export const customers = pgTable("customers", {
   customerId: varchar("customer_id", { length: 50 }).primaryKey(),
-  taxCode: varchar("tax_code", { length: 50 }),
-  customerName: varchar("customer_name", { length: 255 }).notNull(),
   shortName: varchar("short_name", { length: 100 }),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  partnerType: varchar("partner_type", { length: 50 }), // Clients, Consignee, Shipper, Suppliers, Vendors, Line, Port, Stuffing Place, Depot
+  country: varchar("country", { length: 100 }),
+  address: text("address"),
+  gpsCoordinates: varchar("gps_coordinates", { length: 100 }),
+  bankAccount: varchar("bank_account", { length: 100 }),
+  bankName: varchar("bank_name", { length: 255 }),
+  taxCode: varchar("tax_code", { length: 50 }),
+  description: text("description"),
+  signingDate: date("signing_date"),
+  representedBy: varchar("represented_by", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  logoUrl: text("logo_url"),
+  note: text("note"),
   regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
   creditLimitVnd: numeric("credit_limit_vnd", { precision: 15, scale: 2 }).default("0"),
   paymentTermsDays: integer("payment_terms_days").default(30),
-  status: varchar("status", { length: 20 }).default("ACTIVE"),
+  status: varchar("status", { length: 50 }).default("Đã duyệt"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export const vendors = pgTable("vendors", {
   vendorId: varchar("vendor_id", { length: 50 }).primaryKey(),
-  taxCode: varchar("tax_code", { length: 50 }),
+  shortName: varchar("short_name", { length: 100 }),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
-  vendorType: varchar("vendor_type", { length: 50 }).notNull(), // TRUCK_VENDOR, OCEAN_CARRIER, CUSTOMS_BROKER, PORT_OPERATOR
-  regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
+  vendorType: varchar("vendor_type", { length: 50 }).notNull(), // Vendors, Line, Suppliers, TRUCK_VENDOR, OCEAN_CARRIER
+  taxCode: varchar("tax_code", { length: 50 }),
   contactPhone: varchar("contact_phone", { length: 50 }),
-  status: varchar("status", { length: 20 }).default("ACTIVE"),
+  email: varchar("email", { length: 255 }),
+  address: text("address"),
+  regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
+  status: varchar("status", { length: 50 }).default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

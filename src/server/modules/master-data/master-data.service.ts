@@ -32,7 +32,7 @@ export async function getMasterRegions(): Promise<MasterOption[]> {
  */
 export async function getMasterCustomers(): Promise<MasterOption[]> {
   const { rows } = await pool.query(
-    "SELECT customer_id as id, customer_name as name, tax_code as code FROM customers WHERE status = 'ACTIVE' ORDER BY customer_name ASC"
+    "SELECT customer_id as id, customer_name as name, tax_code as code FROM customers WHERE status IN ('ACTIVE', 'Đã duyệt') ORDER BY customer_name ASC"
   );
   return rows;
 }
