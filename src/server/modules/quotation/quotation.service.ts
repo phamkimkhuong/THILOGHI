@@ -270,16 +270,16 @@ export async function saveQuotationDraft(
       await client.query("DELETE FROM quotation_service_items WHERE quotation_id = $1", [quotationId]);
     } else {
       // --- CREATE NEW DRAFT ---
-      // Sinh số báo giá có cấu trúc tuần tự
-      let seqNum = 10001;
+      // Sinh số báo giá có cấu trúc tuần tự từ PostgreSQL sequence
+      let seqNum: number;
       try {
         const seqRes = await client.query("SELECT nextval('quotation_no_seq') as seq");
-        if (seqRes.rows.length > 0) {
-          seqNum = Number(seqRes.rows[0].seq);
-        }
+        seqNum = Number(seqRes.rows[0].seq);
       } catch {
-        // Fallback an toàn nếu sequence chưa được khởi tạo
-        seqNum = Math.floor(10000 + Math.random() * 90000);
+        // Tự động khởi tạo sequence nếu chưa tồn tại trong PostgreSQL
+        await client.query("CREATE SEQUENCE IF NOT EXISTS quotation_no_seq START WITH 10001;");
+        const seqRes = await client.query("SELECT nextval('quotation_no_seq') as seq");
+        seqNum = Number(seqRes.rows[0].seq);
       }
 
       quotationNo = `QT-${new Date().getFullYear()}-${String(seqNum).padStart(5, "0")}`;

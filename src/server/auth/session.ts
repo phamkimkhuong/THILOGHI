@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { CurrentActor } from "./types";
-import { DEFAULT_SYSTEM_USER, findUserById, getActiveUsersList } from "./users";
+import { findUserById, getActiveUsersList } from "./users";
 
 const SESSION_COOKIE_NAME = "thilogi_session";
 const SECRET_KEY = new TextEncoder().encode(
@@ -39,7 +39,7 @@ export async function verifySessionToken(token: string): Promise<CurrentActor | 
   }
 }
 
-export async function getSessionActor(): Promise<CurrentActor> {
+export async function getSessionActor(): Promise<CurrentActor | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -52,13 +52,13 @@ export async function getSessionActor(): Promise<CurrentActor> {
     // In edge or static build cases where cookies() may fail
   }
 
-  // Tự động chọn tài khoản đầu tiên trong CSDL hoặc tài khoản quản trị mặc định
+  // Tự động chọn tài khoản đầu tiên thực tế trong CSDL PostgreSQL
   const activeUsers = await getActiveUsersList();
   if (activeUsers.length > 0) {
     return activeUsers[0];
   }
 
-  return DEFAULT_SYSTEM_USER;
+  return null;
 }
 
 export async function setSessionActor(actor: CurrentActor): Promise<void> {
@@ -75,7 +75,9 @@ export async function setSessionActor(actor: CurrentActor): Promise<void> {
 
 export async function switchSessionUser(userId: string): Promise<CurrentActor> {
   const dbUser = await findUserById(userId);
-  const targetUser = dbUser || DEFAULT_SYSTEM_USER;
-  await setSessionActor(targetUser);
-  return targetUser;
+  if (!dbUser) {
+    throw new Error(`Không tìm thấy người dùng [${userId}] trong CSDL.`);
+  }
+  await setSessionActor(dbUser);
+  return dbUser;
 }

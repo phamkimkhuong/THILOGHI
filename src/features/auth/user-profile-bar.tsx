@@ -9,15 +9,20 @@ export function UserProfileBar() {
   const [currentUser, setCurrentUser] = useState<CurrentActor | null>(null);
   const [availableUsers, setAvailableUsers] = useState<CurrentActor[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     startTransition(async () => {
-      const [user, allUsers] = await Promise.all([
-        getCurrentUserAction(),
-        getAvailableUsersAction(),
-      ]);
-      setCurrentUser(user);
-      setAvailableUsers(allUsers);
+      try {
+        const [user, allUsers] = await Promise.all([
+          getCurrentUserAction(),
+          getAvailableUsersAction(),
+        ]);
+        setCurrentUser(user);
+        setAvailableUsers(allUsers);
+      } finally {
+        setIsLoaded(true);
+      }
     });
   }, []);
 
@@ -32,11 +37,19 @@ export function UserProfileBar() {
     });
   };
 
-  if (!currentUser) {
+  if (!isLoaded) {
     return (
       <div className="flex items-center gap-2 text-xs text-slate-400">
         <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse" />
         Đang tải hồ sơ...
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300">
+        Chưa có tài khoản trong CSDL
       </div>
     );
   }
@@ -50,12 +63,9 @@ export function UserProfileBar() {
     ACCOUNTANT: "Kế toán Quản trị",
   };
 
-  const regionNames: Record<string, string> = {
-    REG_QNG_QNM: "Chu Lai - Quảng Nam",
-    REG_SOUTH_LAOS: "Nam Lào (Sekong/Attapeu)",
-    REG_NORTH_CAM: "Bắc Cam (Kratie/Stung Treng)",
-    "*": "Toàn Quyền Hệ Thống (*)",
-  };
+  const formattedScopes = currentUser.regionScopes && currentUser.regionScopes.length > 0
+    ? currentUser.regionScopes.map((r) => (r === "*" ? "Toàn Quyền (*)" : r)).join(", ")
+    : "Chưa gán phân vùng";
 
   return (
     <div className="flex items-center gap-3">
@@ -78,26 +88,28 @@ export function UserProfileBar() {
       <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
         <Globe className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate max-w-[160px]">
-          {currentUser.regionScopes.map((r) => regionNames[r] || r).join(", ")}
+          {formattedScopes}
         </span>
       </div>
 
-      {/* Dropdown chuyển đổi tài khoản mô phỏng phân quyền */}
-      <div className="relative">
-        <select
-          value={currentUser.userId}
-          onChange={(e) => handleSwitchUser(e.target.value)}
-          disabled={isPending}
-          className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-          title="Chuyển đổi tài khoản để kiểm thử phân quyền Region Scope"
-        >
-          {availableUsers.map((u) => (
-            <option key={u.userId} value={u.userId}>
-              {u.fullName} ({u.role} - {u.regionScopes.join("/")})
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Dropdown chuyển đổi tài khoản từ danh sách thực tế trong PostgreSQL */}
+      {availableUsers.length > 0 && (
+        <div className="relative">
+          <select
+            value={currentUser.userId}
+            onChange={(e) => handleSwitchUser(e.target.value)}
+            disabled={isPending}
+            className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            title="Chuyển đổi tài khoản người dùng thực tế từ PostgreSQL"
+          >
+            {availableUsers.map((u) => (
+              <option key={u.userId} value={u.userId}>
+                {u.fullName} ({u.role} - {u.regionScopes.join("/")})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

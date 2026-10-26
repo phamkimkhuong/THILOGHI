@@ -1,15 +1,6 @@
 import { pool } from "@/server/db";
 import { CurrentActor, UserRole } from "./types";
 
-export const DEFAULT_SYSTEM_USER: CurrentActor = {
-  userId: "ADMIN_SYSTEM",
-  username: "admin_thilogi",
-  fullName: "Quản trị viên Hệ thống",
-  role: "DIRECTOR",
-  regionScopes: ["*"], // Toàn quyền
-  email: "admin@thilogi.vn",
-};
-
 /**
  * Tìm người dùng theo mã định danh (user_id) trực tiếp từ PostgreSQL
  */

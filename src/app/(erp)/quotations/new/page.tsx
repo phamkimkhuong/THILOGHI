@@ -845,13 +845,8 @@ export default function NewQuotationWorkspacePage() {
                                   className="text-blue-500 focus:ring-0"
                                 />
                               </td>
-                              <td className="py-2.5 px-3 font-medium">
+                              <td className="py-2.5 px-3 font-medium text-slate-200">
                                 {cand.vendorName}
-                                {cand.vendorId === "VEND_TRUCK_THILOGI" && (
-                                  <span className="ml-2 text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-normal">
-                                    Đội xe nội bộ
-                                  </span>
-                                )}
                               </td>
                               <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">
                                 {cand.validityRange}

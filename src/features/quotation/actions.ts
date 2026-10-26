@@ -22,7 +22,7 @@ import {
 import { CreateQuotationInput } from "@/shared/schemas/quotation.schema";
 import { requireAuth, requireRegionScope } from "@/server/auth/authorize";
 import { getSessionActor, switchSessionUser } from "@/server/auth/session";
-import { getActiveUsersList, DEFAULT_SYSTEM_USER } from "@/server/auth/users";
+import { getActiveUsersList } from "@/server/auth/users";
 
 export async function getQuotationMasterDataAction() {
   try {
@@ -166,11 +166,7 @@ export async function getCurrentUserAction() {
  * Lấy danh sách các tài khoản người dùng thực tế từ PostgreSQL
  */
 export async function getAvailableUsersAction() {
-  const users = await getActiveUsersList();
-  if (users.length > 0) {
-    return users;
-  }
-  return [DEFAULT_SYSTEM_USER];
+  return await getActiveUsersList();
 }
 
 /**
