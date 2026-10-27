@@ -160,6 +160,94 @@ export const commodities = pgTable("commodities", {
 });
 
 // --------------------------------------------------------------------
+// 2.6. Fleet & Logistics Assets Tables
+// --------------------------------------------------------------------
+export const vehicleOperations = pgTable("vehicle_operations", {
+  operationCode: varchar("operation_code", { length: 20 }).primaryKey(),
+  nameVn: varchar("name_vn", { length: 100 }).notNull(),
+  nameEn: varchar("name_en", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const vessels = pgTable("vessels", {
+  vesselName: varchar("vessel_name", { length: 100 }).primaryKey(),
+  serviceType: varchar("service_type", { length: 50 }),
+  region: varchar("region", { length: 100 }),
+  carrierCode: varchar("carrier_code", { length: 50 }).references(() => vendors.vendorId),
+  logoUrl: text("logo_url"),
+  contractFileUrl: text("contract_file_url"),
+  notes: text("notes"),
+  status: varchar("status", { length: 50 }).default("Active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const tractors = pgTable("tractors", {
+  tractorNo: varchar("tractor_no", { length: 50 }).primaryKey(),
+  vendorId: varchar("vendor_id", { length: 50 }).references(() => vendors.vendorId),
+  modelType: varchar("model_type", { length: 100 }),
+  transitRoute: varchar("transit_route", { length: 100 }),
+  transitLicenseDate: date("transit_license_date"),
+  productionYear: integer("production_year"),
+  chassisNo: varchar("chassis_no", { length: 100 }),
+  engineNo: varchar("engine_no", { length: 100 }),
+  selfWeightTons: numeric("self_weight_tons", { precision: 10, scale: 2 }),
+  loadCapacityTons: numeric("load_capacity_tons", { precision: 10, scale: 2 }),
+  color: varchar("color", { length: 50 }),
+  inspectionExpirationDate: date("inspection_expiration_date"),
+  attachmentUrl: text("attachment_url"),
+  notes: text("notes"),
+  status: varchar("status", { length: 50 }).default("Đang hoạt động"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const trailers = pgTable("trailers", {
+  trailerNo: varchar("trailer_no", { length: 50 }).primaryKey(),
+  vendorId: varchar("vendor_id", { length: 50 }).references(() => vendors.vendorId),
+  modelType: varchar("model_type", { length: 100 }),
+  transitRoute: varchar("transit_route", { length: 100 }),
+  transitLicenseDate: date("transit_license_date"),
+  manufacturer: varchar("manufacturer", { length: 100 }),
+  productionYear: integer("production_year"),
+  chassisNo: varchar("chassis_no", { length: 100 }),
+  curbWeightTons: numeric("curb_weight_tons", { precision: 10, scale: 2 }),
+  payloadCapacityTons: numeric("payload_capacity_tons", { precision: 10, scale: 2 }),
+  paintColor: varchar("paint_color", { length: 50 }),
+  inspectionExpirationDate: date("inspection_expiration_date"),
+  attachmentUrl: text("attachment_url"),
+  notes: text("notes"),
+  status: varchar("status", { length: 50 }).default("Đang hoạt động"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const drivers = pgTable("drivers", {
+  driverId: varchar("driver_id", { length: 50 }).primaryKey(),
+  vendorId: varchar("vendor_id", { length: 50 }).references(() => vendors.vendorId),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  gender: varchar("gender", { length: 10 }).default("Nam"),
+  birthday: date("birthday"),
+  licenseNo: varchar("license_no", { length: 50 }),
+  citizenId: varchar("citizen_id", { length: 50 }),
+  citizenIssueDate: date("citizen_issue_date"),
+  passportNo: varchar("passport_no", { length: 50 }),
+  passportIssueDate: date("passport_issue_date"),
+  phone: varchar("phone", { length: 50 }),
+  nationality: varchar("nationality", { length: 50 }).default("Việt Nam"),
+  hometown: text("hometown"),
+  gpsCoordinates: varchar("gps_coordinates", { length: 100 }),
+  address: text("address"),
+  province: varchar("province", { length: 100 }),
+  district: varchar("district", { length: 100 }),
+  ward: varchar("ward", { length: 100 }),
+  hamlet: varchar("hamlet", { length: 100 }),
+  avatarUrl: text("avatar_url"),
+  notes: text("notes"),
+  status: varchar("status", { length: 50 }).default("Đang hoạt động"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// --------------------------------------------------------------------
 // 3. Rate Tables
 // --------------------------------------------------------------------
 export const roadRates = pgTable("road_rates", {

@@ -14,6 +14,8 @@ export const EQUIPMENT_TYPES = [
   { id: "20RF", name: "Container 20' Lạnh (20RF)" },
   { id: "TRUCK_15T", name: "Xe tải thùng 15 Tấn" },
   { id: "TRUCK_FO", name: "Xe bồn chuyên dụng chất lỏng" },
+  { id: "RMS", name: "Rơ moóc sàn (RMS)" },
+  { id: "General", name: "Phương tiện đa dụng (General)" },
 ];
 
 /**

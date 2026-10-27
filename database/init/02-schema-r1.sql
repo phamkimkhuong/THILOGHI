@@ -179,6 +179,100 @@ CREATE TABLE IF NOT EXISTS commodities (
 );
 
 -- --------------------------------------------------------------------
+-- 2.6. FLEET & LOGISTICS ASSETS (QUẢN LÝ ĐỘI XE, TÀI XẾ & TÀU BIỂN)
+-- --------------------------------------------------------------------
+
+-- Phương thức tác nghiệp điều xe (Vehicle Operations)
+CREATE TABLE IF NOT EXISTS vehicle_operations (
+    operation_code VARCHAR(20) PRIMARY KEY,
+    name_vn VARCHAR(100) NOT NULL,
+    name_en VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Danh mục Tàu biển & Hãng tàu (Vessels)
+CREATE TABLE IF NOT EXISTS vessels (
+    vessel_name VARCHAR(100) PRIMARY KEY,
+    service_type VARCHAR(50), -- Quốc tế, Nội địa
+    region VARCHAR(100),
+    carrier_code VARCHAR(50) REFERENCES vendors(vendor_id),
+    logo_url TEXT,
+    contract_file_url TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'Active',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Xe đầu kéo (Tractors)
+CREATE TABLE IF NOT EXISTS tractors (
+    tractor_no VARCHAR(50) PRIMARY KEY,
+    vendor_id VARCHAR(50) REFERENCES vendors(vendor_id),
+    model_type VARCHAR(100),
+    transit_route VARCHAR(100),
+    transit_license_date DATE,
+    production_year INT,
+    chassis_no VARCHAR(100),
+    engine_no VARCHAR(100),
+    self_weight_tons NUMERIC(10, 2),
+    load_capacity_tons NUMERIC(10, 2),
+    color VARCHAR(50),
+    inspection_expiration_date DATE,
+    attachment_url TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'Đang hoạt động',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Rơ moóc (Trailers)
+CREATE TABLE IF NOT EXISTS trailers (
+    trailer_no VARCHAR(50) PRIMARY KEY,
+    vendor_id VARCHAR(50) REFERENCES vendors(vendor_id),
+    model_type VARCHAR(100),
+    transit_route VARCHAR(100),
+    transit_license_date DATE,
+    manufacturer VARCHAR(100),
+    production_year INT,
+    chassis_no VARCHAR(100),
+    curb_weight_tons NUMERIC(10, 2),
+    payload_capacity_tons NUMERIC(10, 2),
+    paint_color VARCHAR(50),
+    inspection_expiration_date DATE,
+    attachment_url TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'Đang hoạt động',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tài xế (Drivers)
+CREATE TABLE IF NOT EXISTS drivers (
+    driver_id VARCHAR(50) PRIMARY KEY,
+    vendor_id VARCHAR(50) REFERENCES vendors(vendor_id),
+    full_name VARCHAR(255) NOT NULL,
+    gender VARCHAR(10) DEFAULT 'Nam',
+    birthday DATE,
+    license_no VARCHAR(50),
+    citizen_id VARCHAR(50),
+    citizen_issue_date DATE,
+    passport_no VARCHAR(50),
+    passport_issue_date DATE,
+    phone VARCHAR(50),
+    nationality VARCHAR(50) DEFAULT 'Việt Nam',
+    hometown TEXT,
+    gps_coordinates VARCHAR(100),
+    address TEXT,
+    province VARCHAR(100),
+    district VARCHAR(100),
+    ward VARCHAR(100),
+    hamlet VARCHAR(100),
+    avatar_url TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'Đang hoạt động',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- --------------------------------------------------------------------
 -- 3. SUPPLIER RATE LIBRARY (THƯ VIỆN BẢNG GIÁ MUA ĐẦU VÀO)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS road_rates (
