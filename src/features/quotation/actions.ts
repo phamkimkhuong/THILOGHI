@@ -14,20 +14,22 @@ import {
 } from "@/server/modules/supplier-pricing/rate-lookup.service";
 import {
   saveQuotationDraft,
-  submitQuotationForApproval,
   approveQuotation,
   rejectQuotation,
   returnQuotationToDraft,
   getQuotationsList,
   getQuotationDetail,
 } from "@/server/modules/quotation/quotation.service";
-import { CreateQuotationInput } from "@/shared/schemas/quotation.schema";
+import { z } from "zod";
+import { getBusinessDate } from "@/shared/utils/pricing";
+import { CreateQuotationInput, createQuotationSchema, quotationListFilterSchema, rateLookupSchema } from "@/shared/schemas/quotation.schema";
 import { requireAuth, requireRegionScope } from "@/server/auth/authorize";
-import { getSessionActor, switchSessionUser } from "@/server/auth/session";
+import { getSessionActor, switchSessionUser, isDemoAuthEnabled } from "@/server/auth/session";
 import { getActiveUsersList } from "@/server/auth/users";
 
 export async function getQuotationMasterDataAction() {
   try {
+    const actor = await requireAuth();
     const [customers, regions, locations, commodities] = await Promise.all([
       getMasterCustomers(),
       getMasterRegions(),
@@ -38,7 +40,7 @@ export async function getQuotationMasterDataAction() {
     return {
       success: true,
       customers,
-      regions,
+      regions: regions.filter((region) => actor.regionScopes.includes("*") || actor.regionScopes.includes(region.id)),
       locations,
       commodities,
       equipmentTypes: EQUIPMENT_TYPES,
@@ -61,10 +63,11 @@ export async function lookupRoadRatesAction(
   query: RateLookupQuery
 ): Promise<RateLookupResult> {
   try {
-    return await lookupRoadRates(query);
+    await requireAuth();
+    return await lookupRoadRates(rateLookupSchema.parse({ ...query, pricingDate: getBusinessDate() }));
   } catch (error) {
     return {
-      status: "MISSING_RATE",
+      status: "ERROR",
       candidates: [],
       message: error instanceof Error ? error.message : "Lỗi kết nối cơ sở dữ liệu khi tra cứu bảng giá",
     };
@@ -74,16 +77,19 @@ export async function lookupRoadRatesAction(
 /**
  * Lưu Báo giá Nháp có ràng buộc Authentication & Region Scope (P0.2)
  */
-export async function saveDraftQuotationAction(input: CreateQuotationInput) {
+export async function saveDraftQuotationAction(rawInput: CreateQuotationInput, submit = false) {
   try {
     // 1. Xác thực danh tính người dùng thực
     const actor = await requireAuth();
+
+    const input = createQuotationSchema.parse(rawInput);
+    z.boolean().parse(submit);
 
     // 2. Kiểm tra Region Scope: Người dùng có quyền trên Phân vùng được chọn không?
     requireRegionScope(actor, input.regionId);
 
     // 3. Thực thi lưu trữ với createdBy lấy từ session an toàn, không lấy từ client
-    const res = await saveQuotationDraft(input, `${actor.fullName} (${actor.role})`);
+    const res = await saveQuotationDraft(input, actor, submit);
     return { success: true, data: res };
   } catch (error) {
     return {
@@ -94,27 +100,13 @@ export async function saveDraftQuotationAction(input: CreateQuotationInput) {
 }
 
 /**
- * Trình duyệt Báo giá có kiểm tra Region Scope & Audit Log (P0.2 & P0.6)
- */
-export async function submitQuotationAction(quotationId: string) {
-  try {
-    const actor = await requireAuth();
-    const res = await submitQuotationForApproval(quotationId, actor);
-    return res;
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Lỗi khi trình duyệt báo giá",
-    };
-  }
-}
-
-/**
  * Phê duyệt Báo giá (PR-05 Approval Matrix)
  */
 export async function approveQuotationAction(quotationId: string, comment?: string) {
   try {
     const actor = await requireAuth();
+    z.string().uuid().parse(quotationId);
+    z.string().trim().max(2000).optional().parse(comment);
     const res = await approveQuotation(quotationId, actor, comment);
     return res;
   } catch (error) {
@@ -131,6 +123,8 @@ export async function approveQuotationAction(quotationId: string, comment?: stri
 export async function rejectQuotationAction(quotationId: string, comment: string) {
   try {
     const actor = await requireAuth();
+    z.string().uuid().parse(quotationId);
+    z.string().trim().min(1).max(2000).parse(comment);
     const res = await rejectQuotation(quotationId, actor, comment);
     return res;
   } catch (error) {
@@ -147,6 +141,8 @@ export async function rejectQuotationAction(quotationId: string, comment: string
 export async function returnQuotationToDraftAction(quotationId: string, comment: string) {
   try {
     const actor = await requireAuth();
+    z.string().uuid().parse(quotationId);
+    z.string().trim().min(1).max(2000).parse(comment);
     const res = await returnQuotationToDraft(quotationId, actor, comment);
     return res;
   } catch (error) {
@@ -161,13 +157,15 @@ export async function returnQuotationToDraftAction(quotationId: string, comment:
  * Lấy thông tin tài khoản đang đăng nhập trong phiên
  */
 export async function getCurrentUserAction() {
-  return await getSessionActor();
+  const session = await getSessionActor();
+  return session ? await requireAuth() : null;
 }
 
 /**
  * Lấy danh sách các tài khoản người dùng thực tế từ PostgreSQL
  */
 export async function getAvailableUsersAction() {
+  if (!isDemoAuthEnabled()) return [];
   return await getActiveUsersList();
 }
 
@@ -189,7 +187,7 @@ export async function getQuotationsListAction(filters?: {
   limit?: number;
 }) {
   try {
-    const list = await getQuotationsList(filters);
+    const list = await getQuotationsList(await requireAuth(), quotationListFilterSchema.parse(filters ?? {}));
     return { success: true, data: list, error: null };
   } catch (error) {
     return {
@@ -205,7 +203,7 @@ export async function getQuotationsListAction(filters?: {
  */
 export async function getQuotationDetailAction(quotationId: string) {
   try {
-    const detail = await getQuotationDetail(quotationId);
+    const detail = await getQuotationDetail(z.string().uuid().parse(quotationId), await requireAuth());
     if (!detail) {
       return { success: false, data: null, error: "Không tìm thấy báo giá yêu cầu" };
     }

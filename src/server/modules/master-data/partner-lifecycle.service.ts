@@ -17,7 +17,7 @@ export interface PartnerDirectoryItem {
   isCustomer: boolean;
   customerRoleStatus?: "PENDING" | "ACTIVE" | "SUSPENDED" | "NONE";
   paymentTermsDays?: number;
-  creditLimitVnd?: number;
+  creditLimitVnd?: number | null;
   customerActivatedBy?: string;
   customerActivatedAt?: string;
   // Vendor Role info
@@ -118,7 +118,7 @@ export async function getPartnersDirectory(filters?: {
     isCustomer: Boolean(r.isCustomer),
     customerRoleStatus: r.customerRoleStatus,
     paymentTermsDays: r.paymentTermsDays ? Number(r.paymentTermsDays) : 30,
-    creditLimitVnd: r.creditLimitVnd ? Number(r.creditLimitVnd) : undefined,
+    creditLimitVnd: r.creditLimitVnd != null ? Number(r.creditLimitVnd) : null,
     customerActivatedBy: r.customerActivatedBy || undefined,
     customerActivatedAt: r.customerActivatedAt ? new Date(r.customerActivatedAt).toISOString() : undefined,
     isVendor: Boolean(r.isVendor),
@@ -137,7 +137,7 @@ export async function activateCustomerRole(
   input: {
     partnerId: string;
     paymentTermsDays?: number;
-    creditLimitVnd?: number;
+    creditLimitVnd?: number | null;
     comment?: string;
   },
   actor: CurrentActor
@@ -173,7 +173,8 @@ export async function activateCustomerRole(
     const previousStatus = prevRes.rows.length > 0 ? prevRes.rows[0].role_status : "NONE";
 
     const paymentTerms = input.paymentTermsDays !== undefined ? Math.max(0, input.paymentTermsDays) : 30;
-    const creditLimit = input.creditLimitVnd !== undefined && input.creditLimitVnd >= 0 ? input.creditLimitVnd : null;
+    // Phân biệt rõ ràng: null = Chưa cấp hạn mức, 0 = Không cấp nợ / Trả trước, >0 = Hạn mức được cấp
+    const creditLimit = (input.creditLimitVnd === null || input.creditLimitVnd === undefined) ? null : Math.max(0, input.creditLimitVnd);
 
     // 3. Upsert Customer Role record
     await client.query(
@@ -186,7 +187,7 @@ export async function activateCustomerRole(
        ) ON CONFLICT (customer_id) DO UPDATE SET
          role_status = 'ACTIVE',
          payment_terms_days = COALESCE(EXCLUDED.payment_terms_days, customers.payment_terms_days),
-         credit_limit_vnd = COALESCE(EXCLUDED.credit_limit_vnd, customers.credit_limit_vnd),
+         credit_limit_vnd = EXCLUDED.credit_limit_vnd,
          activated_by = EXCLUDED.activated_by,
          activated_at = EXCLUDED.activated_at,
          updated_at = NOW();`,
@@ -385,14 +386,14 @@ export async function updateCustomerRoleTerms(
   input: {
     partnerId: string;
     paymentTermsDays: number;
-    creditLimitVnd?: number;
+    creditLimitVnd?: number | null;
   },
   actor: CurrentActor
 ) {
   requireRole(actor, ["ADMIN", "PRICING_MANAGER", "DIRECTOR"]);
 
   const terms = Math.max(0, input.paymentTermsDays);
-  const limit = input.creditLimitVnd !== undefined && input.creditLimitVnd >= 0 ? input.creditLimitVnd : null;
+  const limit = (input.creditLimitVnd === null || input.creditLimitVnd === undefined) ? null : Math.max(0, input.creditLimitVnd);
 
   const client = await pool.connect();
   try {

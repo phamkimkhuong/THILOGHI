@@ -1,8 +1,11 @@
+import type { PoolClient } from "pg";
+import { requireRegionScope, requireRole } from "@/server/auth/authorize";
+import { getBusinessDate, roundVnd } from "@/shared/utils/pricing";
 import Decimal from "decimal.js";
 import { pool } from "@/server/db";
-import { CreateQuotationInput, QuotationServiceItemInput } from "@/shared/schemas/quotation.schema";
+import { CreateQuotationInput, createQuotationSchema } from "@/shared/schemas/quotation.schema";
 import { CurrentActor } from "@/server/auth/types";
-import { getFxRateToVnd } from "@/server/modules/supplier-pricing/rate-lookup.service";
+import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
 
 export interface QuotationFinancialSummary {
   totalSellAmount: number;
@@ -77,45 +80,7 @@ export function evaluateApprovalAuthority(
   };
 }
 
-/**
- * Tính toán số liệu tài chính P&L cho danh mục dịch vụ báo giá bằng Decimal.js
- * Đảm bảo độ chính xác tuyệt đối, không có sai số dấu phẩy động
- */
-export function calculateQuotationFinancials(
-  items: QuotationServiceItemInput[]
-): QuotationFinancialSummary {
-  let totalSell = new Decimal(0);
-  let totalEstimatedBuy = new Decimal(0);
-  let totalWorstCaseBuy = new Decimal(0);
-
-  for (const item of items) {
-    const qty = new Decimal(item.plannedQuantity || 1);
-    const unitSell = new Decimal(item.unitSellPrice || 0);
-    const unitBuy = new Decimal(item.unitBuyPrice || 0);
-    const worstBuy = new Decimal(item.worstCaseBuyPrice || item.unitBuyPrice || 0);
-
-    const itemSell = unitSell.mul(qty);
-    const itemBuy = unitBuy.mul(qty);
-    const itemWorst = worstBuy.mul(qty);
-
-    totalSell = totalSell.add(itemSell);
-    totalEstimatedBuy = totalEstimatedBuy.add(itemBuy);
-    totalWorstCaseBuy = totalWorstCaseBuy.add(itemWorst);
-  }
-
-  const estimatedGp = totalSell.sub(totalEstimatedBuy);
-  const marginPercent = totalSell.isZero()
-    ? new Decimal(0)
-    : estimatedGp.div(totalSell).mul(100);
-
-  return {
-    totalSellAmount: totalSell.toNumber(),
-    totalEstimatedBuy: totalEstimatedBuy.toNumber(),
-    totalWorstCaseBuy: totalWorstCaseBuy.toNumber(),
-    estimatedGp: estimatedGp.toNumber(),
-    estimatedMarginPercent: Number(marginPercent.toFixed(2)),
-  };
-}
+export { calculateQuotationFinancials } from "@/shared/utils/pricing";
 
 /**
  * Lưu hoặc Cập nhật Báo giá Nháp (PR-04 & PR-05)
@@ -124,12 +89,31 @@ export function calculateQuotationFinancials(
  * - Khóa tính bất biến: Không cho phép sửa nếu đã bị khóa hoặc không ở trạng thái DRAFT
  */
 export async function saveQuotationDraft(
-  input: CreateQuotationInput,
-  createdBy = "Pricing Specialist"
+  rawInput: CreateQuotationInput,
+  actor: CurrentActor,
+  submit = false
 ) {
+  const input = createQuotationSchema.parse(rawInput);
+  requireRole(actor, ["SALES", "PRICING_SPECIALIST", "PRICING_MANAGER"]);
+  requireRegionScope(actor, input.regionId);
+  const createdBy = `${actor.fullName} (${actor.role})`;
+  const pricingDate = getBusinessDate();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Lock before pricing or replacing children: every writer serializes on this row.
+    if (input.quotationId) {
+      const existing = await client.query(
+        'SELECT region_id, status, immutable_locked, updated_at::text as revision FROM customer_quotations WHERE quotation_id = $1 FOR UPDATE',
+        [input.quotationId]
+      );
+      const quote = existing.rows[0];
+      if (!quote) throw new Error("Không tìm thấy báo giá.");
+      requireRegionScope(actor, quote.region_id);
+      if (quote.status !== "DRAFT" || quote.immutable_locked) throw new Error("Chỉ được sửa báo giá nháp chưa khóa.");
+      if (quote.revision !== input.expectedUpdatedAt) throw new Error("Báo giá đã được thay đổi. Vui lòng tải lại trước khi lưu.");
+    }
 
     // 1. Xác thực và tính toán Server-Authoritative cho từng dịch vụ với chuẩn hóa FX
     let serverTotalSell = new Decimal(0);
@@ -140,8 +124,8 @@ export async function saveQuotationDraft(
 
     for (const item of input.items) {
       const itemQty = new Decimal(item.plannedQuantity || 1);
-      const itemSellUnit = new Decimal(item.unitSellPrice || 0);
-      const itemSellTotal = itemSellUnit.mul(itemQty);
+      const itemSellUnit = roundVnd(item.unitSellPrice);
+      const itemSellTotal = roundVnd(itemSellUnit.mul(itemQty));
       serverTotalSell = serverTotalSell.add(itemSellTotal);
 
       let verifiedBuyRateVnd = new Decimal(0);
@@ -156,77 +140,26 @@ export async function saveQuotationDraft(
 
       // PR-04 & Blocker 4: Server tra cứu lại giá gốc từ PostgreSQL theo đúng ngữ cảnh, không tin client
       if (item.selectedBuyRateId) {
-        // 1. Kiểm tra bảng giá đã chọn có đúng tuyến đường, thiết bị và còn hiệu lực không
-        const selectedCheck = await client.query(
-          `SELECT 
-             r.rate_id, r.vendor_id, p.partner_name as vendor_name, r.buy_rate, r.currency,
-             lower(r.validity_range)::text as val_start,
-             upper(r.validity_range)::text as val_end
-           FROM road_rates r
-           JOIN vendors v ON r.vendor_id = v.vendor_id
-           JOIN partners p ON v.vendor_id = p.partner_id
-           WHERE r.rate_id = $1
-             AND r.pickup_location_id = $2
-             AND r.delivery_location_id = $3
-             AND r.equipment_type = $4
-             AND r.status = 'APPROVED'
-             AND r.validity_range @> CURRENT_DATE
-             AND v.role_status = 'ACTIVE'
-             AND p.status = 'ACTIVE'`,
-          [
-            item.selectedBuyRateId,
-            item.originLocationId,
-            item.destinationLocationId,
-            item.equipmentType,
-          ]
-        );
-
-        if (selectedCheck.rows.length === 0) {
-          throw new Error(
-            `Bảng giá mua [${item.selectedBuyRateId}] không hợp lệ, đã hết hạn hoặc không khớp với tuyến đường [${item.originLocationId} -> ${item.destinationLocationId}] / loại thiết bị [${item.equipmentType}].`
-          );
-        }
-
-        const selRow = selectedCheck.rows[0];
-        verifiedOriginalRate = new Decimal(selRow.buy_rate);
-        verifiedOriginalCurrency = (selRow.currency || "VND").toUpperCase();
-        verifiedFxRate = getFxRateToVnd(verifiedOriginalCurrency);
-        verifiedBuyRateVnd = verifiedOriginalRate.mul(verifiedFxRate);
-        verifiedVendorId = selRow.vendor_id;
-        verifiedVendorName = selRow.vendor_name;
-        validityStart = selRow.val_start;
-        validityEnd = selRow.val_end;
-
-        // 2. Tính Worst-Case BUY thực thụ (lấy MAX quy đổi VND trong tất cả các nhà cung cấp hợp lệ cùng tuyến)
-        const allCandidates = await client.query(
-          `SELECT r.buy_rate, r.currency
-           FROM road_rates r
-           WHERE r.pickup_location_id = $1
-             AND r.delivery_location_id = $2
-             AND r.equipment_type = $3
-             AND r.status = 'APPROVED'
-             AND r.validity_range @> CURRENT_DATE`,
-          [
-            item.originLocationId,
-            item.destinationLocationId,
-            item.equipmentType,
-          ]
-        );
-
-        let maxCandidateBuyVnd = verifiedBuyRateVnd;
-        for (const cand of allCandidates.rows) {
-          const candRate = new Decimal(cand.buy_rate);
-          const candFx = getFxRateToVnd(cand.currency || "VND");
-          const candVnd = candRate.mul(candFx);
-          if (candVnd.gt(maxCandidateBuyVnd)) {
-            maxCandidateBuyVnd = candVnd;
-          }
-        }
-        verifiedWorstBuyVnd = maxCandidateBuyVnd;
+        const result = await lookupRoadRates({
+          pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,
+          equipmentType: item.equipmentType, pricingDate,
+        }, client);
+        if (result.status === "CONFLICT_RATE") throw new Error(result.message);
+        const selected = result.candidates.find((candidate) => candidate.rateId === item.selectedBuyRateId);
+        if (!selected) throw new Error("Giá mua không còn hợp lệ cho tuyến/thiết bị/ngày hiện tại. Vui lòng tra cứu lại.");
+        verifiedOriginalRate = new Decimal(selected.buyRate);
+        verifiedOriginalCurrency = selected.currency;
+        verifiedFxRate = selected.fxRateToVnd;
+        verifiedBuyRateVnd = new Decimal(selected.buyRateVnd);
+        verifiedVendorId = selected.vendorId;
+        verifiedVendorName = selected.vendorName;
+        validityStart = selected.validityStart;
+        validityEnd = selected.validityEnd;
+        verifiedWorstBuyVnd = new Decimal(result.worstCaseBuy ?? selected.buyRateVnd);
       }
 
-      const itemBuyTotal = verifiedBuyRateVnd.mul(itemQty);
-      const itemWorstTotal = verifiedWorstBuyVnd.mul(itemQty);
+      const itemBuyTotal = roundVnd(verifiedBuyRateVnd.mul(itemQty));
+      const itemWorstTotal = roundVnd(verifiedWorstBuyVnd.mul(itemQty));
       serverTotalBuy = serverTotalBuy.add(itemBuyTotal);
       serverTotalWorstBuy = serverTotalWorstBuy.add(itemWorstTotal);
 
@@ -254,6 +187,9 @@ export async function saveQuotationDraft(
       });
     }
 
+    if ([serverTotalSell, serverTotalBuy, serverTotalWorstBuy].some((value) => value.gt("9999999999999"))) {
+      throw new Error("Tổng tiền vượt giới hạn lưu trữ của báo giá.");
+    }
     const estimatedGp = serverTotalSell.sub(serverTotalBuy);
     const estimatedMarginPercent = serverTotalSell.isZero()
       ? new Decimal(0)
@@ -317,7 +253,7 @@ export async function saveQuotationDraft(
            estimated_gp = $10,
            estimated_margin_percent = $11,
            payment_terms_days = $12,
-           updated_at = CURRENT_TIMESTAMP
+           updated_at = clock_timestamp()
          WHERE quotation_id = $13`,
         [
           input.customerId,
@@ -342,18 +278,10 @@ export async function saveQuotationDraft(
     } else {
       // --- CREATE NEW DRAFT ---
       // Sinh số báo giá có cấu trúc tuần tự từ PostgreSQL sequence
-      let seqNum: number;
-      try {
-        const seqRes = await client.query("SELECT nextval('quotation_no_seq') as seq");
-        seqNum = Number(seqRes.rows[0].seq);
-      } catch {
-        // Tự động khởi tạo sequence nếu chưa tồn tại trong PostgreSQL
-        await client.query("CREATE SEQUENCE IF NOT EXISTS quotation_no_seq START WITH 10001;");
-        const seqRes = await client.query("SELECT nextval('quotation_no_seq') as seq");
-        seqNum = Number(seqRes.rows[0].seq);
-      }
+      const seqRes = await client.query("SELECT nextval('quotation_no_seq') as seq");
+      const seqNum = Number(seqRes.rows[0].seq);
 
-      quotationNo = `QT-${new Date().getFullYear()}-${String(seqNum).padStart(5, "0")}`;
+      quotationNo = `QT-${pricingDate.slice(0, 4)}-${String(seqNum).padStart(5, "0")}`;
 
       const quoteRes = await client.query(
         `INSERT INTO customer_quotations (
@@ -437,8 +365,7 @@ export async function saveQuotationDraft(
              $1, $2, $3,
              $4, $5, $6,
              $7, $8, $9,
-             COALESCE($10::date, CURRENT_DATE),
-             COALESCE($11::date, CURRENT_DATE + INTERVAL '90 days')
+             $10::date, $11::date
            );`,
           [
             quotationId,
@@ -449,7 +376,7 @@ export async function saveQuotationDraft(
             vItem.verifiedOriginalRate.toNumber(),
             vItem.verifiedOriginalCurrency,
             vItem.verifiedFxRate,
-            vItem.itemBuyTotal.toNumber(),
+            vItem.verifiedBuyRateVnd.toNumber(),
             vItem.validityStart,
             vItem.validityEnd,
           ]
@@ -457,11 +384,21 @@ export async function saveQuotationDraft(
       }
     }
 
+    if (submit) {
+      const submitted = await submitQuotationForApproval(quotationId as string, actor, client);
+      if (!submitted.success) throw new Error(submitted.error);
+    }
+    const revisionResult = await client.query(
+      'SELECT updated_at::text as revision FROM customer_quotations WHERE quotation_id = $1', [quotationId]
+    );
     await client.query("COMMIT");
     return {
       success: true,
       quotationId: quotationId as string,
       quotationNo,
+      revision: revisionResult.rows[0].revision as string,
+      status: submit ? "PENDING_APPROVAL" as const : "DRAFT" as const,
+      items: verifiedItems.map((entry) => ({ unitBuyPrice: entry.verifiedBuyRateVnd.toNumber(), worstCaseBuyPrice: entry.verifiedWorstBuyVnd.toNumber(), unitSellPrice: entry.itemSellUnit.toNumber() })),
       financials: {
         totalSellAmount: serverTotalSell.toNumber(),
         totalEstimatedBuy: serverTotalBuy.toNumber(),
@@ -483,21 +420,23 @@ export async function saveQuotationDraft(
  */
 export async function submitQuotationForApproval(
   quotationId: string,
-  actor: CurrentActor
+  actor: CurrentActor,
+  transactionClient?: PoolClient
 ) {
-  const client = await pool.connect();
+  requireRole(actor, ["SALES", "PRICING_SPECIALIST", "PRICING_MANAGER"]);
+  const client = transactionClient ?? await pool.connect();
   try {
-    await client.query("BEGIN");
+    if (!transactionClient) await client.query("BEGIN");
 
     const quoteCheck = await client.query(
       `SELECT quotation_id, quotation_no, version, region_id, status, immutable_locked, estimated_margin_percent 
        FROM customer_quotations 
-       WHERE quotation_id = $1`,
+       WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
     );
 
     if (quoteCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
+      if (!transactionClient) await client.query("ROLLBACK");
       return { success: false, error: "Báo giá không tồn tại trong hệ thống." };
     }
 
@@ -505,7 +444,7 @@ export async function submitQuotationForApproval(
 
     // Kiểm tra Region Scope của người gửi duyệt
     if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
-      await client.query("ROLLBACK");
+      if (!transactionClient) await client.query("ROLLBACK");
       return {
         success: false,
         error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không có quyền trình duyệt báo giá thuộc phân vùng [${currentQuote.region_id}].`,
@@ -513,7 +452,7 @@ export async function submitQuotationForApproval(
     }
 
     if (currentQuote.status !== "DRAFT" || currentQuote.immutable_locked) {
-      await client.query("ROLLBACK");
+      if (!transactionClient) await client.query("ROLLBACK");
       return {
         success: false,
         error: `Không thể trình duyệt: Báo giá [${currentQuote.quotation_no}] hiện ở trạng thái ${currentQuote.status} hoặc đã bị khóa.`,
@@ -522,13 +461,12 @@ export async function submitQuotationForApproval(
 
     // Quy tắc P0: Không cho submit nếu thiếu giá mua đầu vào (MISSING RATE)
     const checkRes = await client.query(
-      `SELECT COUNT(*) as missing_count FROM quotation_service_items 
-       WHERE quotation_id = $1 AND (selected_buy_rate_id IS NULL OR estimated_buy_amount = 0)`,
+      `SELECT COUNT(*) as item_count, COUNT(*) FILTER (WHERE selected_buy_rate_id IS NULL OR estimated_buy_amount <= 0) as missing_count FROM quotation_service_items WHERE quotation_id = $1`,
       [quotationId]
     );
 
-    if (Number(checkRes.rows[0].missing_count) > 0) {
-      await client.query("ROLLBACK");
+    if (Number(checkRes.rows[0].item_count) === 0 || Number(checkRes.rows[0].missing_count) > 0) {
+      if (!transactionClient) await client.query("ROLLBACK");
       return {
         success: false,
         error: "Không thể trình duyệt: Có dịch vụ chưa xác định hoặc thiếu giá mua đầu vào (MISSING RATE).",
@@ -538,14 +476,14 @@ export async function submitQuotationForApproval(
     // Cập nhật trạng thái PENDING_APPROVAL
     const updateRes = await client.query(
       `UPDATE customer_quotations 
-       SET status = 'PENDING_APPROVAL', updated_at = NOW() 
+       SET status = 'PENDING_APPROVAL', updated_at = clock_timestamp()
        WHERE quotation_id = $1 AND status = 'DRAFT' AND immutable_locked = false
        RETURNING quotation_id, quotation_no`,
       [quotationId]
     );
 
     if (updateRes.rowCount === 0) {
-      await client.query("ROLLBACK");
+      if (!transactionClient) await client.query("ROLLBACK");
       return { success: false, error: "Xung đột đồng thời: Báo giá đã được thay đổi bởi một tác vụ khác." };
     }
 
@@ -564,19 +502,19 @@ export async function submitQuotationForApproval(
       ]
     );
 
-    await client.query("COMMIT");
+    if (!transactionClient) await client.query("COMMIT");
     return {
       success: true,
       message: `Đã trình duyệt thành công Báo giá [${updateRes.rows[0].quotation_no}] sang Hội đồng Định giá phê duyệt.`,
     };
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (!transactionClient) await client.query("ROLLBACK");
     return {
       success: false,
       error: `Lỗi kết nối cơ sở dữ liệu khi trình duyệt: ${err instanceof Error ? err.message : String(err)}`,
     };
   } finally {
-    client.release();
+    if (!transactionClient) client.release();
   }
 }
 
@@ -595,7 +533,7 @@ export async function approveQuotation(
     const quoteCheck = await client.query(
       `SELECT quotation_id, quotation_no, version, region_id, status, immutable_locked, estimated_margin_percent, created_by 
        FROM customer_quotations 
-       WHERE quotation_id = $1`,
+       WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
     );
 
@@ -661,7 +599,7 @@ export async function approveQuotation(
     // Cập nhật APPROVED & Khóa Bất Biến (Immutable Locked) kèm xác nhận Snapshot
     await client.query(
       `UPDATE customer_quotations q
-       SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = NOW(),
+       SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = clock_timestamp(),
            customer_name_snapshot = COALESCE(q.customer_name_snapshot, p.partner_name),
            customer_tax_code_snapshot = COALESCE(q.customer_tax_code_snapshot, p.tax_code),
            customer_address_snapshot = COALESCE(q.customer_address_snapshot, p.address)
@@ -715,6 +653,7 @@ export async function rejectQuotation(
     return { success: false, error: "Vui lòng nhập lý do từ chối báo giá." };
   }
 
+  requireRole(actor, ["PRICING_MANAGER"]);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -722,7 +661,7 @@ export async function rejectQuotation(
     const quoteCheck = await client.query(
       `SELECT quotation_id, quotation_no, version, region_id, status, estimated_margin_percent 
        FROM customer_quotations 
-       WHERE quotation_id = $1`,
+       WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
     );
 
@@ -761,7 +700,7 @@ export async function rejectQuotation(
 
     await client.query(
       `UPDATE customer_quotations 
-       SET status = 'REJECTED', updated_at = NOW() 
+       SET status = 'REJECTED', updated_at = clock_timestamp()
        WHERE quotation_id = $1 AND status = 'PENDING_APPROVAL'`,
       [quotationId]
     );
@@ -804,6 +743,7 @@ export async function returnQuotationToDraft(
   actor: CurrentActor,
   comment: string
 ) {
+  requireRole(actor, ["PRICING_MANAGER"]);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -811,7 +751,7 @@ export async function returnQuotationToDraft(
     const quoteCheck = await client.query(
       `SELECT quotation_id, quotation_no, version, region_id, status, estimated_margin_percent 
        FROM customer_quotations 
-       WHERE quotation_id = $1`,
+       WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
     );
 
@@ -822,7 +762,7 @@ export async function returnQuotationToDraft(
 
     const currentQuote = quoteCheck.rows[0];
 
-    if (currentQuote.status !== "PENDING_APPROVAL") {
+    if (!["PENDING_APPROVAL", "REJECTED"].includes(currentQuote.status)) {
       await client.query("ROLLBACK");
       return {
         success: false,
@@ -859,8 +799,8 @@ export async function returnQuotationToDraft(
 
     await client.query(
       `UPDATE customer_quotations 
-       SET status = 'DRAFT', immutable_locked = false, updated_at = NOW() 
-       WHERE quotation_id = $1 AND status = 'PENDING_APPROVAL'`,
+       SET status = 'DRAFT', immutable_locked = false, updated_at = clock_timestamp()
+       WHERE quotation_id = $1 AND status IN ('PENDING_APPROVAL', 'REJECTED')`,
       [quotationId]
     );
 
@@ -944,6 +884,7 @@ export interface QuotationApprovalLogItem {
 
 export interface QuotationDetailResponse {
   quote: {
+    revision: string;
     quotationId: string;
     quotationNo: string;
     version: number;
@@ -993,7 +934,7 @@ export interface QuotationDetailResponse {
 /**
  * Lấy danh sách Báo giá từ PostgreSQL phục vụ Quotation List & Approval Worklist
  */
-export async function getQuotationsList(filters?: {
+export async function getQuotationsList(actor: CurrentActor, filters?: {
   status?: string;
   regionId?: string;
   search?: string;
@@ -1036,6 +977,12 @@ export async function getQuotationsList(filters?: {
     WHERE 1=1
   `;
   const params: unknown[] = [];
+  if (!actor.regionScopes.includes("*")) {
+    params.push(actor.regionScopes);
+    query += ' AND q.region_id = ANY($1::varchar[])';
+  }
+  if (filters?.regionId && filters.regionId !== "ALL") requireRegionScope(actor, filters.regionId);
+
 
   if (filters?.status && filters.status !== "ALL") {
     params.push(filters.status);
@@ -1069,7 +1016,7 @@ export async function getQuotationsList(filters?: {
     totalEstimatedBuy: Number(r.totalEstimatedBuy || 0),
     estimatedGp: Number(r.estimatedGp || 0),
     estimatedMarginPercent: Number(r.estimatedMarginPercent || 0),
-    paymentTermsDays: Number(r.paymentTermsDays || 30),
+    paymentTermsDays: Number(r.paymentTermsDays ?? 30),
     createdBy: r.createdBy || "System",
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
     routeSummary: r.routeSummary || undefined,
@@ -1081,7 +1028,7 @@ export async function getQuotationsList(filters?: {
 /**
  * Lấy chi tiết Báo giá kèm các dòng dịch vụ, snapshots và approval log
  */
-export async function getQuotationDetail(quotationId: string): Promise<QuotationDetailResponse | null> {
+export async function getQuotationDetail(quotationId: string, actor: CurrentActor): Promise<QuotationDetailResponse | null> {
   const quoteRes = await pool.query(
     `SELECT 
        q.quotation_id as "quotationId",
@@ -1106,7 +1053,8 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
        q.created_by as "createdBy",
        q.approved_by as "approvedBy",
        q.approved_at as "approvedAt",
-       q.created_at as "createdAt"
+       q.created_at as "createdAt",
+       q.updated_at::text as "revision"
      FROM customer_quotations q
      LEFT JOIN customers c ON q.customer_id = c.customer_id
      LEFT JOIN partners p ON c.customer_id = p.partner_id
@@ -1117,6 +1065,7 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
   );
   if (quoteRes.rows.length === 0) return null;
   const quote = quoteRes.rows[0];
+  requireRegionScope(actor, quote.regionId);
 
   const itemsRes = await pool.query(
     `SELECT 
@@ -1156,8 +1105,8 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
        original_currency as "originalCurrency",
        fx_rate_to_vnd as "fxRateToVnd",
        rate_amount_vnd as "rateAmountVnd",
-       validity_start as "validityStart",
-       validity_end as "validityEnd",
+       validity_start::text as "validityStart",
+       validity_end::text as "validityEnd",
        snapshot_at as "snapshotAt"
      FROM quotation_buy_snapshots
      WHERE quotation_id = $1
@@ -1183,6 +1132,7 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
 
   return {
     quote: {
+      revision: quote.revision,
       quotationId: quote.quotationId,
       quotationNo: quote.quotationNo,
       version: Number(quote.version || 1),
@@ -1199,7 +1149,7 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
       totalWorstCaseBuy: Number(quote.totalWorstCaseBuy || 0),
       estimatedGp: Number(quote.estimatedGp || 0),
       estimatedMarginPercent: Number(quote.estimatedMarginPercent || 0),
-      paymentTermsDays: Number(quote.paymentTermsDays || 30),
+      paymentTermsDays: Number(quote.paymentTermsDays ?? 30),
       immutableLocked: Boolean(quote.immutableLocked),
       createdBy: quote.createdBy || "System",
       approvedBy: quote.approvedBy || undefined,
@@ -1234,9 +1184,10 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
       rateAmount: Number(r.rateAmount || 0),
       originalCurrency: r.originalCurrency,
       fxRateToVnd: Number(r.fxRateToVnd || 1),
-      rateAmountVnd: Number(r.rateAmountVnd || 0),
-      validityStart: r.validityStart ? new Date(r.validityStart).toISOString().split("T")[0] : "",
-      validityEnd: r.validityEnd ? new Date(r.validityEnd).toISOString().split("T")[0] : "",
+      // Older snapshots stored a line total here. Derive the unit price from immutable source fields.
+      rateAmountVnd: roundVnd(new Decimal(r.rateAmount || 0).mul(r.fxRateToVnd ?? 1)).toNumber(),
+      validityStart: r.validityStart || "",
+      validityEnd: r.validityEnd || "",
       snapshotAt: r.snapshotAt ? new Date(r.snapshotAt).toISOString() : "",
     })),
     approvalLogs: logsRes.rows.map((r) => ({

@@ -44,7 +44,7 @@ interface CustomerRecord {
   phone?: string;
   email?: string;
   paymentTermsDays?: number;
-  creditLimit?: number;
+  creditLimit?: number | null;
   status: string; // ACTIVE, PENDING, SUSPENDED
   createdAt: string;
 }
@@ -79,7 +79,7 @@ export default function MasterCustomersPage() {
 
   // Lifecycle form states
   const [termsDaysInput, setTermsDaysInput] = useState<number>(30);
-  const [creditLimitInput, setCreditLimitInput] = useState<string>("500000000");
+  const [creditLimitInput, setCreditLimitInput] = useState<string>("");
   const [suspendReasonInput, setSuspendReasonInput] = useState("");
   const [activationCommentInput, setActivationCommentInput] = useState("");
   const [auditLogs, setAuditLogs] = useState<PartnerRoleAuditItem[]>([]);
@@ -183,7 +183,7 @@ export default function MasterCustomersPage() {
     setSelectedVendor(null);
     setSelectedPartner(null);
     setTermsDaysInput(customer.paymentTermsDays || 30);
-    setCreditLimitInput(String(customer.creditLimit || 500000000));
+    setCreditLimitInput(customer.creditLimit == null ? "" : String(customer.creditLimit));
     setSuspendReasonInput("");
     setActivationCommentInput("");
     setDrawerTab("INFO");
@@ -206,7 +206,7 @@ export default function MasterCustomersPage() {
     setSelectedCustomer(null);
     setSelectedVendor(null);
     setTermsDaysInput(partner.paymentTermsDays || 30);
-    setCreditLimitInput(String(partner.creditLimitVnd || 500000000));
+    setCreditLimitInput(partner.creditLimitVnd == null ? "" : String(partner.creditLimitVnd));
     setSuspendReasonInput("");
     setActivationCommentInput("");
     setDrawerTab("INFO");
@@ -216,10 +216,12 @@ export default function MasterCustomersPage() {
 
   // Execute Role Actions
   const handleActivateRole = async (partnerId: string) => {
+    const trimmed = creditLimitInput.trim();
+    const parsedLimit = trimmed === "" ? null : Math.max(0, Number(trimmed));
     const res = await activateCustomerRoleAction({
       partnerId,
       paymentTermsDays: Number(termsDaysInput),
-      creditLimitVnd: Number(creditLimitInput) || undefined,
+      creditLimitVnd: parsedLimit,
       comment: activationCommentInput.trim() || undefined,
     });
     if (res.success) {
@@ -227,8 +229,8 @@ export default function MasterCustomersPage() {
       loadData();
       loadAuditHistory(partnerId);
       // update local status
-      if (selectedCustomer) setSelectedCustomer({ ...selectedCustomer, status: "ACTIVE" });
-      if (selectedPartner) setSelectedPartner({ ...selectedPartner, customerRoleStatus: "ACTIVE", isCustomer: true });
+      if (selectedCustomer) setSelectedCustomer({ ...selectedCustomer, status: "ACTIVE", creditLimit: parsedLimit });
+      if (selectedPartner) setSelectedPartner({ ...selectedPartner, customerRoleStatus: "ACTIVE", isCustomer: true, creditLimitVnd: parsedLimit });
     } else {
       toast.error(res.error || "Lỗi khi kích hoạt vai trò Khách hàng");
     }
@@ -267,15 +269,19 @@ export default function MasterCustomersPage() {
   };
 
   const handleUpdateTerms = async (partnerId: string) => {
+    const trimmed = creditLimitInput.trim();
+    const parsedLimit = trimmed === "" ? null : Math.max(0, Number(trimmed));
     const res = await updateCustomerRoleTermsAction({
       partnerId,
       paymentTermsDays: Number(termsDaysInput),
-      creditLimitVnd: Number(creditLimitInput) || undefined,
+      creditLimitVnd: parsedLimit,
     });
     if (res.success) {
       toast.success(res.message || "Đã cập nhật hạn mức nợ và tín dụng!");
       loadData();
       loadAuditHistory(partnerId);
+      if (selectedCustomer) setSelectedCustomer({ ...selectedCustomer, creditLimit: parsedLimit, paymentTermsDays: Number(termsDaysInput) });
+      if (selectedPartner) setSelectedPartner({ ...selectedPartner, creditLimitVnd: parsedLimit, paymentTermsDays: Number(termsDaysInput) });
     } else {
       toast.error(res.error || "Lỗi khi cập nhật");
     }
@@ -509,7 +515,13 @@ export default function MasterCustomersPage() {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-200 whitespace-nowrap">
-                        {c.creditLimit ? formatVND(c.creditLimit) : "Không giới hạn"}
+                        {c.creditLimit == null ? (
+                          <span className="text-slate-500 italic text-[11px]">Chưa cấu hình</span>
+                        ) : Number(c.creditLimit) === 0 ? (
+                          <span className="text-amber-400 font-medium">0 ₫ (Trả trước)</span>
+                        ) : (
+                          formatVND(Number(c.creditLimit))
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-slate-400 text-[11px] max-w-[200px] truncate" title={c.address}>
                         {c.address || "-"}
@@ -807,9 +819,19 @@ export default function MasterCustomersPage() {
                       <span className="text-slate-500 font-sans flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5" /> Hạn mức tín dụng:
                       </span>
-                      <strong className="text-emerald-400">
-                        {formatVND(Number(creditLimitInput) || 0)}
-                      </strong>
+                      {creditLimitInput.trim() === "" ? (
+                        <span className="text-slate-400 italic font-mono text-[11px]">
+                          Chưa thiết lập (Không áp dụng)
+                        </span>
+                      ) : Number(creditLimitInput) === 0 ? (
+                        <span className="text-amber-400 font-mono font-medium">
+                          0 ₫ (Không cấp nợ / Trả trước)
+                        </span>
+                      ) : (
+                        <strong className="text-emerald-400">
+                          {formatVND(Number(creditLimitInput))}
+                        </strong>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -860,11 +882,20 @@ export default function MasterCustomersPage() {
                         </label>
                         <input
                           type="number"
-                          step="50000000"
+                          step="10000000"
+                          min="0"
+                          placeholder="Để trống: chưa cấu hình | 0: không cấp nợ"
                           value={creditLimitInput}
                           onChange={(e) => setCreditLimitInput(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-600"
                         />
+                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                          {creditLimitInput.trim() === ""
+                            ? "Để trống: Chưa cấu hình hạn mức"
+                            : Number(creditLimitInput) === 0
+                            ? "0 ₫: Không cấp hạn mức nợ (bắt buộc trả trước)"
+                            : `Hạn mức phê duyệt: ${formatVND(Number(creditLimitInput))}`}
+                        </span>
                       </div>
                     </div>
 
@@ -891,7 +922,7 @@ export default function MasterCustomersPage() {
                         </label>
                         <input
                           type="text"
-                          placeholder="VD: Đã thẩm định năng lực tài chính, duyệt hạn mức 500tr..."
+                          placeholder="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..."
                           value={activationCommentInput}
                           onChange={(e) => setActivationCommentInput(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"

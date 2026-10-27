@@ -10,6 +10,7 @@
     "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint",
+    "test": "node --test tests/phase1.test.cjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

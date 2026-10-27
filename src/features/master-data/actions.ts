@@ -12,6 +12,7 @@ import {
 
 export async function getRoadRatesAction(search?: string) {
   try {
+    await requireAuth();
     const list = await getRoadRatesDetailedList({ search });
     return { success: true, data: list };
   } catch (err) {
@@ -25,6 +26,7 @@ export async function getRoadRatesAction(search?: string) {
 
 export async function getCustomersAndVendorsAction(search?: string) {
   try {
+    await requireAuth();
     const [customers, vendors] = await Promise.all([
       getCustomersDetailedList({ search }),
       getVendorsDetailedList({ search }),
@@ -42,6 +44,7 @@ export async function getCustomersAndVendorsAction(search?: string) {
 
 export async function getLocationsAction(search?: string, regionId?: string) {
   try {
+    await requireAuth();
     const [locations, regions] = await Promise.all([
       getLocationsDetailedList({ search, regionId }),
       getMasterRegions(),
@@ -59,6 +62,7 @@ export async function getLocationsAction(search?: string, regionId?: string) {
 
 export async function getCommoditiesAction(search?: string) {
   try {
+    await requireAuth();
     const list = await getCommoditiesDetailedList({ search });
     return { success: true, data: list };
   } catch (err) {
@@ -72,6 +76,7 @@ export async function getCommoditiesAction(search?: string) {
 
 export async function getFleetAction(limit?: number) {
   try {
+    await requireAuth();
     const fleet = await getFleetDetailedList(limit);
     return { success: true, fleet };
   } catch (err) {
@@ -103,6 +108,7 @@ export async function getPartnersDirectoryAction(filters?: {
   limit?: number;
 }) {
   try {
+    await requireAuth();
     const data = await getPartnersDirectory(filters);
     return { success: true, data };
   } catch (err) {
@@ -117,7 +123,7 @@ export async function getPartnersDirectoryAction(filters?: {
 export async function activateCustomerRoleAction(input: {
   partnerId: string;
   paymentTermsDays?: number;
-  creditLimitVnd?: number;
+  creditLimitVnd?: number | null;
   comment?: string;
 }) {
   try {
@@ -164,7 +170,7 @@ export async function requestCustomerRoleActivationAction(partnerId: string) {
 export async function updateCustomerRoleTermsAction(input: {
   partnerId: string;
   paymentTermsDays: number;
-  creditLimitVnd?: number;
+  creditLimitVnd?: number | null;
 }) {
   try {
     const actor = await requireAuth();
@@ -180,6 +186,7 @@ export async function updateCustomerRoleTermsAction(input: {
 
 export async function getPartnerRoleAuditHistoryAction(partnerId: string) {
   try {
+    await requireAuth();
     const data = await getPartnerRoleAuditHistory(partnerId);
     return { success: true, data };
   } catch (err) {

@@ -8,8 +8,6 @@ import {
   RefreshCw,
   PlusCircle,
   Filter,
-  ThermometerSnowflake,
-  ShieldAlert,
 } from "lucide-react";
 import { getCommoditiesAction } from "@/features/master-data/actions";
 
@@ -17,10 +15,7 @@ interface CommodityRecord {
   commodityId: string;
   name: string;
   category: string;
-  unit?: string;
   specialRequirements?: string;
-  dangerousGoods?: boolean;
-  tempControlled?: boolean;
   notes?: string;
 }
 
@@ -28,8 +23,6 @@ export default function MasterCommoditiesPage() {
   const [commodities, setCommodities] = useState<CommodityRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [tempOnly, setTempOnly] = useState(false);
-  const [dgOnly, setDgOnly] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const loadData = useCallback(() => {
@@ -73,16 +66,8 @@ export default function MasterCommoditiesPage() {
       list = list.filter((c) => c.category === selectedCategory);
     }
 
-    if (tempOnly) {
-      list = list.filter((c) => c.tempControlled === true);
-    }
-
-    if (dgOnly) {
-      list = list.filter((c) => c.dangerousGoods === true);
-    }
-
     return list;
-  }, [commodities, searchTerm, selectedCategory, tempOnly, dgOnly]);
+  }, [commodities, searchTerm, selectedCategory]);
 
   return (
     <div className="space-y-4 font-sans text-slate-200">
@@ -160,32 +145,6 @@ export default function MasterCommoditiesPage() {
           ))}
         </div>
 
-        {/* Special toggles */}
-        <div className="flex items-center gap-2 shrink-0 text-xs">
-          <button
-            onClick={() => setTempOnly(!tempOnly)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition-colors ${
-              tempOnly
-                ? "bg-blue-600/20 text-blue-300 border-blue-500/40"
-                : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
-            }`}
-          >
-            <ThermometerSnowflake className="w-3 h-3 text-cyan-400" />
-            Cont Lạnh (RF)
-          </button>
-
-          <button
-            onClick={() => setDgOnly(!dgOnly)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition-colors ${
-              dgOnly
-                ? "bg-rose-600/20 text-rose-300 border-rose-500/40"
-                : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
-            }`}
-          >
-            <ShieldAlert className="w-3 h-3 text-rose-400" />
-            Nguy Hiểm (DG)
-          </button>
-        </div>
       </div>
 
       {/* Main Table */}
@@ -197,9 +156,6 @@ export default function MasterCommoditiesPage() {
                 <th className="py-2.5 px-3">Mã Hàng</th>
                 <th className="py-2.5 px-3">Tên Mặt Hàng</th>
                 <th className="py-2.5 px-3">Nhóm / Phân Loại</th>
-                <th className="py-2.5 px-3 text-center">ĐVT</th>
-                <th className="py-2.5 px-3 text-center">Yêu Cầu Nhiệt Độ</th>
-                <th className="py-2.5 px-3 text-center">Hàng Nguy Hiểm</th>
                 <th className="py-2.5 px-3">Quy Cách / Ghi Chú</th>
                 <th className="py-2.5 px-3 text-right">Thao Tác</th>
               </tr>
@@ -207,7 +163,7 @@ export default function MasterCommoditiesPage() {
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {filteredCommodities.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td colSpan={5} className="py-12 text-center text-slate-500">
                     Không tìm thấy mặt hàng phù hợp với điều kiện tìm kiếm.
                   </td>
                 </tr>
@@ -225,29 +181,6 @@ export default function MasterCommoditiesPage() {
                       <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 font-mono text-cyan-400">
                         {m.category}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-400 whitespace-nowrap">
-                      {m.unit || "Tấn"}
-                    </td>
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {m.tempControlled ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-300 font-medium border border-blue-500/25">
-                          <ThermometerSnowflake className="w-3 h-3 text-cyan-400" />
-                          Cont Lạnh (RF)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500">Tiêu chuẩn</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {m.dangerousGoods ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-300 font-medium border border-rose-500/25">
-                          <ShieldAlert className="w-3 h-3 text-rose-400" />
-                          DG / Nguy Hiểm
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500">Hàng thường</span>
-                      )}
                     </td>
                     <td className="py-2.5 px-3 text-slate-400 text-[11px] max-w-[220px] truncate" title={m.specialRequirements || m.notes}>
                       {m.specialRequirements || m.notes || "-"}

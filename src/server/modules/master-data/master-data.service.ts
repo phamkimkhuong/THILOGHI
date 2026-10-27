@@ -253,18 +253,7 @@ export async function getCommoditiesDetailedList(filters?: { search?: string }) 
     name: r.name,
     englishName: r.englishName,
     category: r.category || "Hàng bách hóa",
-    unit: "Tấn",
     specialRequirements: r.specifications || r.purpose || (r.origin ? `Xuất xứ: ${r.origin}` : ""),
-    dangerousGoods: Boolean(
-      (r.category && r.category.toLowerCase().includes("nguy hiểm")) ||
-      (r.specifications && r.specifications.toLowerCase().includes("hóa chất")) ||
-      (r.purpose && r.purpose.toLowerCase().includes("hóa chất"))
-    ),
-    tempControlled: Boolean(
-      (r.category && r.category.toLowerCase().includes("lạnh")) ||
-      (r.category && r.category.toLowerCase().includes("nông sản")) ||
-      (r.specifications && r.specifications.toLowerCase().includes("lạnh"))
-    ),
     notes: [
       r.origin ? `Xuất xứ: ${r.origin}` : null,
       r.specifications ? `Quy cách: ${r.specifications}` : null,

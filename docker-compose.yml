@@ -40,7 +40,8 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER:-thilogi_admin}:${POSTGRES_PASSWORD:-thilogi_secure_2026}@postgres:5432/${POSTGRES_DB:-thilogi_db}
-      - JWT_SECRET=${JWT_SECRET:-thilogi_super_secure_jwt_secret_key_2026_production}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be configured}
+      - ENABLE_DEMO_AUTH=${ENABLE_DEMO_AUTH:-false}
       - NODE_ENV=production
       - PORT=3000
     depends_on:

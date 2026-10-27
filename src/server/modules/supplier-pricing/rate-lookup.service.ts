@@ -1,3 +1,7 @@
+import type { PoolClient } from "pg";
+import Decimal from "decimal.js";
+import { roundVnd } from "@/shared/utils/pricing";
+import { rateLookupSchema } from "@/shared/schemas/quotation.schema";
 import { pool } from "@/server/db";
 
 export interface RateLookupQuery {
@@ -16,10 +20,12 @@ export interface RateCandidate {
   fxRateToVnd: number;
   buyRateVnd: number;
   validityRange: string;
+  validityStart: string;
+  validityEnd: string;
 }
 
 export interface RateLookupResult {
-  status: "MISSING_RATE" | "APPLY" | "MULTIPLE_CANDIDATES" | "CONFLICT_RATE";
+  status: "MISSING_RATE" | "APPLY" | "MULTIPLE_CANDIDATES" | "CONFLICT_RATE" | "ERROR";
   candidates: RateCandidate[];
   selectedRate?: RateCandidate;
   worstCaseBuy?: number;
@@ -56,7 +62,8 @@ export function getFxRateToVnd(currency: string): number {
  * Thuật toán Tra cứu Giá mua Đầu vào (BUY Rate Lookup Engine v1.1)
  * Tuân thủ quy tắc 4 bước: Search Candidates -> Validate Overlap -> Normalize FX -> Select -> Worst-case
  */
-export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLookupResult> {
+export async function lookupRoadRates(input: RateLookupQuery, client: Pick<PoolClient, "query"> = pool): Promise<RateLookupResult> {
+  const query = rateLookupSchema.parse(input);
   // 1. Tìm kiếm tất cả các bảng giá của các Vendor còn hiệu lực tại ngày pricingDate
   const sql = `
     SELECT 
@@ -65,7 +72,9 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
       p.partner_name as vendor_name,
       r.buy_rate,
       r.currency,
-      r.validity_range::text
+      r.validity_range::text,
+      COALESCE(lower(r.validity_range)::text, '0001-01-01') as validity_start,
+      COALESCE(upper(r.validity_range)::text, '9999-12-31') as validity_end
     FROM road_rates r
     JOIN vendors v ON r.vendor_id = v.vendor_id
     JOIN partners p ON v.vendor_id = p.partner_id
@@ -78,7 +87,7 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
       AND p.status = 'ACTIVE'
   `;
 
-  const { rows } = await pool.query(sql, [
+  const { rows } = await client.query(sql, [
     query.pickupLocationId,
     query.deliveryLocationId,
     query.equipmentType,
@@ -96,9 +105,9 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
   // 2. Chuẩn hóa tỷ giá ngoại tệ về VND cho từng candidate
   const candidates: RateCandidate[] = rows.map((r) => {
     const rawRate = Number(r.buy_rate);
-    const curr = (r.currency || "VND").toUpperCase();
+    const curr = (r.currency || "VND").trim().toUpperCase();
     const fx = getFxRateToVnd(curr);
-    const buyVnd = Math.round(rawRate * fx);
+    const buyVnd = roundVnd(new Decimal(r.buy_rate).mul(fx)).toNumber();
 
     return {
       rateId: r.rate_id,
@@ -109,6 +118,8 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
       fxRateToVnd: fx,
       buyRateVnd: buyVnd,
       validityRange: r.validity_range,
+      validityStart: r.validity_start,
+      validityEnd: r.validity_end,
     };
   });
 

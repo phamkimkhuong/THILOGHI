@@ -818,7 +818,7 @@ export default function QuotationListPage() {
                           </div>
                           <div className="text-right">
                             <div className="font-mono font-bold text-amber-400">
-                              {formatVND(s.rateAmountVnd)}
+                              Đơn giá: {formatVND(s.rateAmountVnd)}
                             </div>
                             {s.originalCurrency !== "VND" && (
                               <div className="text-[10px] text-slate-500 font-mono">

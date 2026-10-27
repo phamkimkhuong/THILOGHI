@@ -24,38 +24,20 @@ import {
   RotateCcw,
   RefreshCw,
 } from "lucide-react";
+import { restoreQuotationItems, ServiceItemState } from "@/features/quotation/editor-state";
+import { calculateQuotationFinancials, getBusinessDate } from "@/shared/utils/pricing";
 import { ServicePackage } from "@/shared/schemas/quotation.schema";
 import {
   getQuotationMasterDataAction,
   getQuotationDetailAction,
   lookupRoadRatesAction,
   saveDraftQuotationAction,
-  submitQuotationAction,
   approveQuotationAction,
   rejectQuotationAction,
   returnQuotationToDraftAction,
 } from "@/features/quotation/actions";
-import { RateLookupResult, RateCandidate } from "@/server/modules/supplier-pricing/rate-lookup.service";
+import type { RateCandidate } from "@/server/modules/supplier-pricing/rate-lookup.service";
 import { MasterOption } from "@/server/modules/master-data/master-data.service";
-
-interface ServiceItemState {
-  id: string;
-  servicePackage: string;
-  originLocationId: string;
-  destinationLocationId: string;
-  equipmentType: string;
-  plannedQuantity: number;
-  unit: string;
-
-  // BUY Side
-  lookupResult?: RateLookupResult;
-  selectedCandidate?: RateCandidate;
-  unitBuyPrice: number;
-  worstCaseBuyPrice: number;
-
-  // SELL Side
-  unitSellPrice: number;
-}
 
 function QuotationWorkspaceContent() {
   const searchParams = useSearchParams();
@@ -86,6 +68,7 @@ function QuotationWorkspaceContent() {
     {
       id: "item-1",
       servicePackage: "TRUCKING",
+      pricingInclusion: "INCLUDED",
       originLocationId: "",
       destinationLocationId: "",
       equipmentType: "40HC",
@@ -101,15 +84,29 @@ function QuotationWorkspaceContent() {
 
   // Result state
   const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
+  const [revision, setRevision] = useState<string | undefined>();
+  const [loadFailed, setLoadFailed] = useState(false);
   const [savedQuotationNo, setSavedQuotationNo] = useState<string | null>(null);
   const [quotationStatus, setQuotationStatus] = useState<"DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED">("DRAFT");
   const [isImmutableLocked, setIsImmutableLocked] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const isReadOnly = isImmutableLocked || quotationStatus !== "DRAFT" || isPending || loadFailed;
+
   // Load Master Data & Existing Quotation if ID provided
   useEffect(() => {
+    let cancelled = false;
     startTransition(async () => {
+      setLoadFailed(false);
+      setSavedQuotationId(null);
+      setSavedQuotationNo(null);
+      setRevision(undefined);
+      setQuotationStatus("DRAFT");
+      setIsImmutableLocked(false);
+      setActiveItemIndex(0);
+      setActionMessage(null);
       const res = await getQuotationMasterDataAction();
+      if (cancelled) return;
       setCustomers(res.customers);
       setRegions(res.regions);
       setLocations(res.locations);
@@ -117,6 +114,7 @@ function QuotationWorkspaceContent() {
       setEquipmentTypes(res.equipmentTypes);
 
       if (res.error) {
+        setLoadFailed(true);
         setActionMessage({
           type: "error",
           text: `${res.error}. Vui lòng kiểm tra kết nối PostgreSQL.`,
@@ -126,33 +124,25 @@ function QuotationWorkspaceContent() {
       if (idFromUrl) {
         // Tải thông tin báo giá đã có
         const detailRes = await getQuotationDetailAction(idFromUrl);
+        if (cancelled) return;
         if (detailRes.success && detailRes.data) {
           const q = detailRes.data.quote;
+          setRevision(q.revision);
           setSavedQuotationId(q.quotationId);
           setSavedQuotationNo(q.quotationNo);
           setQuotationStatus(q.status as "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED");
           setIsImmutableLocked(q.immutableLocked);
           setCustomerId(q.customerId);
           setRegionId(q.regionId);
-          if (q.commodityId) setCommodityId(q.commodityId);
+          setCommodityId(q.commodityId || "");
           setPaymentTermsDays(q.paymentTermsDays);
 
           if (detailRes.data.items && detailRes.data.items.length > 0) {
-            setItems(
-              detailRes.data.items.map((it, idx) => ({
-                id: it.itemId || `item-${idx}`,
-                servicePackage: it.servicePackage,
-                originLocationId: it.originLocationId,
-                destinationLocationId: it.destinationLocationId,
-                equipmentType: it.equipmentType,
-                plannedQuantity: it.plannedQuantity,
-                unit: it.unit,
-                unitSellPrice: it.unitSellPrice,
-                unitBuyPrice: it.plannedQuantity > 0 ? it.estimatedBuyAmount / it.plannedQuantity : 0,
-                worstCaseBuyPrice: it.plannedQuantity > 0 ? it.worstCaseBuyAmount / it.plannedQuantity : 0,
-              }))
-            );
+            setItems(restoreQuotationItems(detailRes.data));
           }
+        } else {
+          setLoadFailed(true);
+          setActionMessage({ type: "error", text: detailRes.error || "Không thể tải báo giá." });
         }
       } else {
         // Thiết lập giá trị mặc định hoặc từ URL query parameters
@@ -170,6 +160,7 @@ function QuotationWorkspaceContent() {
           {
             id: "item-1",
             servicePackage: "TRUCKING",
+            pricingInclusion: "INCLUDED",
             originLocationId: origin,
             destinationLocationId: dest,
             equipmentType: eq,
@@ -182,6 +173,7 @@ function QuotationWorkspaceContent() {
         ]);
       }
     });
+    return () => { cancelled = true; };
   }, [idFromUrl, customerIdFromUrl, originFromUrl, destFromUrl, eqFromUrl, commodityIdFromUrl]);
 
   const currentItem = items[activeItemIndex] || items[0];
@@ -199,17 +191,18 @@ function QuotationWorkspaceContent() {
         pickupLocationId: item.originLocationId,
         deliveryLocationId: item.destinationLocationId,
         equipmentType: item.equipmentType,
-        pricingDate: new Date().toISOString().split("T")[0],
+        pricingDate: getBusinessDate(),
       });
 
       setItems((prev) =>
         prev.map((it, idx) => {
           if (idx !== index) return it;
-          const selected = result.selectedRate || (result.candidates.length > 0 ? result.candidates[0] : undefined);
+          const selected = result.status === "APPLY" || result.status === "MULTIPLE_CANDIDATES" ? result.selectedRate : undefined;
           return {
             ...it,
             lookupResult: result,
             selectedCandidate: selected,
+            selectedBuyRateId: selected?.rateId,
             unitBuyPrice: selected ? selected.buyRateVnd : 0,
             worstCaseBuyPrice: result.worstCaseBuy || 0,
           };
@@ -220,12 +213,14 @@ function QuotationWorkspaceContent() {
 
   // Chọn nhà cung cấp ứng viên (PR-04 Server-Authoritative)
   const handleSelectCandidate = (index: number, candidate: RateCandidate) => {
+    if (items[index].lookupResult?.status === "CONFLICT_RATE" || items[index].lookupResult?.status === "ERROR") return;
     setItems((prev) =>
       prev.map((it, idx) => {
         if (idx !== index) return it;
         return {
           ...it,
           selectedCandidate: candidate,
+          selectedBuyRateId: candidate.rateId,
           unitBuyPrice: candidate.buyRateVnd,
         };
       })
@@ -237,6 +232,7 @@ function QuotationWorkspaceContent() {
     const newItem: ServiceItemState = {
       id: `item-${Date.now()}`,
       servicePackage: "TRUCKING",
+      pricingInclusion: "INCLUDED",
       originLocationId: locations[0]?.id || "",
       destinationLocationId: locations[1]?.id || "",
       equipmentType: "40HC",
@@ -260,30 +256,28 @@ function QuotationWorkspaceContent() {
   };
 
   // Tính toán Tổng tài chính P&L
-  const totalSell = items.reduce((acc, it) => acc + (it.unitSellPrice || 0) * (it.plannedQuantity || 1), 0);
-  const totalBuy = items.reduce((acc, it) => acc + (it.unitBuyPrice || 0) * (it.plannedQuantity || 1), 0);
-  const totalWorstBuy = items.reduce((acc, it) => acc + (it.worstCaseBuyPrice || 0) * (it.plannedQuantity || 1), 0);
-  const grossProfit = totalSell - totalBuy;
-  const marginPercent = totalSell > 0 ? (grossProfit / totalSell) * 100 : 0;
+  const { totalSellAmount: totalSell, totalEstimatedBuy: totalBuy, totalWorstCaseBuy: totalWorstBuy,
+    estimatedGp: grossProfit, estimatedMarginPercent: marginPercent } = calculateQuotationFinancials(items);
 
   // Lưu Báo giá Nháp (Create vs Update Draft)
-  const handleSaveDraft = () => {
+  const persistDraft = (submit: boolean) => {
     startTransition(async () => {
       const res = await saveDraftQuotationAction({
         quotationId: savedQuotationId || undefined,
+        expectedUpdatedAt: revision,
         customerId,
         regionId,
         commodityId,
         paymentTermsDays,
         items: items.map((it) => ({
           servicePackage: it.servicePackage as ServicePackage,
-          pricingInclusion: "INCLUDED",
+          pricingInclusion: it.pricingInclusion,
           originLocationId: it.originLocationId,
           destinationLocationId: it.destinationLocationId,
           equipmentType: it.equipmentType,
           plannedQuantity: it.plannedQuantity,
           unit: it.unit,
-          selectedBuyRateId: it.selectedCandidate?.rateId,
+          selectedBuyRateId: it.selectedBuyRateId,
           selectedVendorId: it.selectedCandidate?.vendorId,
           selectedVendorName: it.selectedCandidate?.vendorName,
           unitBuyPrice: it.unitBuyPrice,
@@ -294,15 +288,17 @@ function QuotationWorkspaceContent() {
           itemGp: (it.unitSellPrice - it.unitBuyPrice) * it.plannedQuantity,
           itemMarginPercent: it.unitSellPrice > 0 ? ((it.unitSellPrice - it.unitBuyPrice) / it.unitSellPrice) * 100 : 0,
         })),
-      });
+      }, submit);
 
       if (res.success && res.data) {
         setSavedQuotationId(res.data.quotationId || null);
         setSavedQuotationNo(res.data.quotationNo);
-        setQuotationStatus("DRAFT");
+        setRevision(res.data.revision);
+        setQuotationStatus(res.data.status);
+        setItems((previous) => previous.map((item, index) => ({ ...item, ...res.data.items[index] })));
         setActionMessage({
           type: "success",
-          text: `Đã lưu thành công Báo giá Nháp [${res.data.quotationNo}].`,
+          text: submit ? `Đã lưu và trình duyệt báo giá [${res.data.quotationNo}].` : `Đã lưu báo giá nháp [${res.data.quotationNo}].`,
         });
       } else {
         setActionMessage({ type: "error", text: res.error || "Lỗi khi lưu báo giá" });
@@ -310,35 +306,8 @@ function QuotationWorkspaceContent() {
     });
   };
 
-  // Trình Thẩm định (DRAFT -> PENDING_APPROVAL)
-  const handleSubmitForApproval = () => {
-    if (!savedQuotationId) {
-      setActionMessage({
-        type: "error",
-        text: "Vui lòng bấm 'Lưu Nháp Báo Giá' trước khi trình duyệt Hội đồng Định giá.",
-      });
-      return;
-    }
-
-    const hasMissingBuy = items.some((it) => it.unitBuyPrice === 0);
-    if (hasMissingBuy) {
-      alert("CẢNH BÁO QUY TẮC P0: Không thể trình duyệt khi còn dịch vụ thiếu giá mua đầu vào (MISSING RATE). Vui lòng tra cứu giá mua trước.");
-      return;
-    }
-
-    startTransition(async () => {
-      const res = await submitQuotationAction(savedQuotationId);
-      if (res.success) {
-        setQuotationStatus("PENDING_APPROVAL");
-        setActionMessage({
-          type: "success",
-          text: res.message || "Báo giá đã được chuyển sang trạng thái CHỜ PHÊ DUYỆT (PENDING_APPROVAL).",
-        });
-      } else {
-        setActionMessage({ type: "error", text: res.error || "Lỗi khi trình duyệt" });
-      }
-    });
-  };
+  const handleSaveDraft = () => persistDraft(false);
+  const handleSubmitForApproval = () => persistDraft(true);
 
   // Phê duyệt Báo giá
   const handleApprove = () => {
@@ -399,6 +368,8 @@ function QuotationWorkspaceContent() {
       const res = await returnQuotationToDraftAction(savedQuotationId, comment);
       if (res.success) {
         setQuotationStatus("DRAFT");
+        const refreshed = await getQuotationDetailAction(savedQuotationId);
+        if (refreshed.success && refreshed.data) setRevision(refreshed.data.quote.revision);
         setIsImmutableLocked(false);
         setActionMessage({
           type: "success",
@@ -472,7 +443,7 @@ function QuotationWorkspaceContent() {
             <>
               <button
                 onClick={handleSaveDraft}
-                disabled={isPending || isImmutableLocked}
+                disabled={isReadOnly}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5 text-slate-400" />
@@ -480,7 +451,7 @@ function QuotationWorkspaceContent() {
               </button>
               <button
                 onClick={handleSubmitForApproval}
-                disabled={isPending || isImmutableLocked}
+                disabled={isReadOnly}
                 className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -579,7 +550,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Khách Hàng Mục Tiêu *</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
@@ -595,7 +566,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Phân Vùng Vận Hành (Region Scope) *</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={regionId}
                   onChange={(e) => setRegionId(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
@@ -611,7 +582,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Mặt Hàng Vận Chuyển</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={commodityId}
                   onChange={(e) => setCommodityId(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
@@ -629,7 +600,7 @@ function QuotationWorkspaceContent() {
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    disabled={isImmutableLocked}
+                    disabled={isReadOnly}
                     value={paymentTermsDays}
                     onChange={(e) => setPaymentTermsDays(Number(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
@@ -650,7 +621,7 @@ function QuotationWorkspaceContent() {
               <button
                 type="button"
                 onClick={handleAddItem}
-                disabled={isImmutableLocked}
+                disabled={isReadOnly}
                 className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors"
               >
                 <Plus className="w-3 h-3" />
@@ -677,7 +648,7 @@ function QuotationWorkspaceContent() {
                       <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 font-mono text-slate-400">
                         {item.plannedQuantity} {item.unit}
                       </span>
-                      {items.length > 1 && !isImmutableLocked && (
+                      {items.length > 1 && !isReadOnly && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -739,7 +710,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Điểm Nhận / Xếp Hàng *</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={currentItem.originLocationId}
                   onChange={(e) =>
                     setItems((prev) =>
@@ -750,6 +721,7 @@ function QuotationWorkspaceContent() {
                               originLocationId: e.target.value,
                               lookupResult: undefined,
                               selectedCandidate: undefined,
+                              selectedBuyRateId: undefined,
                               unitBuyPrice: 0,
                               worstCaseBuyPrice: 0,
                             }
@@ -770,7 +742,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Điểm Giao / Dỡ Hàng *</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={currentItem.destinationLocationId}
                   onChange={(e) =>
                     setItems((prev) =>
@@ -781,6 +753,7 @@ function QuotationWorkspaceContent() {
                               destinationLocationId: e.target.value,
                               lookupResult: undefined,
                               selectedCandidate: undefined,
+                              selectedBuyRateId: undefined,
                               unitBuyPrice: 0,
                               worstCaseBuyPrice: 0,
                             }
@@ -801,7 +774,7 @@ function QuotationWorkspaceContent() {
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Loại Thiết Bị / Phương Tiện *</label>
                 <select
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={currentItem.equipmentType}
                   onChange={(e) =>
                     setItems((prev) =>
@@ -812,6 +785,7 @@ function QuotationWorkspaceContent() {
                               equipmentType: e.target.value,
                               lookupResult: undefined,
                               selectedCandidate: undefined,
+                              selectedBuyRateId: undefined,
                               unitBuyPrice: 0,
                               worstCaseBuyPrice: 0,
                             }
@@ -837,7 +811,7 @@ function QuotationWorkspaceContent() {
                 <input
                   type="number"
                   min="1"
-                  disabled={isImmutableLocked}
+                  disabled={isReadOnly}
                   value={currentItem.plannedQuantity}
                   onChange={(e) =>
                     setItems((prev) =>
@@ -854,7 +828,7 @@ function QuotationWorkspaceContent() {
               <button
                 type="button"
                 onClick={() => handleLookupRate(activeItemIndex)}
-                disabled={isPending || isImmutableLocked}
+                disabled={isReadOnly}
                 className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
               >
                 <Search className="w-3.5 h-3.5" />
@@ -895,7 +869,10 @@ function QuotationWorkspaceContent() {
                   )}
                 </div>
 
-                {currentItem.lookupResult.candidates.length > 0 && (
+                {currentItem.lookupResult.message && (
+                  <p role="alert" className="text-xs text-amber-300">{currentItem.lookupResult.message}</p>
+                )}
+                {(currentItem.lookupResult.status === "APPLY" || currentItem.lookupResult.status === "MULTIPLE_CANDIDATES") && currentItem.lookupResult.candidates.length > 0 && (
                   <div className="border border-slate-800 rounded-lg overflow-hidden">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-900/80 text-slate-400 text-[10px] uppercase border-b border-slate-800">
@@ -912,7 +889,7 @@ function QuotationWorkspaceContent() {
                           return (
                             <tr
                               key={cand.rateId}
-                              onClick={() => !isImmutableLocked && handleSelectCandidate(activeItemIndex, cand)}
+                              onClick={() => !isReadOnly && handleSelectCandidate(activeItemIndex, cand)}
                               className={`cursor-pointer transition-colors ${
                                 isSelected ? "bg-blue-600/15 text-white" : "hover:bg-slate-900/50 text-slate-300"
                               }`}
@@ -923,7 +900,7 @@ function QuotationWorkspaceContent() {
                                   name={`candidate-${currentItem.id}`}
                                   checked={isSelected}
                                   onChange={() => {}}
-                                  disabled={isImmutableLocked}
+                                  disabled={isReadOnly}
                                   className="text-blue-500 focus:ring-0"
                                 />
                               </td>
@@ -971,7 +948,7 @@ function QuotationWorkspaceContent() {
                   <input
                     type="number"
                     step="500000"
-                    disabled={isImmutableLocked}
+                    disabled={isReadOnly}
                     value={currentItem.unitSellPrice}
                     onChange={(e) =>
                       setItems((prev) =>
