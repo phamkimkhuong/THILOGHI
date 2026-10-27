@@ -1,4 +1,4 @@
-import { pgTable, varchar, numeric, text, boolean, timestamp, integer, uuid, pgEnum, date, customType } from "drizzle-orm/pg-core";
+import { pgTable, varchar, numeric, text, boolean, timestamp, integer, uuid, pgEnum, date, customType, jsonb } from "drizzle-orm/pg-core";
 
 export const daterange = customType<{ data: string; driverData: string }>({
   dataType() {
@@ -108,42 +108,68 @@ export const locations = pgTable("locations", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const customers = pgTable("customers", {
-  customerId: varchar("customer_id", { length: 50 }).primaryKey(),
+export const partners = pgTable("partners", {
+  partnerId: varchar("partner_id", { length: 50 }).primaryKey(),
+  partnerName: varchar("partner_name", { length: 255 }).notNull(),
   shortName: varchar("short_name", { length: 100 }),
-  customerName: varchar("customer_name", { length: 255 }).notNull(),
-  partnerType: varchar("partner_type", { length: 50 }), // Clients, Consignee, Shipper, Suppliers, Vendors, Line, Port, Stuffing Place, Depot
+  taxCode: varchar("tax_code", { length: 50 }),
+  sourcePartnerType: varchar("source_partner_type", { length: 50 }), // Clients, Consignee, Shipper, Suppliers, Vendors, Line, Port, Stuffing Place, Depot
   country: varchar("country", { length: 100 }),
   address: text("address"),
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 255 }),
   gpsCoordinates: varchar("gps_coordinates", { length: 100 }),
   bankAccount: varchar("bank_account", { length: 100 }),
   bankName: varchar("bank_name", { length: 255 }),
-  taxCode: varchar("tax_code", { length: 50 }),
-  description: text("description"),
-  signingDate: date("signing_date"),
   representedBy: varchar("represented_by", { length: 255 }),
-  phone: varchar("phone", { length: 50 }),
-  email: varchar("email", { length: 255 }),
   logoUrl: text("logo_url"),
+  description: text("description"),
   note: text("note"),
   regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
-  creditLimitVnd: numeric("credit_limit_vnd", { precision: 15, scale: 2 }).default("0"),
-  paymentTermsDays: integer("payment_terms_days").default(30),
-  status: varchar("status", { length: 50 }).default("Đã duyệt"),
+  sourceSystem: varchar("source_system", { length: 100 }),
+  sourceRecordId: varchar("source_record_id", { length: 100 }),
+  status: varchar("status", { length: 20 }).default("ACTIVE").notNull(), // ACTIVE, INACTIVE
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const customers = pgTable("customers", {
+  customerId: varchar("customer_id", { length: 50 })
+    .primaryKey()
+    .references(() => partners.partnerId, { onDelete: "restrict" }),
+  roleStatus: varchar("role_status", { length: 20 }).default("PENDING").notNull(), // PENDING, ACTIVE, SUSPENDED
+  paymentTermsDays: integer("payment_terms_days").default(30),
+  creditLimitVnd: numeric("credit_limit_vnd", { precision: 18, scale: 2 }),
+  activatedBy: varchar("activated_by", { length: 50 }).references(() => users.userId),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const vendors = pgTable("vendors", {
-  vendorId: varchar("vendor_id", { length: 50 }).primaryKey(),
-  shortName: varchar("short_name", { length: 100 }),
-  vendorName: varchar("vendor_name", { length: 255 }).notNull(),
-  vendorType: varchar("vendor_type", { length: 50 }).notNull(), // Vendors, Line, Suppliers, TRUCK_VENDOR, OCEAN_CARRIER
-  taxCode: varchar("tax_code", { length: 50 }),
-  contactPhone: varchar("contact_phone", { length: 50 }),
-  email: varchar("email", { length: 255 }),
-  address: text("address"),
-  regionId: varchar("region_id", { length: 50 }).references(() => regions.regionId),
-  status: varchar("status", { length: 50 }).default("ACTIVE"),
+  vendorId: varchar("vendor_id", { length: 50 })
+    .primaryKey()
+    .references(() => partners.partnerId, { onDelete: "restrict" }),
+  vendorType: varchar("vendor_type", { length: 50 }), // Vendors, Line, Suppliers, TRUCK_VENDOR, OCEAN_CARRIER
+  roleStatus: varchar("role_status", { length: 20 }).default("PENDING").notNull(), // PENDING, ACTIVE, SUSPENDED
+  activatedBy: varchar("activated_by", { length: 50 }).references(() => users.userId),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const partnerRoleAuditLog = pgTable("partner_role_audit_log", {
+  logId: uuid("log_id").defaultRandom().primaryKey(),
+  partnerId: varchar("partner_id", { length: 50 })
+    .notNull()
+    .references(() => partners.partnerId, { onDelete: "cascade" }),
+  roleType: varchar("role_type", { length: 20 }).notNull(), // CUSTOMER, VENDOR
+  action: varchar("action", { length: 50 }).notNull(), // ACTIVATE, SUSPEND, REQUEST_ACTIVATION, UPDATE_TERMS
+  actorId: varchar("actor_id", { length: 50 }).notNull(),
+  actorName: varchar("actor_name", { length: 255 }),
+  previousStatus: varchar("previous_status", { length: 20 }),
+  newStatus: varchar("new_status", { length: 20 }),
+  details: jsonb("details"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -286,6 +312,9 @@ export const customerQuotations = pgTable("customer_quotations", {
   paymentTermsDays: integer("payment_terms_days").default(30),
   validUntil: date("valid_until"),
   immutableLocked: boolean("immutable_locked").default(false),
+  customerNameSnapshot: varchar("customer_name_snapshot", { length: 255 }),
+  customerTaxCodeSnapshot: varchar("customer_tax_code_snapshot", { length: 50 }),
+  customerAddressSnapshot: text("customer_address_snapshot"),
   createdBy: varchar("created_by", { length: 100 }),
   approvedBy: varchar("approved_by", { length: 100 }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),

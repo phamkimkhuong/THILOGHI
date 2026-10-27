@@ -82,3 +82,111 @@ export async function getFleetAction(limit?: number) {
     };
   }
 }
+
+// --------------------------------------------------------------------
+// Customer Role Lifecycle & Authorization Server Actions
+// --------------------------------------------------------------------
+import {
+  getPartnersDirectory,
+  activateCustomerRole,
+  suspendCustomerRole,
+  requestCustomerRoleActivation,
+  updateCustomerRoleTerms,
+  getPartnerRoleAuditHistory,
+} from "@/server/modules/master-data/partner-lifecycle.service";
+import { requireAuth } from "@/server/auth/authorize";
+
+export async function getPartnersDirectoryAction(filters?: {
+  search?: string;
+  roleFilter?: "ALL" | "CUSTOMER" | "VENDOR" | "NO_ROLE";
+  status?: string;
+  limit?: number;
+}) {
+  try {
+    const data = await getPartnersDirectory(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi khi tải danh mục đối tác",
+    };
+  }
+}
+
+export async function activateCustomerRoleAction(input: {
+  partnerId: string;
+  paymentTermsDays?: number;
+  creditLimitVnd?: number;
+  comment?: string;
+}) {
+  try {
+    const actor = await requireAuth();
+    const result = await activateCustomerRole(input, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi kích hoạt vai trò Khách hàng",
+    };
+  }
+}
+
+export async function suspendCustomerRoleAction(input: {
+  partnerId: string;
+  reason: string;
+}) {
+  try {
+    const actor = await requireAuth();
+    const result = await suspendCustomerRole(input, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi tạm ngừng vai trò Khách hàng",
+    };
+  }
+}
+
+export async function requestCustomerRoleActivationAction(partnerId: string) {
+  try {
+    const actor = await requireAuth();
+    const result = await requestCustomerRoleActivation(partnerId, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi gửi đề nghị kích hoạt vai trò Khách hàng",
+    };
+  }
+}
+
+export async function updateCustomerRoleTermsAction(input: {
+  partnerId: string;
+  paymentTermsDays: number;
+  creditLimitVnd?: number;
+}) {
+  try {
+    const actor = await requireAuth();
+    const result = await updateCustomerRoleTerms(input, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi cập nhật hạn mức tín dụng",
+    };
+  }
+}
+
+export async function getPartnerRoleAuditHistoryAction(partnerId: string) {
+  try {
+    const data = await getPartnerRoleAuditHistory(partnerId);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi khi tải lịch sử audit vai trò",
+    };
+  }
+}

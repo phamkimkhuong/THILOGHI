@@ -124,48 +124,76 @@ CREATE TABLE IF NOT EXISTS locations (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2.3. Khách hàng (Customers & Đối tác hợp nhất)
-CREATE TABLE IF NOT EXISTS customers (
-    customer_id VARCHAR(50) PRIMARY KEY,
+-- 2.3. Danh mục Đối tác gốc (Partners - Single Source of Truth)
+CREATE TABLE IF NOT EXISTS partners (
+    partner_id VARCHAR(50) PRIMARY KEY,
+    partner_name VARCHAR(255) NOT NULL,
     short_name VARCHAR(100),
-    customer_name VARCHAR(255) NOT NULL,
-    partner_type VARCHAR(50),
+    tax_code VARCHAR(50),
+    source_partner_type VARCHAR(50),
     country VARCHAR(100),
     address TEXT,
+    phone VARCHAR(50),
+    email VARCHAR(255),
     gps_coordinates VARCHAR(100),
     bank_account VARCHAR(100),
     bank_name VARCHAR(255),
-    tax_code VARCHAR(50),
-    description TEXT,
-    signing_date DATE,
     represented_by VARCHAR(255),
-    phone VARCHAR(50),
-    email VARCHAR(255),
     logo_url TEXT,
+    description TEXT,
     note TEXT,
     region_id VARCHAR(50) REFERENCES regions(region_id),
-    credit_limit_vnd NUMERIC(15, 2) DEFAULT 0,
-    payment_terms_days INT DEFAULT 30,
-    status VARCHAR(50) DEFAULT 'Đã duyệt',
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    source_system VARCHAR(100),
+    source_record_id VARCHAR(100),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2.4. Nhà cung cấp, Nhà xe, Hãng tàu (Vendors)
+CREATE INDEX IF NOT EXISTS idx_partners_name ON partners(partner_name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_partners_source_identity ON partners(source_system, source_record_id)
+WHERE source_system IS NOT NULL AND source_record_id IS NOT NULL;
+
+-- 2.4. Vai trò Khách hàng mua dịch vụ (Customer Role - Shared PK)
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id VARCHAR(50) PRIMARY KEY REFERENCES partners(partner_id) ON DELETE RESTRICT,
+    role_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (role_status IN ('PENDING', 'ACTIVE', 'SUSPENDED')),
+    payment_terms_days INT DEFAULT 30 CHECK (payment_terms_days >= 0),
+    credit_limit_vnd NUMERIC(18, 2) CHECK (credit_limit_vnd >= 0),
+    activated_by VARCHAR(50) REFERENCES users(user_id),
+    activated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2.5. Vai trò Nhà cung cấp dịch vụ (Vendor Role - Shared PK)
 CREATE TABLE IF NOT EXISTS vendors (
-    vendor_id VARCHAR(50) PRIMARY KEY,
-    short_name VARCHAR(100),
-    vendor_name VARCHAR(255) NOT NULL,
-    vendor_type VARCHAR(50) NOT NULL,
-    tax_code VARCHAR(50),
-    contact_phone VARCHAR(50),
-    email VARCHAR(255),
-    address TEXT,
-    region_id VARCHAR(50) REFERENCES regions(region_id),
-    status VARCHAR(50) DEFAULT 'ACTIVE',
+    vendor_id VARCHAR(50) PRIMARY KEY REFERENCES partners(partner_id) ON DELETE RESTRICT,
+    vendor_type VARCHAR(50),
+    role_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (role_status IN ('PENDING', 'ACTIVE', 'SUSPENDED')),
+    activated_by VARCHAR(50) REFERENCES users(user_id),
+    activated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2.6. Nhật ký Audit vòng đời vai trò Đối tác (Partner Role Audit Log)
+CREATE TABLE IF NOT EXISTS partner_role_audit_log (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    partner_id VARCHAR(50) NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
+    role_type VARCHAR(20) NOT NULL CHECK (role_type IN ('CUSTOMER', 'VENDOR')),
+    action VARCHAR(50) NOT NULL, -- ACTIVATE, SUSPEND, REQUEST_ACTIVATION, UPDATE_TERMS
+    actor_id VARCHAR(50) NOT NULL,
+    actor_name VARCHAR(255),
+    previous_status VARCHAR(20),
+    new_status VARCHAR(20),
+    details JSONB,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2.5. Danh mục Mặt hàng (Commodities)
+CREATE INDEX IF NOT EXISTS idx_partner_role_audit_partner ON partner_role_audit_log(partner_id, role_type);
+
+-- 2.7. Danh mục Mặt hàng (Commodities)
 CREATE TABLE IF NOT EXISTS commodities (
     commodity_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -311,6 +339,9 @@ CREATE TABLE IF NOT EXISTS customer_quotations (
     quotation_no VARCHAR(50) NOT NULL,
     version INT NOT NULL DEFAULT 1,
     customer_id VARCHAR(50) NOT NULL REFERENCES customers(customer_id),
+    customer_name_snapshot VARCHAR(255),
+    customer_tax_code_snapshot VARCHAR(50),
+    customer_address_snapshot TEXT,
     region_id VARCHAR(50) NOT NULL REFERENCES regions(region_id),
     commodity_id VARCHAR(50) REFERENCES commodities(commodity_id),
     status "QuotationStatus" NOT NULL DEFAULT 'DRAFT',

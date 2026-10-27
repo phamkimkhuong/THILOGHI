@@ -62,17 +62,20 @@ export async function lookupRoadRates(query: RateLookupQuery): Promise<RateLooku
     SELECT 
       r.rate_id,
       r.vendor_id,
-      v.vendor_name,
+      p.partner_name as vendor_name,
       r.buy_rate,
       r.currency,
       r.validity_range::text
     FROM road_rates r
     JOIN vendors v ON r.vendor_id = v.vendor_id
+    JOIN partners p ON v.vendor_id = p.partner_id
     WHERE r.pickup_location_id = $1
       AND r.delivery_location_id = $2
       AND r.equipment_type = $3
       AND r.status = 'APPROVED'
       AND r.validity_range @> $4::date
+      AND v.role_status = 'ACTIVE'
+      AND p.status = 'ACTIVE'
   `;
 
   const { rows } = await pool.query(sql, [

@@ -30,11 +30,16 @@ export async function getMasterRegions(): Promise<MasterOption[]> {
 }
 
 /**
- * Lấy danh sách Khách hàng thực tế từ PostgreSQL (customers)
+ * Lấy danh sách Khách hàng thực tế từ PostgreSQL (customers role + partners identity)
+ * Chỉ hiển thị đối tác có Customer Role ACTIVE
  */
 export async function getMasterCustomers(): Promise<MasterOption[]> {
   const { rows } = await pool.query(
-    "SELECT customer_id as id, customer_name as name, tax_code as code FROM customers WHERE status IN ('ACTIVE', 'Đã duyệt') ORDER BY customer_name ASC"
+    `SELECT c.customer_id as id, p.partner_name as name, p.tax_code as code
+     FROM customers c
+     JOIN partners p ON c.customer_id = p.partner_id
+     WHERE c.role_status = 'ACTIVE' AND p.status = 'ACTIVE'
+     ORDER BY p.partner_name ASC`
   );
   return rows;
 }
@@ -65,11 +70,16 @@ export async function getMasterCommodities(): Promise<MasterOption[]> {
 }
 
 /**
- * Lấy danh sách Nhà cung cấp / Đội xe thực tế từ PostgreSQL (vendors)
+ * Lấy danh sách Nhà cung cấp / Đội xe thực tế từ PostgreSQL (vendors role + partners identity)
+ * Chỉ hiển thị đối tác có Vendor Role ACTIVE
  */
 export async function getMasterVendors(): Promise<MasterOption[]> {
   const { rows } = await pool.query(
-    "SELECT vendor_id as id, vendor_name as name, tax_code as code, vendor_type as type FROM vendors WHERE status = 'ACTIVE' ORDER BY vendor_name ASC"
+    `SELECT v.vendor_id as id, p.partner_name as name, p.tax_code as code, v.vendor_type as type
+     FROM vendors v
+     JOIN partners p ON v.vendor_id = p.partner_id
+     WHERE v.role_status = 'ACTIVE' AND p.status = 'ACTIVE'
+     ORDER BY p.partner_name ASC`
   );
   return rows.map((r) => ({
     id: r.id,
@@ -87,7 +97,7 @@ export async function getRoadRatesDetailedList(filters?: { search?: string }) {
     SELECT 
       r.rate_id as "rateId",
       r.vendor_id as "vendorId",
-      v.vendor_name as "vendorName",
+      p_vendor.partner_name as "vendorName",
       r.pickup_location_id as "pickupLocationId",
       p.name as "pickupName",
       p.code as "pickupCode",
@@ -103,6 +113,7 @@ export async function getRoadRatesDetailedList(filters?: { search?: string }) {
       r.remarks
     FROM road_rates r
     LEFT JOIN vendors v ON r.vendor_id = v.vendor_id
+    LEFT JOIN partners p_vendor ON v.vendor_id = p_vendor.partner_id
     LEFT JOIN locations p ON r.pickup_location_id = p.location_id
     LEFT JOIN locations d ON r.delivery_location_id = d.location_id
     WHERE 1=1
@@ -110,7 +121,7 @@ export async function getRoadRatesDetailedList(filters?: { search?: string }) {
   const params: unknown[] = [];
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (v.vendor_name ILIKE $1 OR p.name ILIKE $1 OR d.name ILIKE $1 OR r.equipment_type ILIKE $1)`;
+    query += ` AND (p_vendor.partner_name ILIKE $1 OR p.name ILIKE $1 OR d.name ILIKE $1 OR r.equipment_type ILIKE $1)`;
   }
   query += ` ORDER BY p.name ASC, d.name ASC LIMIT 250`;
   const { rows } = await pool.query(query, params);
@@ -121,55 +132,60 @@ export async function getRoadRatesDetailedList(filters?: { search?: string }) {
 }
 
 /**
- * Lấy danh sách 198 khách hàng và 74 nhà cung cấp
+ * Lấy danh sách khách hàng từ customers (role) JOIN partners (identity)
  */
 export async function getCustomersDetailedList(filters?: { search?: string }) {
   let query = `
     SELECT 
-      customer_id as "customerId",
-      customer_name as "customerName",
-      short_name as "shortName",
-      tax_code as "taxCode",
-      address,
-      phone,
-      email,
-      payment_terms_days as "paymentTermsDays",
-      credit_limit as "creditLimit",
-      status,
-      created_at as "createdAt"
-    FROM customers
+      c.customer_id as "customerId",
+      p.partner_name as "customerName",
+      p.short_name as "shortName",
+      p.tax_code as "taxCode",
+      p.address,
+      p.phone,
+      p.email,
+      c.payment_terms_days as "paymentTermsDays",
+      c.credit_limit_vnd as "creditLimit",
+      c.role_status as "status",
+      c.created_at as "createdAt"
+    FROM customers c
+    JOIN partners p ON c.customer_id = p.partner_id
     WHERE 1=1
   `;
   const params: unknown[] = [];
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (customer_name ILIKE $1 OR short_name ILIKE $1 OR tax_code ILIKE $1)`;
+    query += ` AND (p.partner_name ILIKE $1 OR p.short_name ILIKE $1 OR p.tax_code ILIKE $1)`;
   }
-  query += ` ORDER BY customer_name ASC LIMIT 300`;
+  query += ` ORDER BY p.partner_name ASC LIMIT 300`;
   const { rows } = await pool.query(query, params);
   return rows;
 }
 
+/**
+ * Lấy danh sách nhà cung cấp từ vendors (role) JOIN partners (identity)
+ */
 export async function getVendorsDetailedList(filters?: { search?: string }) {
   let query = `
     SELECT 
-      vendor_id as "vendorId",
-      vendor_name as "vendorName",
-      vendor_type as "vendorType",
-      tax_code as "taxCode",
-      phone,
-      email,
-      status,
-      created_at as "createdAt"
-    FROM vendors
+      v.vendor_id as "vendorId",
+      p.partner_name as "vendorName",
+      v.vendor_type as "vendorType",
+      p.tax_code as "taxCode",
+      p.phone,
+      p.email,
+      v.role_status as "status",
+      v.created_at as "createdAt"
+    FROM vendors v
+    JOIN partners p ON v.vendor_id = p.partner_id
     WHERE 1=1
   `;
   const params: unknown[] = [];
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (vendor_name ILIKE $1 OR tax_code ILIKE $1 OR vendor_type ILIKE $1)`;
+    query += ` AND (p.partner_name ILIKE $1 OR p.tax_code ILIKE $1 OR v.vendor_type ILIKE $1)`;
   }
-  query += ` ORDER BY vendor_name ASC LIMIT 200`;
+  query += ` ORDER BY p.partner_name ASC LIMIT 200`;
   const { rows } = await pool.query(query, params);
   return rows;
 }
@@ -207,30 +223,56 @@ export async function getLocationsDetailedList(filters?: { search?: string; regi
 }
 
 /**
- * Lấy danh sách 38 mặt hàng
+ * Lấy danh sách mặt hàng thực tế từ PostgreSQL (commodities)
+ * Khắc phục drift: ánh xạ đúng các trường thực tế (specifications, origin, purpose) sang UI model
  */
 export async function getCommoditiesDetailedList(filters?: { search?: string }) {
   let query = `
     SELECT 
       commodity_id as "commodityId",
       name,
+      english_name as "englishName",
       category,
-      unit,
-      special_requirements as "specialRequirements",
-      dangerous_goods as "dangerousGoods",
-      temp_controlled as "tempControlled",
-      notes
+      specifications,
+      origin,
+      purpose,
+      status,
+      created_at as "createdAt"
     FROM commodities
     WHERE 1=1
   `;
   const params: unknown[] = [];
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (name ILIKE $1 OR category ILIKE $1)`;
+    query += ` AND (name ILIKE $1 OR english_name ILIKE $1 OR category ILIKE $1)`;
   }
   query += ` ORDER BY name ASC LIMIT 100`;
   const { rows } = await pool.query(query, params);
-  return rows;
+  return rows.map((r) => ({
+    commodityId: r.commodityId,
+    name: r.name,
+    englishName: r.englishName,
+    category: r.category || "Hàng bách hóa",
+    unit: "Tấn",
+    specialRequirements: r.specifications || r.purpose || (r.origin ? `Xuất xứ: ${r.origin}` : ""),
+    dangerousGoods: Boolean(
+      (r.category && r.category.toLowerCase().includes("nguy hiểm")) ||
+      (r.specifications && r.specifications.toLowerCase().includes("hóa chất")) ||
+      (r.purpose && r.purpose.toLowerCase().includes("hóa chất"))
+    ),
+    tempControlled: Boolean(
+      (r.category && r.category.toLowerCase().includes("lạnh")) ||
+      (r.category && r.category.toLowerCase().includes("nông sản")) ||
+      (r.specifications && r.specifications.toLowerCase().includes("lạnh"))
+    ),
+    notes: [
+      r.origin ? `Xuất xứ: ${r.origin}` : null,
+      r.specifications ? `Quy cách: ${r.specifications}` : null,
+      r.purpose ? `Mục đích: ${r.purpose}` : null,
+    ].filter(Boolean).join(" | "),
+    status: r.status,
+    createdAt: r.createdAt,
+  }));
 }
 
 /**

@@ -159,17 +159,20 @@ export async function saveQuotationDraft(
         // 1. Kiểm tra bảng giá đã chọn có đúng tuyến đường, thiết bị và còn hiệu lực không
         const selectedCheck = await client.query(
           `SELECT 
-             r.rate_id, r.vendor_id, v.vendor_name, r.buy_rate, r.currency,
+             r.rate_id, r.vendor_id, p.partner_name as vendor_name, r.buy_rate, r.currency,
              lower(r.validity_range)::text as val_start,
              upper(r.validity_range)::text as val_end
            FROM road_rates r
            JOIN vendors v ON r.vendor_id = v.vendor_id
+           JOIN partners p ON v.vendor_id = p.partner_id
            WHERE r.rate_id = $1
              AND r.pickup_location_id = $2
              AND r.delivery_location_id = $3
              AND r.equipment_type = $4
              AND r.status = 'APPROVED'
-             AND r.validity_range @> CURRENT_DATE`,
+             AND r.validity_range @> CURRENT_DATE
+             AND v.role_status = 'ACTIVE'
+             AND p.status = 'ACTIVE'`,
           [
             item.selectedBuyRateId,
             item.originLocationId,
@@ -256,6 +259,26 @@ export async function saveQuotationDraft(
       ? new Decimal(0)
       : estimatedGp.div(serverTotalSell).mul(100);
 
+    // Validate Customer Role Active & Fetch Snapshot Data
+    const customerCheck = await client.query(
+      `SELECT c.customer_id, p.partner_name, p.tax_code, p.address, c.role_status, p.status
+       FROM customers c
+       JOIN partners p ON c.customer_id = p.partner_id
+       WHERE c.customer_id = $1`,
+      [input.customerId]
+    );
+
+    if (customerCheck.rows.length === 0) {
+      throw new Error(`Khách hàng [${input.customerId}] không tồn tại trong hệ thống.`);
+    }
+
+    const customerRow = customerCheck.rows[0];
+    if (customerRow.role_status !== "ACTIVE" || customerRow.status !== "ACTIVE") {
+      throw new Error(
+        `Khách hàng [${customerRow.partner_name || input.customerId}] chưa được kích hoạt vai trò Khách hàng (Customer Role) hoặc trạng thái Partner không hoạt động.`
+      );
+    }
+
     let quotationId = input.quotationId;
     let quotationNo = "";
 
@@ -283,18 +306,24 @@ export async function saveQuotationDraft(
       await client.query(
         `UPDATE customer_quotations SET
            customer_id = $1,
-           region_id = $2,
-           commodity_id = $3,
-           total_sell_amount = $4,
-           total_estimated_buy = $5,
-           total_worst_case_buy = $6,
-           estimated_gp = $7,
-           estimated_margin_percent = $8,
-           payment_terms_days = $9,
+           customer_name_snapshot = $2,
+           customer_tax_code_snapshot = $3,
+           customer_address_snapshot = $4,
+           region_id = $5,
+           commodity_id = $6,
+           total_sell_amount = $7,
+           total_estimated_buy = $8,
+           total_worst_case_buy = $9,
+           estimated_gp = $10,
+           estimated_margin_percent = $11,
+           payment_terms_days = $12,
            updated_at = CURRENT_TIMESTAMP
-         WHERE quotation_id = $10`,
+         WHERE quotation_id = $13`,
         [
           input.customerId,
+          customerRow.partner_name,
+          customerRow.tax_code,
+          customerRow.address,
           input.regionId,
           input.commodityId || null,
           serverTotalSell.toNumber(),
@@ -328,19 +357,24 @@ export async function saveQuotationDraft(
 
       const quoteRes = await client.query(
         `INSERT INTO customer_quotations (
-           quotation_no, version, customer_id, region_id, commodity_id,
+           quotation_no, version, customer_id, customer_name_snapshot, customer_tax_code_snapshot, customer_address_snapshot,
+           region_id, commodity_id,
            status, total_sell_amount, total_estimated_buy, total_worst_case_buy,
            estimated_gp, estimated_margin_percent, payment_terms_days,
            immutable_locked, created_by
          ) VALUES (
-           $1, 1, $2, $3, $4,
-           'DRAFT', $5, $6, $7,
-           $8, $9, $10,
-           false, $11
+           $1, 1, $2, $3, $4, $5,
+           $6, $7,
+           'DRAFT', $8, $9, $10,
+           $11, $12, $13,
+           false, $14
          ) RETURNING quotation_id;`,
         [
           quotationNo,
           input.customerId,
+          customerRow.partner_name,
+          customerRow.tax_code,
+          customerRow.address,
           input.regionId,
           input.commodityId || null,
           serverTotalSell.toNumber(),
@@ -624,11 +658,16 @@ export async function approveQuotation(
       };
     }
 
-    // Cập nhật APPROVED & Khóa Bất Biến (Immutable Locked)
+    // Cập nhật APPROVED & Khóa Bất Biến (Immutable Locked) kèm xác nhận Snapshot
     await client.query(
-      `UPDATE customer_quotations 
-       SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = NOW() 
-       WHERE quotation_id = $2 AND status = 'PENDING_APPROVAL'`,
+      `UPDATE customer_quotations q
+       SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = NOW(),
+           customer_name_snapshot = COALESCE(q.customer_name_snapshot, p.partner_name),
+           customer_tax_code_snapshot = COALESCE(q.customer_tax_code_snapshot, p.tax_code),
+           customer_address_snapshot = COALESCE(q.customer_address_snapshot, p.address)
+       FROM customers c
+       JOIN partners p ON c.customer_id = p.partner_id
+       WHERE q.quotation_id = $2 AND q.status = 'PENDING_APPROVAL' AND q.customer_id = c.customer_id`,
       [`${actor.fullName} (${actor.role})`, quotationId]
     );
 
@@ -966,7 +1005,7 @@ export async function getQuotationsList(filters?: {
       q.quotation_no as "quotationNo",
       q.version,
       q.customer_id as "customerId",
-      c.customer_name as "customerName",
+      COALESCE(q.customer_name_snapshot, p.partner_name, q.customer_id) as "customerName",
       q.region_id as "regionId",
       r.name as "regionName",
       cm.name as "commodityName",
@@ -991,6 +1030,7 @@ export async function getQuotationsList(filters?: {
        ORDER BY si.created_at ASC LIMIT 1) as "equipmentType"
     FROM customer_quotations q
     LEFT JOIN customers c ON q.customer_id = c.customer_id
+    LEFT JOIN partners p ON c.customer_id = p.partner_id
     LEFT JOIN regions r ON q.region_id = r.region_id
     LEFT JOIN commodities cm ON q.commodity_id = cm.commodity_id
     WHERE 1=1
@@ -1007,7 +1047,7 @@ export async function getQuotationsList(filters?: {
   }
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (q.quotation_no ILIKE $${params.length} OR c.customer_name ILIKE $${params.length} OR cm.name ILIKE $${params.length})`;
+    query += ` AND (q.quotation_no ILIKE $${params.length} OR p.partner_name ILIKE $${params.length} OR q.customer_name_snapshot ILIKE $${params.length} OR cm.name ILIKE $${params.length})`;
   }
 
   const limit = filters?.limit ?? 250;
@@ -1048,8 +1088,9 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
        q.quotation_no as "quotationNo",
        q.version,
        q.customer_id as "customerId",
-       c.customer_name as "customerName",
-       c.tax_code as "taxCode",
+       COALESCE(q.customer_name_snapshot, p.partner_name, q.customer_id) as "customerName",
+       COALESCE(q.customer_tax_code_snapshot, p.tax_code) as "taxCode",
+       COALESCE(q.customer_address_snapshot, p.address) as "customerAddress",
        q.region_id as "regionId",
        r.name as "regionName",
        q.commodity_id as "commodityId",
@@ -1068,6 +1109,7 @@ export async function getQuotationDetail(quotationId: string): Promise<Quotation
        q.created_at as "createdAt"
      FROM customer_quotations q
      LEFT JOIN customers c ON q.customer_id = c.customer_id
+     LEFT JOIN partners p ON c.customer_id = p.partner_id
      LEFT JOIN regions r ON q.region_id = r.region_id
      LEFT JOIN commodities cm ON q.commodity_id = cm.commodity_id
      WHERE q.quotation_id = $1`,
