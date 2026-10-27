@@ -74,10 +74,17 @@ export default function Home() {
           </div>
 
           {/* Quick Action Navigation */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/quotations"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-400" />
+              Hệ Thống Báo Giá (164)
+            </Link>
             <Link
               href="/quotations/new"
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition-all cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Lập Báo Giá Mới

@@ -872,6 +872,83 @@ export interface QuotationListItem {
   paymentTermsDays: number;
   createdBy: string;
   createdAt: string;
+  routeSummary?: string;
+  equipmentType?: string;
+  itemCount: number;
+}
+
+export interface QuotationSnapshotItem {
+  snapshotId: string;
+  itemId: string;
+  sourceRateId: string;
+  vendorId: string;
+  vendorName: string;
+  rateAmount: number;
+  originalCurrency: string;
+  fxRateToVnd: number;
+  rateAmountVnd: number;
+  validityStart: string;
+  validityEnd: string;
+  snapshotAt: string;
+}
+
+export interface QuotationApprovalLogItem {
+  logId: string;
+  version: number;
+  action: string;
+  actorId: string;
+  actorName?: string;
+  comment?: string;
+  snapshotMarginPercent?: number;
+  createdAt: string;
+}
+
+export interface QuotationDetailResponse {
+  quote: {
+    quotationId: string;
+    quotationNo: string;
+    version: number;
+    customerId: string;
+    customerName: string;
+    taxCode?: string;
+    regionId: string;
+    regionName: string;
+    commodityId?: string;
+    commodityName?: string;
+    status: string;
+    totalSellAmount: number;
+    totalEstimatedBuy: number;
+    totalWorstCaseBuy: number;
+    estimatedGp: number;
+    estimatedMarginPercent: number;
+    paymentTermsDays: number;
+    immutableLocked: boolean;
+    createdBy: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    createdAt: string;
+  };
+  items: Array<{
+    itemId: string;
+    servicePackage: string;
+    pricingInclusion: string;
+    originLocationId: string;
+    originName?: string;
+    destinationLocationId: string;
+    destinationName?: string;
+    equipmentType: string;
+    plannedQuantity: number;
+    unit: string;
+    unitSellPrice: number;
+    totalSellPrice: number;
+    selectedBuyRateId?: string;
+    estimatedBuyAmount: number;
+    worstCaseBuyAmount: number;
+    itemGp: number;
+    itemMarginPercent: number;
+  }>;
+  snapshots: QuotationSnapshotItem[];
+  approvalLogs: QuotationApprovalLogItem[];
 }
 
 /**
@@ -881,6 +958,7 @@ export async function getQuotationsList(filters?: {
   status?: string;
   regionId?: string;
   search?: string;
+  limit?: number;
 }): Promise<QuotationListItem[]> {
   let query = `
     SELECT 
@@ -899,7 +977,18 @@ export async function getQuotationsList(filters?: {
       q.estimated_margin_percent as "estimatedMarginPercent",
       q.payment_terms_days as "paymentTermsDays",
       q.created_by as "createdBy",
-      q.created_at as "createdAt"
+      q.created_at as "createdAt",
+      (SELECT COUNT(*) FROM quotation_service_items WHERE quotation_id = q.quotation_id) as "itemCount",
+      (SELECT CONCAT(COALESCE(orig.name, 'Điểm đi'), ' → ', COALESCE(dest.name, 'Điểm đến'))
+       FROM quotation_service_items si
+       LEFT JOIN locations orig ON si.origin_location_id = orig.location_id
+       LEFT JOIN locations dest ON si.destination_location_id = dest.location_id
+       WHERE si.quotation_id = q.quotation_id
+       ORDER BY si.created_at ASC LIMIT 1) as "routeSummary",
+      (SELECT si.equipment_type
+       FROM quotation_service_items si
+       WHERE si.quotation_id = q.quotation_id
+       ORDER BY si.created_at ASC LIMIT 1) as "equipmentType"
     FROM customer_quotations q
     LEFT JOIN customers c ON q.customer_id = c.customer_id
     LEFT JOIN regions r ON q.region_id = r.region_id
@@ -908,20 +997,22 @@ export async function getQuotationsList(filters?: {
   `;
   const params: unknown[] = [];
 
-  if (filters?.status) {
+  if (filters?.status && filters.status !== "ALL") {
     params.push(filters.status);
     query += ` AND q.status = $${params.length}`;
   }
-  if (filters?.regionId) {
+  if (filters?.regionId && filters.regionId !== "ALL") {
     params.push(filters.regionId);
     query += ` AND q.region_id = $${params.length}`;
   }
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (q.quotation_no ILIKE $${params.length} OR c.customer_name ILIKE $${params.length})`;
+    query += ` AND (q.quotation_no ILIKE $${params.length} OR c.customer_name ILIKE $${params.length} OR cm.name ILIKE $${params.length})`;
   }
 
-  query += ` ORDER BY q.created_at DESC LIMIT 50`;
+  const limit = filters?.limit ?? 250;
+  params.push(limit);
+  query += ` ORDER BY q.created_at DESC LIMIT $${params.length}`;
 
   const { rows } = await pool.query(query, params);
   return rows.map((r) => ({
@@ -941,13 +1032,16 @@ export async function getQuotationsList(filters?: {
     paymentTermsDays: Number(r.paymentTermsDays || 30),
     createdBy: r.createdBy || "System",
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+    routeSummary: r.routeSummary || undefined,
+    equipmentType: r.equipmentType || undefined,
+    itemCount: Number(r.itemCount || 0),
   }));
 }
 
 /**
- * Lấy chi tiết Báo giá kèm các dòng dịch vụ (phục vụ xem chi tiết và in Báo giá thương mại)
+ * Lấy chi tiết Báo giá kèm các dòng dịch vụ, snapshots và approval log
  */
-export async function getQuotationDetail(quotationId: string) {
+export async function getQuotationDetail(quotationId: string): Promise<QuotationDetailResponse | null> {
   const quoteRes = await pool.query(
     `SELECT 
        q.quotation_id as "quotationId",
@@ -1009,8 +1103,109 @@ export async function getQuotationDetail(quotationId: string) {
     [quotationId]
   );
 
+  const snapshotsRes = await pool.query(
+    `SELECT 
+       snapshot_id as "snapshotId",
+       item_id as "itemId",
+       source_rate_id as "sourceRateId",
+       vendor_id as "vendorId",
+       vendor_name as "vendorName",
+       rate_amount as "rateAmount",
+       original_currency as "originalCurrency",
+       fx_rate_to_vnd as "fxRateToVnd",
+       rate_amount_vnd as "rateAmountVnd",
+       validity_start as "validityStart",
+       validity_end as "validityEnd",
+       snapshot_at as "snapshotAt"
+     FROM quotation_buy_snapshots
+     WHERE quotation_id = $1
+     ORDER BY snapshot_at ASC`,
+    [quotationId]
+  );
+
+  const logsRes = await pool.query(
+    `SELECT 
+       log_id as "logId",
+       version,
+       action,
+       actor_id as "actorId",
+       actor_name as "actorName",
+       comment,
+       snapshot_margin_percent as "snapshotMarginPercent",
+       created_at as "createdAt"
+     FROM quotation_approval_log
+     WHERE quotation_id = $1
+     ORDER BY created_at DESC`,
+    [quotationId]
+  );
+
   return {
-    quote,
-    items: itemsRes.rows,
+    quote: {
+      quotationId: quote.quotationId,
+      quotationNo: quote.quotationNo,
+      version: Number(quote.version || 1),
+      customerId: quote.customerId,
+      customerName: quote.customerName || quote.customerId,
+      taxCode: quote.taxCode || undefined,
+      regionId: quote.regionId,
+      regionName: quote.regionName || quote.regionId,
+      commodityId: quote.commodityId || undefined,
+      commodityName: quote.commodityName || undefined,
+      status: quote.status,
+      totalSellAmount: Number(quote.totalSellAmount || 0),
+      totalEstimatedBuy: Number(quote.totalEstimatedBuy || 0),
+      totalWorstCaseBuy: Number(quote.totalWorstCaseBuy || 0),
+      estimatedGp: Number(quote.estimatedGp || 0),
+      estimatedMarginPercent: Number(quote.estimatedMarginPercent || 0),
+      paymentTermsDays: Number(quote.paymentTermsDays || 30),
+      immutableLocked: Boolean(quote.immutableLocked),
+      createdBy: quote.createdBy || "System",
+      approvedBy: quote.approvedBy || undefined,
+      approvedAt: quote.approvedAt ? new Date(quote.approvedAt).toISOString() : undefined,
+      createdAt: quote.createdAt ? new Date(quote.createdAt).toISOString() : new Date().toISOString(),
+    },
+    items: itemsRes.rows.map((r) => ({
+      itemId: r.itemId,
+      servicePackage: r.servicePackage,
+      pricingInclusion: r.pricingInclusion,
+      originLocationId: r.originLocationId,
+      originName: r.originName || undefined,
+      destinationLocationId: r.destinationLocationId,
+      destinationName: r.destinationName || undefined,
+      equipmentType: r.equipmentType,
+      plannedQuantity: Number(r.plannedQuantity || 1),
+      unit: r.unit,
+      unitSellPrice: Number(r.unitSellPrice || 0),
+      totalSellPrice: Number(r.totalSellPrice || 0),
+      selectedBuyRateId: r.selectedBuyRateId || undefined,
+      estimatedBuyAmount: Number(r.estimatedBuyAmount || 0),
+      worstCaseBuyAmount: Number(r.worstCaseBuyAmount || 0),
+      itemGp: Number(r.itemGp || 0),
+      itemMarginPercent: Number(r.itemMarginPercent || 0),
+    })),
+    snapshots: snapshotsRes.rows.map((r) => ({
+      snapshotId: r.snapshotId,
+      itemId: r.itemId,
+      sourceRateId: r.sourceRateId,
+      vendorId: r.vendorId,
+      vendorName: r.vendorName,
+      rateAmount: Number(r.rateAmount || 0),
+      originalCurrency: r.originalCurrency,
+      fxRateToVnd: Number(r.fxRateToVnd || 1),
+      rateAmountVnd: Number(r.rateAmountVnd || 0),
+      validityStart: r.validityStart ? new Date(r.validityStart).toISOString().split("T")[0] : "",
+      validityEnd: r.validityEnd ? new Date(r.validityEnd).toISOString().split("T")[0] : "",
+      snapshotAt: r.snapshotAt ? new Date(r.snapshotAt).toISOString() : "",
+    })),
+    approvalLogs: logsRes.rows.map((r) => ({
+      logId: r.logId,
+      version: Number(r.version || 1),
+      action: r.action,
+      actorId: r.actorId,
+      actorName: r.actorName || undefined,
+      comment: r.comment || undefined,
+      snapshotMarginPercent: r.snapshotMarginPercent != null ? Number(r.snapshotMarginPercent) : undefined,
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
+    })),
   };
 }

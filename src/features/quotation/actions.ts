@@ -186,6 +186,7 @@ export async function getQuotationsListAction(filters?: {
   status?: string;
   regionId?: string;
   search?: string;
+  limit?: number;
 }) {
   try {
     const list = await getQuotationsList(filters);
