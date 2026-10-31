@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo, useCallback } from "react";
+import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+import { StatusBadge } from "@/components/ui/status-badge";
+
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
-  Truck,
-  RefreshCw,
   User,
-  ShieldCheck,
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   Phone,
   FileCheck,
 } from "lucide-react";
@@ -46,21 +44,23 @@ export default function MasterFleetPage() {
   const [drivers, setDrivers] = useState<DriverRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [subFilter, setSubFilter] = useState("ALL");
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 50;
 
-  const [isPending, startTransition] = useTransition();
+
+
+  const { loading, error: loadError, runLoad } = useListFeedback();
 
   const loadData = useCallback(() => {
-    startTransition(async () => {
+    void runLoad(async (isCurrent) => {
       const res = await getFleetAction(1000);
+      if (!res.success) throw new Error("Load failed");
+      if (!isCurrent()) return;
       if (res.success && res.fleet) {
         setTractors((res.fleet.tractors || []) as TractorRecord[]);
         setTrailers((res.fleet.trailers || []) as TrailerRecord[]);
         setDrivers((res.fleet.drivers || []) as DriverRecord[]);
       }
     });
-  }, []);
+  }, [runLoad]);
 
   useEffect(() => {
     loadData();
@@ -68,18 +68,15 @@ export default function MasterFleetPage() {
 
   const handleTabChange = (tab: "TRACTORS" | "TRAILERS" | "DRIVERS") => {
     setActiveTab(tab);
-    setCurrentPage(1);
     setSubFilter("ALL");
   };
 
   const handleSearchChange = (val: string) => {
     setSearchTerm(val);
-    setCurrentPage(1);
   };
 
   const handleSubFilterChange = (filter: string) => {
     setSubFilter(filter);
-    setCurrentPage(1);
   };
 
   // Tractors filter
@@ -141,22 +138,10 @@ export default function MasterFleetPage() {
     return filteredDrivers.length;
   }, [activeTab, filteredTractors, filteredTrailers, filteredDrivers]);
 
-  const totalPages = Math.max(1, Math.ceil(activeListLength / pageSize));
-
-  const paginatedTractors = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTractors.slice(start, start + pageSize);
-  }, [filteredTractors, currentPage]);
-
-  const paginatedTrailers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTrailers.slice(start, start + pageSize);
-  }, [filteredTrailers, currentPage]);
-
-  const paginatedDrivers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredDrivers.slice(start, start + pageSize);
-  }, [filteredDrivers, currentPage]);
+  const pagination = usePagination(activeListLength, JSON.stringify([activeTab, searchTerm, subFilter]));
+  const paginatedTractors = filteredTractors.slice(pagination.start, pagination.end);
+  const paginatedTrailers = filteredTrailers.slice(pagination.start, pagination.end);
+  const paginatedDrivers = filteredDrivers.slice(pagination.start, pagination.end);
 
   // Trailer types unique list
   const uniqueTrailerTypes = useMemo(() => {
@@ -174,85 +159,10 @@ export default function MasterFleetPage() {
 
   return (
     <div className="space-y-4 font-sans text-slate-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              FLEET & EQUIPMENT DIRECTORY
-            </span>
-            <span className="text-xs text-slate-500 font-mono">
-              Tổng đội: <strong>{tractors.length}</strong> đầu kéo • <strong>{trailers.length}</strong> rơ-moóc • <strong>{drivers.length}</strong> tài xế
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-0.5 flex items-center gap-2">
-            <Truck className="w-6 h-6 text-blue-400" />
-            Danh Mục Đội Xe & Phương Tiện Vận Tải
-          </h1>
-          <p className="text-xs text-slate-400">
-            Quản trị phương tiện đầu kéo container, sơ-mi rơ-moóc sàn/lạnh và đội ngũ tài xế đường dài THILOGI
-          </p>
-        </div>
+      <PageHeader title="Đội xe" actions={<><RefreshButton onClick={loadData} loading={loading} /></>} />
 
-        <button
-          onClick={loadData}
-          disabled={isPending}
-          className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`} />
-          Làm mới
-        </button>
-      </div>
-
-      {/* KPI Highlight Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div
-          onClick={() => handleTabChange("TRACTORS")}
-          className={`p-3 rounded-xl border cursor-pointer transition-all ${
-            activeTab === "TRACTORS"
-              ? "bg-blue-600/15 border-blue-500/40 shadow-sm"
-              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Xe Đầu Kéo</span>
-            <Truck className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-2xl font-black font-mono text-white mt-1">{tractors.length}</div>
-          <div className="text-[10px] text-slate-500 font-mono">THACO Foton Auman / Dongfeng</div>
-        </div>
-
-        <div
-          onClick={() => handleTabChange("TRAILERS")}
-          className={`p-3 rounded-xl border cursor-pointer transition-all ${
-            activeTab === "TRAILERS"
-              ? "bg-blue-600/15 border-blue-500/40 shadow-sm"
-              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Sơ-mi Rơ-moóc</span>
-            <Truck className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-2xl font-black font-mono text-cyan-300 mt-1">{trailers.length}</div>
-          <div className="text-[10px] text-slate-500 font-mono">Moóc sàn RMS, xương 40ft, moóc lạnh</div>
-        </div>
-
-        <div
-          onClick={() => handleTabChange("DRIVERS")}
-          className={`p-3 rounded-xl border cursor-pointer transition-all ${
-            activeTab === "DRIVERS"
-              ? "bg-blue-600/15 border-blue-500/40 shadow-sm"
-              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Lái Xe Đường Dài</span>
-            <User className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black font-mono text-emerald-300 mt-1">{drivers.length}</div>
-          <div className="text-[10px] text-slate-500 font-mono">100% GPLX hạng FC chuyên nghiệp</div>
-        </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Loại danh mục đội xe">
+        {([{ id: "TRACTORS", label: "Đầu kéo" }, { id: "TRAILERS", label: "Rơ-moóc" }, { id: "DRIVERS", label: "Tài xế" }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={activeTab === tab.id} onClick={() => handleTabChange(tab.id)} className={activeTab === tab.id ? "erp-button bg-blue-600 text-white" : "erp-button border border-slate-700 text-slate-300"}>{tab.label}</button>)}
       </div>
 
       {/* Filter and Search Bar */}
@@ -277,7 +187,7 @@ export default function MasterFleetPage() {
         {/* Sub-filter chips */}
         {activeTab === "TRACTORS" && uniqueOwnerships.length > 0 && (
           <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
-            <span className="text-[11px] text-slate-500 flex items-center gap-1 mr-1">
+            <span className="text-xs text-slate-500 flex items-center gap-1 mr-1">
               <Filter className="w-3 h-3" /> Sở hữu:
             </span>
             <button
@@ -308,7 +218,7 @@ export default function MasterFleetPage() {
 
         {activeTab === "TRAILERS" && uniqueTrailerTypes.length > 0 && (
           <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
-            <span className="text-[11px] text-slate-500 flex items-center gap-1 mr-1">
+            <span className="text-xs text-slate-500 flex items-center gap-1 mr-1">
               <Filter className="w-3 h-3" /> Loại:
             </span>
             <button
@@ -337,47 +247,25 @@ export default function MasterFleetPage() {
           </div>
         )}
 
-        {/* Pagination Counter */}
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span>
-            Trang <strong>{currentPage}</strong> / {totalPages} ({activeListLength} mục)
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-              className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Main Table Content */}
       {activeTab === "TRACTORS" && (
         <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
-                  <th className="py-2.5 px-3">Mã Đầu Kéo</th>
-                  <th className="py-2.5 px-3">Biển Số Xe</th>
+                  <th className="py-2.5 px-3">Mã đầu kéo</th>
+                  <th className="py-2.5 px-3">Biển số</th>
                   <th className="py-2.5 px-3">Model / Nhãn Hiệu</th>
                   <th className="py-2.5 px-3">Hình Thức Sở Hữu</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái Vận Hành</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái Vận Hành</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {paginatedTractors.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTractors.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500">
                       Không tìm thấy đầu kéo phù hợp.
@@ -386,27 +274,25 @@ export default function MasterFleetPage() {
                 ) : (
                   paginatedTractors.map((t, idx) => (
                     <tr key={t.tractorId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px] w-12">
-                        {(currentPage - 1) * pageSize + idx + 1}
+                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                        {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px]">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
                         {t.tractorId}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-cyan-400 text-sm">
                         {t.plateNumber}
                       </td>
                       <td className="py-2.5 px-3 text-slate-300">
-                        {t.model || "THACO Foton Auman"}
+                        {t.model || "—"}
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 font-mono text-slate-300 border border-slate-700">
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-800 font-mono text-slate-300 border border-slate-700">
                           {t.ownership}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                          <ShieldCheck className="w-2.5 h-2.5" /> Sẵn sàng điều xe
-                        </span>
+                        <StatusBadge status={t.status} />
                       </td>
                     </tr>
                   ))
@@ -419,20 +305,20 @@ export default function MasterFleetPage() {
 
       {activeTab === "TRAILERS" && (
         <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
-                  <th className="py-2.5 px-3">Mã Rơ-moóc</th>
-                  <th className="py-2.5 px-3">Biển Số Moóc</th>
-                  <th className="py-2.5 px-3">Chủng Loại Rơ-moóc</th>
-                  <th className="py-2.5 px-3 text-right">Tải Trọng Cho Phép</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái</th>
+                  <th className="py-2.5 px-3">Mã rơ-moóc</th>
+                  <th className="py-2.5 px-3">Biển số</th>
+                  <th className="py-2.5 px-3">Loại rơ-moóc</th>
+                  <th className="py-2.5 px-3 text-right">Tải trọng</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {paginatedTrailers.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTrailers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500">
                       Không tìm thấy rơ-moóc phù hợp.
@@ -441,10 +327,10 @@ export default function MasterFleetPage() {
                 ) : (
                   paginatedTrailers.map((tr, idx) => (
                     <tr key={tr.trailerId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px] w-12">
-                        {(currentPage - 1) * pageSize + idx + 1}
+                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                        {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px]">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
                         {tr.trailerId}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-cyan-400 text-sm">
@@ -454,12 +340,10 @@ export default function MasterFleetPage() {
                         {tr.trailerType}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-300">
-                        {tr.payloadCapacityKg ? new Intl.NumberFormat().format(tr.payloadCapacityKg) : "32,000"} kg
+                        {tr.payloadCapacityKg != null ? new Intl.NumberFormat("vi-VN").format(tr.payloadCapacityKg) + " kg" : "—"}
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                          <ShieldCheck className="w-2.5 h-2.5" /> Sẵn sàng ghép xe
-                        </span>
+                        <StatusBadge status={tr.status} />
                       </td>
                     </tr>
                   ))
@@ -472,20 +356,20 @@ export default function MasterFleetPage() {
 
       {activeTab === "DRIVERS" && (
         <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
-                  <th className="py-2.5 px-3">Mã Lái Xe</th>
-                  <th className="py-2.5 px-3">Họ Và Tên Lái Xe</th>
-                  <th className="py-2.5 px-3">Số Điện Thoại</th>
-                  <th className="py-2.5 px-3 font-mono">Hạng GPLX</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái Điều Phối</th>
+                  <th className="py-2.5 px-3">Mã tài xế</th>
+                  <th className="py-2.5 px-3">Tên tài xế</th>
+                  <th className="py-2.5 px-3">Điện thoại</th>
+                  <th className="py-2.5 px-3 font-mono">Số giấy phép lái xe</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {paginatedDrivers.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedDrivers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500">
                       Không tìm thấy tài xế phù hợp.
@@ -494,10 +378,10 @@ export default function MasterFleetPage() {
                 ) : (
                   paginatedDrivers.map((d, idx) => (
                     <tr key={d.driverId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px] w-12">
-                        {(currentPage - 1) * pageSize + idx + 1}
+                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                        {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px]">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
                         {d.driverId}
                       </td>
                       <td className="py-2.5 px-3 font-medium text-slate-100 flex items-center gap-1.5">
@@ -517,13 +401,11 @@ export default function MasterFleetPage() {
                       <td className="py-2.5 px-3 font-mono text-cyan-400">
                         <div className="flex items-center gap-1">
                           <FileCheck className="w-3 h-3 text-slate-500 shrink-0" />
-                          <span>{d.licenseNumber || "Hạng FC"}</span>
+                          <span>{d.licenseNumber || "—"}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                          <ShieldCheck className="w-2.5 h-2.5" /> Đang nhận chuyến
-                        </span>
+                        <StatusBadge status={d.status} />
                       </td>
                     </tr>
                   ))
@@ -533,6 +415,7 @@ export default function MasterFleetPage() {
           </div>
         </div>
       )}
+      <Pagination pagination={pagination} loading={loading} error={!!loadError} loaded={activeTab === "TRACTORS" ? tractors.length : activeTab === "TRAILERS" ? trailers.length : drivers.length} limit={1000} />
     </div>
   );
 }

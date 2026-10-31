@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo, useCallback } from "react";
+import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Search,
   Building2,
@@ -16,7 +19,6 @@ import {
   Calendar,
   ExternalLink,
   ShieldCheck,
-  AlertTriangle,
   Ban,
   History,
   SlidersHorizontal,
@@ -83,26 +85,21 @@ export default function MasterCustomersPage() {
   const [suspendReasonInput, setSuspendReasonInput] = useState("");
   const [activationCommentInput, setActivationCommentInput] = useState("");
   const [auditLogs, setAuditLogs] = useState<PartnerRoleAuditItem[]>([]);
-  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const { loading: isLoadingAudit, error: auditError, runLoad: runAudit } = useListFeedback();
 
-  const [isPending, startTransition] = useTransition();
+
+  const { loading, error: loadError, runLoad } = useListFeedback();
 
   const loadData = useCallback(() => {
-    startTransition(async () => {
-      const [resCv, resPartners] = await Promise.all([
-        getCustomersAndVendorsAction(),
-        getPartnersDirectoryAction(),
-      ]);
-
-      if (resCv.success) {
-        setCustomers((resCv.customers || []) as CustomerRecord[]);
-        setVendors((resCv.vendors || []) as VendorRecord[]);
-      }
-      if (resPartners.success && resPartners.data) {
-        setPartners(resPartners.data as PartnerDirectoryItem[]);
-      }
+    void runLoad(async (isCurrent) => {
+      const [resCv, resPartners] = await Promise.all([getCustomersAndVendorsAction(), getPartnersDirectoryAction()]);
+      if (!resCv.success || !resPartners.success) throw new Error("Load failed");
+      if (!isCurrent()) return;
+      setCustomers((resCv.customers || []) as CustomerRecord[]);
+      setVendors((resCv.vendors || []) as VendorRecord[]);
+      setPartners((resPartners.data || []) as PartnerDirectoryItem[]);
     });
-  }, []);
+  }, [runLoad]);
 
   useEffect(() => {
     loadData();
@@ -110,13 +107,13 @@ export default function MasterCustomersPage() {
 
   // Load audit trail when opening audit tab
   const loadAuditHistory = useCallback(async (partnerId: string) => {
-    setIsLoadingAudit(true);
-    const res = await getPartnerRoleAuditHistoryAction(partnerId);
-    if (res.success && res.data) {
-      setAuditLogs(res.data);
-    }
-    setIsLoadingAudit(false);
-  }, []);
+    await runAudit(async (isCurrent) => {
+      setAuditLogs([]);
+      const res = await getPartnerRoleAuditHistoryAction(partnerId);
+      if (!res.success) throw new Error("Load failed");
+      if (isCurrent()) setAuditLogs(res.data || []);
+    });
+  }, [runAudit]);
 
   // Filtered Customers
   const filteredCustomers = useMemo(() => {
@@ -137,7 +134,7 @@ export default function MasterCustomersPage() {
     }
     if (paymentTermsFilter !== "ALL") {
       const days = Number(paymentTermsFilter);
-      list = list.filter((c) => (c.paymentTermsDays || 30) === days);
+      list = list.filter((c) => (c.paymentTermsDays ?? 30) === days);
     }
     return list;
   }, [customers, searchTerm, roleStatusFilter, paymentTermsFilter]);
@@ -177,12 +174,16 @@ export default function MasterCustomersPage() {
     return list;
   }, [partners, searchTerm, roleStatusFilter]);
 
+  const activeLength = activeTab === "CUSTOMERS" ? filteredCustomers.length : activeTab === "VENDORS" ? filteredVendors.length : filteredPartners.length;
+  const loadedLength = activeTab === "CUSTOMERS" ? customers.length : activeTab === "VENDORS" ? vendors.length : partners.length;
+  const pagination = usePagination(activeLength, JSON.stringify([activeTab, searchTerm, roleStatusFilter, paymentTermsFilter]));
+
   // Open Customer Drawer
   const handleOpenCustomerDrawer = (customer: CustomerRecord) => {
     setSelectedCustomer(customer);
     setSelectedVendor(null);
     setSelectedPartner(null);
-    setTermsDaysInput(customer.paymentTermsDays || 30);
+    setTermsDaysInput(customer.paymentTermsDays ?? 30);
     setCreditLimitInput(customer.creditLimit == null ? "" : String(customer.creditLimit));
     setSuspendReasonInput("");
     setActivationCommentInput("");
@@ -193,6 +194,7 @@ export default function MasterCustomersPage() {
 
   // Open Vendor Drawer
   const handleOpenVendorDrawer = (vendor: VendorRecord) => {
+    loadAuditHistory(vendor.vendorId);
     setSelectedVendor(vendor);
     setSelectedCustomer(null);
     setSelectedPartner(null);
@@ -205,7 +207,7 @@ export default function MasterCustomersPage() {
     setSelectedPartner(partner);
     setSelectedCustomer(null);
     setSelectedVendor(null);
-    setTermsDaysInput(partner.paymentTermsDays || 30);
+    setTermsDaysInput(partner.paymentTermsDays ?? 30);
     setCreditLimitInput(partner.creditLimitVnd == null ? "" : String(partner.creditLimitVnd));
     setSuspendReasonInput("");
     setActivationCommentInput("");
@@ -290,79 +292,15 @@ export default function MasterCustomersPage() {
   const formatVND = (val: number) =>
     new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "ACTIVE":
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3 h-3" /> ACTIVE
-          </span>
-        );
-      case "PENDING":
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <AlertTriangle className="w-3 h-3" /> PENDING
-          </span>
-        );
-      case "SUSPENDED":
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            <Ban className="w-3 h-3" /> SUSPENDED
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-mono text-slate-400 bg-slate-800/80 border border-slate-700/60">
-            CHƯA KÍCH HOẠT
-          </span>
-        );
-    }
-  };
+  const getStatusBadge = (status: string) => <StatusBadge status={status} />;
 
-  const currentRoleStatus = selectedCustomer?.status || selectedPartner?.customerRoleStatus || "NONE";
+  const currentRoleStatus = selectedCustomer?.status || selectedVendor?.status || selectedPartner?.customerRoleStatus || "NONE";
   const currentPartnerId = selectedCustomer?.customerId || selectedVendor?.vendorId || selectedPartner?.partnerId || "";
   const currentName = selectedCustomer?.customerName || selectedVendor?.vendorName || selectedPartner?.partnerName || "";
 
   return (
     <div className="space-y-4 font-sans text-slate-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              COMMERCIAL PARTNERS & ROLES
-            </span>
-            <span className="text-xs text-slate-500 font-mono">
-              Tổng số: <strong>{partners.length || customers.length + vendors.length}</strong> đối tác
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-0.5 flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-blue-400" />
-            Quản Lý Đối Tác & Vai Trò Thương Mại
-          </h1>
-          <p className="text-xs text-slate-400">
-            Định danh đơn nhất (Single Identity) kết hợp phân định độc lập vai trò Khách hàng (SELL) và Nhà xe (BUY)
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadData}
-            disabled={isPending}
-            className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`} />
-            Làm mới
-          </button>
-          <Link
-            href="/quotations/new"
-            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Lập Báo Giá
-          </Link>
-        </div>
-      </div>
+      <PageHeader title="Đối tác" actions={<><RefreshButton onClick={loadData} loading={loading} /><Link href="/quotations/new" className="erp-button bg-blue-600 text-white hover:bg-blue-500"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
 
       {/* Tabs and Instant Search */}
       <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
@@ -380,7 +318,7 @@ export default function MasterCustomersPage() {
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            Khách Hàng (Customer Role: {customers.length})
+            Khách hàng ( {customers.length})
           </button>
 
           <button
@@ -391,12 +329,12 @@ export default function MasterCustomersPage() {
             }}
             className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors ${
               activeTab === "VENDORS"
-                ? "bg-emerald-600 text-white font-semibold shadow-sm"
+                ? "bg-blue-600 text-white font-semibold shadow-sm"
                 : "text-slate-400 hover:text-white hover:bg-slate-800"
             }`}
           >
             <Truck className="w-3.5 h-3.5" />
-            Nhà Xe & Nhà Cung Cấp ({vendors.length})
+            Nhà cung cấp ({vendors.length})
           </button>
 
           <button
@@ -407,12 +345,12 @@ export default function MasterCustomersPage() {
             }}
             className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors ${
               activeTab === "PARTNERS"
-                ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                ? "bg-blue-600 text-white font-semibold shadow-sm"
                 : "text-slate-400 hover:text-white hover:bg-slate-800"
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            Hồ Sơ Đối Tác Gốc ({partners.length})
+            Tất cả đối tác ({partners.length})
           </button>
         </div>
 
@@ -420,8 +358,7 @@ export default function MasterCustomersPage() {
         <div className="flex items-center gap-2">
           {/* Role Status Filter (for customers and partners) */}
           {activeTab !== "VENDORS" && (
-            <select
-              value={roleStatusFilter}
+             <select aria-label="Trạng thái đối tác" value={roleStatusFilter}
               onChange={(e) => setRoleStatusFilter(e.target.value)}
               className="px-2 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
@@ -434,8 +371,7 @@ export default function MasterCustomersPage() {
 
           {/* Payment Terms Filter */}
           {activeTab === "CUSTOMERS" && (
-            <select
-              value={paymentTermsFilter}
+             <select aria-label="Hạn thanh toán" value={paymentTermsFilter}
               onChange={(e) => setPaymentTermsFilter(e.target.value)}
               className="px-2 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
@@ -452,7 +388,7 @@ export default function MasterCustomersPage() {
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
             <input
               type="text"
-              placeholder="Tìm kiếm đối tác, MST..."
+              placeholder="Tìm kiếm đối tác, MST..." aria-label="Tìm kiếm đối tác, MST..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -463,15 +399,15 @@ export default function MasterCustomersPage() {
 
       {/* Main Table View */}
       <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
           {activeTab === "CUSTOMERS" && (
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">Mã KH</th>
                   <th className="py-2.5 px-3">Tên Khách Hàng (SELL)</th>
                   <th className="py-2.5 px-3">Mã Số Thuế</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái Role</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái Role</th>
                   <th className="py-2.5 px-3 text-center">Hạn Nợ</th>
                   <th className="py-2.5 px-3 text-right">Hạn Mức Tín Dụng</th>
                   <th className="py-2.5 px-3">Địa Chỉ</th>
@@ -479,26 +415,26 @@ export default function MasterCustomersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredCustomers.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-500">
                       Không tìm thấy khách hàng phù hợp.
                     </td>
                   </tr>
                 ) : (
-                  filteredCustomers.map((c) => (
+                  filteredCustomers.slice(pagination.start, pagination.end).map((c) => (
                     <tr
                       key={c.customerId}
                       onClick={() => handleOpenCustomerDrawer(c)}
                       className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
                         {c.customerId}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-slate-100 max-w-[220px] truncate" title={c.customerName}>
                         {c.customerName}
                         {c.shortName && (
-                          <span className="block text-[10px] text-slate-400 font-normal">
+                          <span className="block text-xs text-slate-400 font-normal">
                             {c.shortName}
                           </span>
                         )}
@@ -510,34 +446,34 @@ export default function MasterCustomersPage() {
                         {getStatusBadge(c.status)}
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono text-slate-300 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-[11px]">
-                          {c.paymentTermsDays || 30} ngày
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-xs">
+                          {c.paymentTermsDays ?? 30} ngày
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-200 whitespace-nowrap">
                         {c.creditLimit == null ? (
-                          <span className="text-slate-500 italic text-[11px]">Chưa cấu hình</span>
+                          <span className="text-slate-500 italic text-xs">Chưa cấu hình</span>
                         ) : Number(c.creditLimit) === 0 ? (
                           <span className="text-amber-400 font-medium">0 ₫ (Trả trước)</span>
                         ) : (
                           formatVND(Number(c.creditLimit))
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-400 text-[11px] max-w-[200px] truncate" title={c.address}>
+                      <td className="py-2.5 px-3 text-slate-400 text-xs max-w-[200px] truncate" title={c.address}>
                         {c.address || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {c.status === "ACTIVE" ? (
                           <Link
                             href={`/quotations/new?customerId=${c.customerId}`}
-                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-[11px] font-medium inline-flex items-center gap-1 transition-colors"
+                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
                           >
                             <PlusCircle className="w-3 h-3" /> Báo Giá
                           </Link>
                         ) : (
                           <button
                             onClick={() => handleOpenCustomerDrawer(c)}
-                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium inline-flex items-center gap-1"
                           >
                             <SlidersHorizontal className="w-3 h-3" /> Quản lý Role
                           </button>
@@ -551,34 +487,34 @@ export default function MasterCustomersPage() {
           )}
 
           {activeTab === "VENDORS" && (
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">Mã NCC</th>
                   <th className="py-2.5 px-3">Tên Nhà Xe / Đối Tác</th>
-                  <th className="py-2.5 px-3">Phân Loại Dịch Vụ</th>
+                  <th className="py-2.5 px-3">Phân loại Dịch Vụ</th>
                   <th className="py-2.5 px-3">Mã Số Thuế</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái Role</th>
-                  <th className="py-2.5 px-3">Số Điện Thoại</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái Role</th>
+                  <th className="py-2.5 px-3">Điện thoại</th>
                   <th className="py-2.5 px-3">Email</th>
                   <th className="py-2.5 px-3 text-right">Hành Động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredVendors.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredVendors.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-500">
                       Không tìm thấy nhà cung cấp phù hợp.
                     </td>
                   </tr>
                 ) : (
-                  filteredVendors.map((v) => (
+                  filteredVendors.slice(pagination.start, pagination.end).map((v) => (
                     <tr
                       key={v.vendorId}
                       onClick={() => handleOpenVendorDrawer(v)}
                       className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
                         {v.vendorId}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-slate-100 flex items-center gap-1.5">
@@ -586,7 +522,7 @@ export default function MasterCustomersPage() {
                         <span>{v.vendorName}</span>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono text-[10px] border border-blue-500/20">
+                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono text-xs border border-blue-500/20">
                           {v.vendorType}
                         </span>
                       </td>
@@ -605,7 +541,7 @@ export default function MasterCustomersPage() {
                       <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/rates?vendorId=${v.vendorId}`}
-                          className="px-2.5 py-1 rounded bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium inline-flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1 rounded bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
                         >
                           <ExternalLink className="w-3 h-3" /> Tra Cứu Cước
                         </Link>
@@ -618,8 +554,8 @@ export default function MasterCustomersPage() {
           )}
 
           {activeTab === "PARTNERS" && (
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="py-2.5 px-3">Mã Đối Tác</th>
                   <th className="py-2.5 px-3">Tên Pháp Nhân</th>
@@ -632,27 +568,27 @@ export default function MasterCustomersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredPartners.length === 0 ? (
+                {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredPartners.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-500">
                       Không tìm thấy đối tác trong danh mục.
                     </td>
                   </tr>
                 ) : (
-                  filteredPartners.map((p) => (
+                  filteredPartners.slice(pagination.start, pagination.end).map((p) => (
                     <tr
                       key={p.partnerId}
                       onClick={() => handleOpenPartnerDrawer(p)}
                       className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-[11px] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
                         {p.partnerId}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-slate-100 max-w-[240px] truncate" title={p.partnerName}>
                         {p.partnerName}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+                        <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono text-xs">
                           {p.sourcePartnerType || "Đối tác"}
                         </span>
                       </td>
@@ -664,11 +600,11 @@ export default function MasterCustomersPage() {
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {p.isVendor ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
                             VENDOR ({p.vendorType || "BUY"})
                           </span>
                         ) : (
-                          <span className="text-[10px] text-slate-500 font-mono">-</span>
+                          <span className="text-xs text-slate-500 font-mono">-</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono text-slate-300 whitespace-nowrap">
@@ -678,14 +614,14 @@ export default function MasterCustomersPage() {
                         {p.customerRoleStatus === "ACTIVE" ? (
                           <Link
                             href={`/quotations/new?customerId=${p.partnerId}`}
-                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-[11px] font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-medium inline-flex items-center gap-1"
                           >
-                            <PlusCircle className="w-3 h-3" /> Lập Báo Giá
+                            <PlusCircle className="w-3 h-3" /> Lập báo giá
                           </Link>
                         ) : (
                           <button
                             onClick={() => handleOpenPartnerDrawer(p)}
-                            className="px-2.5 py-1 rounded bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-[11px] font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-xs font-medium inline-flex items-center gap-1"
                           >
                             <ShieldCheck className="w-3 h-3" /> Quản Lý Role
                           </button>
@@ -699,6 +635,8 @@ export default function MasterCustomersPage() {
           )}
         </div>
       </div>
+
+      <Pagination pagination={pagination} loading={loading} error={!!loadError} loaded={loadedLength} limit={activeTab === "VENDORS" ? 200 : 300} />
 
       {/* Slide-out Drawer for Lifecycle Management & Details */}
       {isDrawerOpen && (
@@ -724,7 +662,7 @@ export default function MasterCustomersPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setIsDrawerOpen(false)}
+                  aria-label="Đóng chi tiết" onClick={() => { setIsDrawerOpen(false); }}
                   className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -770,14 +708,14 @@ export default function MasterCustomersPage() {
                 <div className="space-y-3 text-xs">
                   <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                     <div>
-                      <span className="text-[11px] text-slate-500 block">Tên doanh nghiệp:</span>
+                      <span className="text-xs text-slate-500 block">Tên doanh nghiệp:</span>
                       <strong className="text-sm text-slate-100 block mt-0.5">
                         {currentName}
                       </strong>
                     </div>
                     {(selectedCustomer?.taxCode || selectedVendor?.taxCode || selectedPartner?.taxCode) && (
                       <div>
-                        <span className="text-[11px] text-slate-500 block">Mã số thuế:</span>
+                        <span className="text-xs text-slate-500 block">Mã số thuế:</span>
                         <span className="text-slate-200 font-mono font-bold">
                           {selectedCustomer?.taxCode || selectedVendor?.taxCode || selectedPartner?.taxCode}
                         </span>
@@ -820,7 +758,7 @@ export default function MasterCustomersPage() {
                         <CreditCard className="w-3.5 h-3.5" /> Hạn mức tín dụng:
                       </span>
                       {creditLimitInput.trim() === "" ? (
-                        <span className="text-slate-400 italic font-mono text-[11px]">
+                        <span className="text-slate-400 italic font-mono text-xs">
                           Chưa thiết lập (Không áp dụng)
                         </span>
                       ) : Number(creditLimitInput) === 0 ? (
@@ -844,7 +782,7 @@ export default function MasterCustomersPage() {
                     <h4 className="font-bold text-blue-300 flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4" /> Quy tắc Quản trị Vai trò (Role Enforcement)
                     </h4>
-                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                    <p className="text-slate-300 leading-relaxed text-xs">
                       Một Đối tác chỉ có thể được chọn làm người mua dịch vụ trong Báo giá khi Customer Role ở trạng thái <strong>ACTIVE</strong>. Nếu đối tác chưa được kích hoạt hoặc đang bị tạm ngừng, hệ thống sẽ chặn không cho phép lập Báo giá (Fail-Closed).
                     </p>
                   </div>
@@ -858,7 +796,7 @@ export default function MasterCustomersPage() {
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <label className="text-[11px] text-slate-400 block mb-1">
+                        <label className="text-xs text-slate-400 block mb-1">
                           Hạn nợ thương mại (ngày):
                         </label>
                         <select
@@ -877,19 +815,19 @@ export default function MasterCustomersPage() {
                       </div>
 
                       <div>
-                        <label className="text-[11px] text-slate-400 block mb-1">
+                        <label className="text-xs text-slate-400 block mb-1">
                           Hạn mức tín dụng (VND):
                         </label>
                         <input
                           type="number"
                           step="10000000"
                           min="0"
-                          placeholder="Để trống: chưa cấu hình | 0: không cấp nợ"
+                          placeholder="Để trống: chưa cấu hình | 0: không cấp nợ" aria-label="Để trống: chưa cấu hình | 0: không cấp nợ"
                           value={creditLimitInput}
                           onChange={(e) => setCreditLimitInput(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-600"
                         />
-                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                        <span className="text-xs text-slate-500 block mt-0.5">
                           {creditLimitInput.trim() === ""
                             ? "Để trống: Chưa cấu hình hạn mức"
                             : Number(creditLimitInput) === 0
@@ -917,12 +855,12 @@ export default function MasterCustomersPage() {
                         Kích Hoạt Vai Trò Khách Hàng (Customer Role: ACTIVE)
                       </h4>
                       <div>
-                        <label className="text-[11px] text-slate-400 block mb-1">
+                        <label className="text-xs text-slate-400 block mb-1">
                           Ghi chú phê duyệt kích hoạt (tùy chọn):
                         </label>
                         <input
                           type="text"
-                          placeholder="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..."
+                          placeholder="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..." aria-label="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..."
                           value={activationCommentInput}
                           onChange={(e) => setActivationCommentInput(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -952,12 +890,12 @@ export default function MasterCustomersPage() {
                         Tạm Ngừng Vai Trò Khách Hàng (Suspend Role)
                       </h4>
                       <div>
-                        <label className="text-[11px] text-slate-400 block mb-1">
+                        <label className="text-xs text-slate-400 block mb-1">
                           Lý do tạm ngừng (bắt buộc để kiểm toán):
                         </label>
                         <input
                           type="text"
-                          placeholder="VD: Quá hạn công nợ 60 ngày, đang giải quyết tranh chấp hợp đồng..."
+                          placeholder="VD: Quá hạn công nợ 60 ngày, đang giải quyết tranh chấp hợp đồng..." aria-label="VD: Quá hạn công nợ 60 ngày, đang giải quyết tranh chấp hợp đồng..."
                           value={suspendReasonInput}
                           onChange={(e) => setSuspendReasonInput(e.target.value)}
                           className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
@@ -980,27 +918,27 @@ export default function MasterCustomersPage() {
                   <div className="flex items-center justify-between pb-1">
                     <span className="font-bold text-slate-300 flex items-center gap-1.5">
                       <History className="w-4 h-4 text-slate-400" />
-                      Lịch Sử Thay Đổi Trạng Thái Vai Trò
+                      Lịch Sử Thay Đổi Trạng thái Vai Trò
                     </span>
                     <button
                       onClick={() => loadAuditHistory(currentPartnerId)}
-                      className="text-[11px] text-blue-400 hover:underline flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:underline flex items-center gap-1"
                     >
                       <RefreshCw className={`w-3 h-3 ${isLoadingAudit ? "animate-spin" : ""}`} />
                       Làm mới
                     </button>
                   </div>
 
-                  {auditLogs.length === 0 ? (
+                  {isLoadingAudit ? <p role="status" className="py-8 text-center text-slate-400">Đang tải lịch sử…</p> : auditError ? <div role="alert" className="space-y-3 py-8 text-center text-slate-300"><p>Không tải được lịch sử thay đổi.</p><button type="button" onClick={() => loadAuditHistory(currentPartnerId)} className="erp-button border border-slate-700">Thử lại</button></div> : auditLogs.length === 0 ? (
                     <div className="p-8 text-center text-slate-500 bg-slate-950 rounded-lg border border-slate-800">
-                      Chưa ghi nhận sự kiện audit nào cho đối tác này.
+                      Chưa có lịch sử thay đổi cho đối tác này.
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {auditLogs.map((log) => (
                         <div
                           key={log.logId}
-                          className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1 font-mono text-[11px]"
+                          className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1 font-mono text-xs"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-white flex items-center gap-1">
@@ -1025,15 +963,15 @@ export default function MasterCustomersPage() {
                                 </span>
                               )}
                             </span>
-                            <span className="text-slate-500 text-[10px]">
+                            <span className="text-slate-500 text-xs">
                               {new Date(log.createdAt).toLocaleString("vi-VN")}
                             </span>
                           </div>
-                          <div className="text-slate-400 font-sans text-[11px] pt-1">
+                          <div className="text-slate-400 font-sans text-xs pt-1">
                             Người thực hiện: <strong>{log.actorName || log.actorId}</strong>
                           </div>
                           {log.details && (
-                            <div className="text-slate-400 text-[10px] bg-slate-900/60 p-1.5 rounded mt-1 overflow-x-auto">
+                            <div className="text-slate-400 text-xs bg-slate-900/60 p-1.5 rounded mt-1 overflow-x-auto">
                               {JSON.stringify(log.details)}
                             </div>
                           )}
@@ -1047,12 +985,12 @@ export default function MasterCustomersPage() {
 
             {/* Drawer Footer */}
             <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
+              <span className="text-xs text-slate-500">
                 THILOGI ERP • Partner Lifecycle v1.0
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsDrawerOpen(false)}
+                  aria-label="Đóng chi tiết" onClick={() => { setIsDrawerOpen(false); }}
                   className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
                 >
                   Đóng
@@ -1062,7 +1000,7 @@ export default function MasterCustomersPage() {
                     href={`/quotations/new?customerId=${currentPartnerId}`}
                     className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" /> Lập Báo Giá
+                    <PlusCircle className="w-3.5 h-3.5" /> Lập báo giá
                   </Link>
                 )}
               </div>

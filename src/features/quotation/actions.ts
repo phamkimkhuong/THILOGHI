@@ -27,6 +27,16 @@ import { requireAuth, requireRegionScope } from "@/server/auth/authorize";
 import { getSessionActor, switchSessionUser, isDemoAuthEnabled } from "@/server/auth/session";
 import { getActiveUsersList } from "@/server/auth/users";
 
+export async function getQuotationRegionsAction() {
+  try {
+    const actor = await requireAuth();
+    const regions = await getMasterRegions();
+    return { success: true, data: regions.filter(region => actor.regionScopes.includes("*") || actor.regionScopes.includes(region.id)) };
+  } catch {
+    return { success: false, data: [] };
+  }
+}
+
 export async function getQuotationMasterDataAction() {
   try {
     const actor = await requireAuth();

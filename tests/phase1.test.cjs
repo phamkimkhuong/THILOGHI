@@ -249,10 +249,27 @@ test('unauthenticated quotation actions return errors without reading business d
   const db = database();
   const actions = db.load('src/features/quotation/actions.ts');
   assert.equal((await actions.getQuotationsListAction()).success, false);
+  assert.equal((await actions.getQuotationRegionsAction()).success, false);
   assert.equal((await actions.getQuotationDetailAction(quoteId)).success, false);
   assert.equal((await actions.saveDraftQuotationAction(input(), true)).success, false);
   assert.equal((await actions.lookupRoadRatesAction({ pickupLocationId: 'A', deliveryLocationId: 'B', equipmentType: '40HC', pricingDate: '2026-10-27' })).status, 'ERROR');
   assert.equal(db.calls.length, 0);
+});
+
+test('quotation region picker only exposes the authenticated actor regions', async () => {
+  const regions = [{ id: 'R1', name: 'Region One' }, { id: 'R2', name: 'Region Two' }];
+  for (const [scopes, expected] of [[['R1'], ['R1']], [['*'], ['R1', 'R2']], [[], []]]) {
+    const load = createLoader({
+      '@/server/db': { pool: {} },
+      '@/server/auth/authorize': { requireAuth: async () => ({ ...actor, regionScopes: scopes }) },
+      '@/server/modules/master-data/master-data.service': { getMasterRegions: async () => regions },
+      'next/headers': { cookies: async () => ({ get: () => undefined }) },
+      jose: {},
+    });
+    const result = await load('src/features/quotation/actions.ts').getQuotationRegionsAction();
+    assert.equal(result.success, true);
+    assert.deepEqual(result.data.map(region => region.id), expected);
+  }
 });
 
 test('approval requires correct region, authority and an independent reviewer', async () => {

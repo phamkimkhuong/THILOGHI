@@ -86,17 +86,20 @@ function QuotationWorkspaceContent() {
   const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
   const [revision, setRevision] = useState<string | undefined>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [savedQuotationNo, setSavedQuotationNo] = useState<string | null>(null);
   const [quotationStatus, setQuotationStatus] = useState<"DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED">("DRAFT");
   const [isImmutableLocked, setIsImmutableLocked] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const isReadOnly = isImmutableLocked || quotationStatus !== "DRAFT" || isPending || loadFailed;
+  const isReadOnly = isImmutableLocked || quotationStatus !== "DRAFT" || isPending || isInitializing || loadFailed;
 
   // Load Master Data & Existing Quotation if ID provided
   useEffect(() => {
     let cancelled = false;
     startTransition(async () => {
+      setIsInitializing(true);
       setLoadFailed(false);
       setSavedQuotationId(null);
       setSavedQuotationNo(null);
@@ -105,76 +108,85 @@ function QuotationWorkspaceContent() {
       setIsImmutableLocked(false);
       setActiveItemIndex(0);
       setActionMessage(null);
-      const res = await getQuotationMasterDataAction();
-      if (cancelled) return;
-      setCustomers(res.customers);
-      setRegions(res.regions);
-      setLocations(res.locations);
-      setCommodities(res.commodities);
-      setEquipmentTypes(res.equipmentTypes);
-
-      if (res.error) {
-        setLoadFailed(true);
-        setActionMessage({
-          type: "error",
-          text: `${res.error}. Vui lòng kiểm tra kết nối PostgreSQL.`,
-        });
-      }
-
-      if (idFromUrl) {
-        // Tải thông tin báo giá đã có
-        const detailRes = await getQuotationDetailAction(idFromUrl);
+      try {
+        const res = await getQuotationMasterDataAction();
         if (cancelled) return;
-        if (detailRes.success && detailRes.data) {
-          const q = detailRes.data.quote;
-          setRevision(q.revision);
-          setSavedQuotationId(q.quotationId);
-          setSavedQuotationNo(q.quotationNo);
-          setQuotationStatus(q.status as "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED");
-          setIsImmutableLocked(q.immutableLocked);
-          setCustomerId(q.customerId);
-          setRegionId(q.regionId);
-          setCommodityId(q.commodityId || "");
-          setPaymentTermsDays(q.paymentTermsDays);
+        setCustomers(res.customers);
+        setRegions(res.regions);
+        setLocations(res.locations);
+        setCommodities(res.commodities);
+        setEquipmentTypes(res.equipmentTypes);
 
-          if (detailRes.data.items && detailRes.data.items.length > 0) {
-            setItems(restoreQuotationItems(detailRes.data));
+        if (res.error) {
+          setLoadFailed(true);
+          setActionMessage({
+            type: "error",
+            text: "Không tải được danh mục lập báo giá. Vui lòng thử lại.",
+          });
+        }
+
+        if (idFromUrl) {
+          // Tải thông tin báo giá đã có
+          const detailRes = await getQuotationDetailAction(idFromUrl);
+          if (cancelled) return;
+          if (detailRes.success && detailRes.data) {
+            const q = detailRes.data.quote;
+            setRevision(q.revision);
+            setSavedQuotationId(q.quotationId);
+            setSavedQuotationNo(q.quotationNo);
+            setQuotationStatus(q.status as "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED");
+            setIsImmutableLocked(q.immutableLocked);
+            setCustomerId(q.customerId);
+            setRegionId(q.regionId);
+            setCommodityId(q.commodityId || "");
+            setPaymentTermsDays(q.paymentTermsDays);
+
+            if (detailRes.data.items && detailRes.data.items.length > 0) {
+              setItems(restoreQuotationItems(detailRes.data));
+            }
+          } else {
+            setLoadFailed(true);
+            setActionMessage({ type: "error", text: detailRes.error || "Không thể tải báo giá." });
           }
         } else {
-          setLoadFailed(true);
-          setActionMessage({ type: "error", text: detailRes.error || "Không thể tải báo giá." });
+          // Thiết lập giá trị mặc định hoặc từ URL query parameters
+          const defaultCustomer = customerIdFromUrl || (res.customers.length > 0 ? res.customers[0].id : "");
+          setCustomerId(defaultCustomer);
+          if (res.regions.length > 0) setRegionId(res.regions[0].id);
+          const defaultCommodity = commodityIdFromUrl || (res.commodities.length > 0 ? res.commodities[0].id : "");
+          setCommodityId(defaultCommodity);
+
+          const origin = originFromUrl || (res.locations.length > 0 ? res.locations[0].id : "");
+          const dest = destFromUrl || (res.locations.length > 1 ? res.locations[1].id : "");
+          const eq = eqFromUrl || "40HC";
+
+          setItems([
+            {
+              id: "item-1",
+              servicePackage: "TRUCKING",
+              pricingInclusion: "INCLUDED",
+              originLocationId: origin,
+              destinationLocationId: dest,
+              equipmentType: eq,
+              plannedQuantity: 1,
+              unit: "TRIP",
+              unitBuyPrice: 0,
+              worstCaseBuyPrice: 0,
+              unitSellPrice: 0,
+            },
+          ]);
         }
-      } else {
-        // Thiết lập giá trị mặc định hoặc từ URL query parameters
-        const defaultCustomer = customerIdFromUrl || (res.customers.length > 0 ? res.customers[0].id : "");
-        setCustomerId(defaultCustomer);
-        if (res.regions.length > 0) setRegionId(res.regions[0].id);
-        const defaultCommodity = commodityIdFromUrl || (res.commodities.length > 0 ? res.commodities[0].id : "");
-        setCommodityId(defaultCommodity);
-
-        const origin = originFromUrl || (res.locations.length > 0 ? res.locations[0].id : "");
-        const dest = destFromUrl || (res.locations.length > 1 ? res.locations[1].id : "");
-        const eq = eqFromUrl || "40HC";
-
-        setItems([
-          {
-            id: "item-1",
-            servicePackage: "TRUCKING",
-            pricingInclusion: "INCLUDED",
-            originLocationId: origin,
-            destinationLocationId: dest,
-            equipmentType: eq,
-            plannedQuantity: 1,
-            unit: "TRIP",
-            unitBuyPrice: 0,
-            worstCaseBuyPrice: 0,
-            unitSellPrice: 0,
-          },
-        ]);
+      } catch {
+        if (!cancelled) {
+          setLoadFailed(true);
+          setActionMessage({ type: "error", text: "Không tải được báo giá. Vui lòng thử lại." });
+        }
+      } finally {
+        if (!cancelled) setIsInitializing(false);
       }
     });
     return () => { cancelled = true; };
-  }, [idFromUrl, customerIdFromUrl, originFromUrl, destFromUrl, eqFromUrl, commodityIdFromUrl]);
+  }, [idFromUrl, customerIdFromUrl, originFromUrl, destFromUrl, eqFromUrl, commodityIdFromUrl, loadAttempt]);
 
   const currentItem = items[activeItemIndex] || items[0];
 
@@ -391,9 +403,9 @@ function QuotationWorkspaceContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
-              Không Gian Lập Báo Giá Thương Mại
+              Không Gian Lập báo giá Thương Mại
             </h1>
             {savedQuotationNo && (
               <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 font-mono text-xs font-bold border border-blue-500/30">
@@ -402,30 +414,30 @@ function QuotationWorkspaceContent() {
             )}
             {quotationStatus === "DRAFT" && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-xs font-bold border border-slate-700">
-                BẢN NHÁP (DRAFT)
+                Bản nháp
               </span>
             )}
             {quotationStatus === "PENDING_APPROVAL" && (
               <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-xs font-bold border border-amber-500/30 flex items-center gap-1">
                 <Lock className="w-3 h-3 text-amber-400" />
-                CHỜ PHÊ DUYỆT
+                Chờ duyệt
               </span>
             )}
             {quotationStatus === "APPROVED" && (
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold border border-emerald-500/30 flex items-center gap-1">
                 <Check className="w-3 h-3" />
-                ĐÃ PHÊ DUYỆT (KHÓA BẤT BIẾN)
+                Đã duyệt · Chỉ đọc
               </span>
             )}
             {quotationStatus === "REJECTED" && (
               <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono text-xs font-bold border border-rose-500/30 flex items-center gap-1">
                 <XCircle className="w-3 h-3" />
-                BỊ TỪ CHỐI
+                Từ chối
               </span>
             )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Quy chuẩn P0 & P1: Tra cứu đa Nhà cung cấp, snapshot giá vốn, cấu thành giá bán SELL và ma trận phê duyệt biên lợi nhuận
+            Chọn tuyến, tra giá mua và lập giá bán để gửi duyệt.
           </p>
         </div>
 
@@ -436,7 +448,7 @@ function QuotationWorkspaceContent() {
             className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
-            <span>Danh Sách Báo Giá</span>
+            <span>Danh sách báo giá</span>
           </Link>
 
           {quotationStatus === "DRAFT" && (
@@ -447,7 +459,7 @@ function QuotationWorkspaceContent() {
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5 text-slate-400" />
-                Lưu Nháp
+                Lưu nháp
               </button>
               <button
                 onClick={handleSubmitForApproval}
@@ -455,7 +467,7 @@ function QuotationWorkspaceContent() {
                 className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
                 <Send className="w-3.5 h-3.5" />
-                Trình Duyệt Hội Đồng
+                Gửi duyệt
               </button>
             </>
           )}
@@ -468,7 +480,7 @@ function QuotationWorkspaceContent() {
                 className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 flex items-center gap-1 transition-colors disabled:opacity-50"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-                Trả Về Nháp
+                Trả về nháp
               </button>
               <button
                 onClick={handleReject}
@@ -502,6 +514,7 @@ function QuotationWorkspaceContent() {
         </div>
       </div>
 
+      {isInitializing && <p role="status" className="text-sm text-slate-400">Đang tải dữ liệu báo giá…</p>}
       {/* Action Notification Banner */}
       {actionMessage && (
         <div
@@ -516,7 +529,8 @@ function QuotationWorkspaceContent() {
           ) : (
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
           )}
-          <span>{actionMessage.text}</span>
+          <span role={actionMessage.type === "error" ? "alert" : "status"}>{actionMessage.text}</span>
+          {loadFailed && <button type="button" disabled={isInitializing} className="erp-button ml-auto border border-rose-500/40" onClick={() => setLoadAttempt(attempt => attempt + 1)}>Thử lại</button>}
         </div>
       )}
 
@@ -525,7 +539,7 @@ function QuotationWorkspaceContent() {
         <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2">
           <Lock className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
-            <strong>Hồ Sơ Đã Khóa Bất Biến:</strong> Báo giá này đã được thẩm định phê duyệt chính thức. Toàn bộ thông tin giá bán và giá vốn được bảo vệ tính toán toàn vẹn, không thể chỉnh sửa.
+            <strong>Báo giá đã duyệt:</strong> Giá mua và giá bán đã được lưu, không thể chỉnh sửa.
           </span>
         </div>
       )}
@@ -543,12 +557,12 @@ function QuotationWorkspaceContent() {
                 <Building className="w-3.5 h-3.5 text-blue-400" />
                 Khách Hàng & Phân Vùng
               </span>
-              <span className="text-[10px] text-slate-500 font-mono">BƯỚC 01</span>
+              <span className="text-xs text-slate-500 font-mono">BƯỚC 01</span>
             </div>
 
             <div className="space-y-2.5">
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Khách Hàng Mục Tiêu *</label>
+                <label className="text-xs text-slate-400 block mb-1">Khách Hàng Mục Tiêu *</label>
                 <select
                   disabled={isReadOnly}
                   value={customerId}
@@ -564,7 +578,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Phân Vùng Vận Hành (Region Scope) *</label>
+                <label className="text-xs text-slate-400 block mb-1">Phân vùng (Region Scope) *</label>
                 <select
                   disabled={isReadOnly}
                   value={regionId}
@@ -580,7 +594,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Mặt Hàng Vận Chuyển</label>
+                <label className="text-xs text-slate-400 block mb-1">Mặt Hàng Vận Chuyển</label>
                 <select
                   disabled={isReadOnly}
                   value={commodityId}
@@ -596,7 +610,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Hạn Nợ Thương Mại</label>
+                <label className="text-xs text-slate-400 block mb-1">Hạn Nợ Thương Mại</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -645,7 +659,7 @@ function QuotationWorkspaceContent() {
                       #{idx + 1}. {item.servicePackage === "TRUCKING" ? "Vận tải Đường bộ" : item.servicePackage}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 font-mono text-slate-400">
+                      <span className="text-xs px-1.5 py-0.2 rounded bg-slate-800 font-mono text-slate-400">
                         {item.plannedQuantity} {item.unit}
                       </span>
                       {items.length > 1 && !isReadOnly && (
@@ -663,7 +677,7 @@ function QuotationWorkspaceContent() {
                     </div>
                   </div>
 
-                  <div className="mt-1 text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                  <div className="mt-1 text-xs text-slate-400 flex items-center gap-1 truncate">
                     <span>{locations.find((l) => l.id === item.originLocationId)?.code || "Điểm đi"}</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
                     <span>{locations.find((l) => l.id === item.destinationLocationId)?.code || "Điểm đến"}</span>
@@ -671,7 +685,7 @@ function QuotationWorkspaceContent() {
                     <span className="font-mono text-cyan-400">{item.equipmentType}</span>
                   </div>
 
-                  <div className="mt-1.5 flex items-center justify-between text-[11px]">
+                  <div className="mt-1.5 flex items-center justify-between text-xs">
                     <span className="text-slate-500">Giá vốn BUY:</span>
                     <span
                       className={`font-semibold font-mono ${
@@ -708,7 +722,7 @@ function QuotationWorkspaceContent() {
             {/* Các dropdown tuyến đường */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Điểm Nhận / Xếp Hàng *</label>
+                <label className="text-xs text-slate-400 block mb-1">Điểm Nhận / Xếp Hàng *</label>
                 <select
                   disabled={isReadOnly}
                   value={currentItem.originLocationId}
@@ -740,7 +754,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Điểm Giao / Dỡ Hàng *</label>
+                <label className="text-xs text-slate-400 block mb-1">Điểm Giao / Dỡ Hàng *</label>
                 <select
                   disabled={isReadOnly}
                   value={currentItem.destinationLocationId}
@@ -772,7 +786,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Loại Thiết Bị / Phương Tiện *</label>
+                <label className="text-xs text-slate-400 block mb-1">Thiết bị / Phương Tiện *</label>
                 <select
                   disabled={isReadOnly}
                   value={currentItem.equipmentType}
@@ -832,7 +846,7 @@ function QuotationWorkspaceContent() {
                 className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
               >
                 <Search className="w-3.5 h-3.5" />
-                Tra Cứu Giá Mua (130 Road Rates)
+                Tra giá mua
               </button>
             </div>
 
@@ -861,7 +875,7 @@ function QuotationWorkspaceContent() {
 
                   {currentItem.worstCaseBuyPrice > 0 && (
                     <div className="text-right">
-                      <span className="text-[11px] text-slate-400">Worst-case BUY: </span>
+                      <span className="text-xs text-slate-400">Worst-case BUY: </span>
                       <strong className="text-xs font-mono text-amber-400">
                         {formatVND(currentItem.worstCaseBuyPrice)}
                       </strong>
@@ -875,12 +889,12 @@ function QuotationWorkspaceContent() {
                 {(currentItem.lookupResult.status === "APPLY" || currentItem.lookupResult.status === "MULTIPLE_CANDIDATES") && currentItem.lookupResult.candidates.length > 0 && (
                   <div className="border border-slate-800 rounded-lg overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900/80 text-slate-400 text-[10px] uppercase border-b border-slate-800">
+                      <thead className="bg-slate-900/80 text-slate-400 text-xs uppercase border-b border-slate-800">
                         <tr>
                           <th className="py-2 px-3">Lựa Chọn</th>
-                          <th className="py-2 px-3">Nhà Cung Cấp / Đơn Vị</th>
-                          <th className="py-2 px-3">Khoảng Hiệu Lực</th>
-                          <th className="py-2 px-3 text-right">Đơn Giá Mua (BUY)</th>
+                          <th className="py-2 px-3">Nhà cung cấp</th>
+                          <th className="py-2 px-3">Khoảng Hiệu lực</th>
+                          <th className="py-2 px-3 text-right">Đơn giá mua</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -907,13 +921,13 @@ function QuotationWorkspaceContent() {
                               <td className="py-2 px-3 font-medium text-slate-200">
                                 {cand.vendorName}
                               </td>
-                              <td className="py-2 px-3 text-slate-400 font-mono text-[11px]">
+                              <td className="py-2 px-3 text-slate-400 font-mono text-xs">
                                 {cand.validityRange}
                               </td>
                               <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-400">
                                 <div>{formatVND(cand.buyRateVnd)}</div>
                                 {cand.currency !== "VND" && (
-                                  <div className="text-[10px] text-slate-400 font-normal">
+                                  <div className="text-xs text-slate-400 font-normal">
                                     ({new Intl.NumberFormat().format(cand.buyRate)} {cand.currency})
                                   </div>
                                 )}
@@ -941,7 +955,7 @@ function QuotationWorkspaceContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">
+                <label className="text-xs text-slate-400 block mb-1">
                   Đơn Giá Bán Đề Xuất (SELL / {currentItem.unit}) *
                 </label>
                 <div className="relative">
@@ -964,7 +978,7 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Tổng Giá Bán Dịch Vụ Này</label>
+                <label className="text-xs text-slate-400 block mb-1">Tổng Giá Bán Dịch Vụ Này</label>
                 <div className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-sm font-mono font-bold text-blue-400">
                   {formatVND((currentItem.unitSellPrice || 0) * (currentItem.plannedQuantity || 1))}
                 </div>
@@ -974,26 +988,26 @@ function QuotationWorkspaceContent() {
             {/* LIVE KPI METRICS CỦA TOÀN BỘ BÁO GIÁ */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-800">
               <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-[10px] text-slate-400 block">Doanh Thu (SELL)</span>
-                <span className="text-base font-black font-mono text-white block mt-0.5">
+                <span className="text-xs text-slate-400 block">Doanh Thu (SELL)</span>
+                <span className="text-base font-semibold font-mono text-white block mt-0.5">
                   {formatVND(totalSell)}
                 </span>
               </div>
 
               <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-[10px] text-slate-400 block">Giá Vốn (BUY)</span>
-                <span className="text-base font-black font-mono text-amber-400 block mt-0.5">
+                <span className="text-xs text-slate-400 block">Giá Vốn (BUY)</span>
+                <span className="text-base font-semibold font-mono text-amber-400 block mt-0.5">
                   {formatVND(totalBuy)}
                 </span>
                 {totalWorstBuy > 0 && (
-                  <span className="text-[10px] text-slate-500 font-mono block">Worst: {formatVND(totalWorstBuy)}</span>
+                  <span className="text-xs text-slate-500 font-mono block">Worst: {formatVND(totalWorstBuy)}</span>
                 )}
               </div>
 
               <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-[10px] text-slate-400 block">Lợi Nhuận Gộp (GP)</span>
+                <span className="text-xs text-slate-400 block">Lợi Nhuận Gộp (GP)</span>
                 <span
-                  className={`text-base font-black font-mono block mt-0.5 ${
+                  className={`text-base font-semibold font-mono block mt-0.5 ${
                     grossProfit >= 0 ? "text-emerald-400" : "text-rose-400"
                   }`}
                 >
@@ -1002,10 +1016,10 @@ function QuotationWorkspaceContent() {
               </div>
 
               <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-[10px] text-slate-400 block">Biên Lợi Nhuận</span>
+                <span className="text-xs text-slate-400 block">Biên Lợi Nhuận</span>
                 <div className="flex items-center gap-1 mt-0.5">
                   <span
-                    className={`text-base font-black font-mono ${
+                    className={`text-base font-semibold font-mono ${
                       marginPercent >= 15
                         ? "text-emerald-400"
                         : marginPercent >= 5
@@ -1031,7 +1045,7 @@ function QuotationWorkspaceContent() {
             </div>
 
             {/* Thông báo chính sách margin THILOGI */}
-            <div className="p-2.5 rounded-lg bg-blue-950/20 border border-blue-900/30 text-[11px] text-blue-300/90 flex items-start gap-2">
+            <div className="p-2.5 rounded-lg bg-blue-950/20 border border-blue-900/30 text-xs text-blue-300/90 flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
               <span>
                 <strong>Chính sách Margin THILOGI:</strong> Biên lợi nhuận $\ge 15\%$ được phê duyệt nhanh bởi Trưởng bộ phận Pricing. Từ $5\% - 15\%$ yêu cầu thẩm định Phó Giám Đốc. Dưới $5\%$ chỉ được duyệt khi có chủ trương bù tải của Ban Giám Đốc.
