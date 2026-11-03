@@ -158,17 +158,17 @@ export default function MasterFleetPage() {
   }, [tractors]);
 
   return (
-    <div className="space-y-4 font-sans text-slate-200">
+    <div className="space-y-4 font-sans text-foreground">
       <PageHeader title="Đội xe" actions={<><RefreshButton onClick={loadData} loading={loading} /></>} />
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Loại danh mục đội xe">
-        {([{ id: "TRACTORS", label: "Đầu kéo" }, { id: "TRAILERS", label: "Rơ-moóc" }, { id: "DRIVERS", label: "Tài xế" }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={activeTab === tab.id} onClick={() => handleTabChange(tab.id)} className={activeTab === tab.id ? "erp-button bg-blue-600 text-white" : "erp-button border border-slate-700 text-slate-300"}>{tab.label}</button>)}
+        {([{ id: "TRACTORS", label: "Đầu kéo" }, { id: "TRAILERS", label: "Rơ-moóc" }, { id: "DRIVERS", label: "Tài xế" }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={activeTab === tab.id} onClick={() => handleTabChange(tab.id)} className={activeTab === tab.id ? "erp-button bg-blue-600 text-white font-bold" : "erp-button border border-border text-foreground bg-surface hover:bg-surface-hover"}>{tab.label}</button>)}
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+      <div className="p-2.5 rounded-xl bg-surface border border-border flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-xs">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
           <input
             type="text"
             placeholder={
@@ -180,14 +180,14 @@ export default function MasterFleetPage() {
             }
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
         {/* Sub-filter chips */}
         {activeTab === "TRACTORS" && uniqueOwnerships.length > 0 && (
           <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
-            <span className="text-xs text-slate-500 flex items-center gap-1 mr-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 mr-1">
               <Filter className="w-3 h-3" /> Sở hữu:
             </span>
             <button
@@ -195,7 +195,7 @@ export default function MasterFleetPage() {
               className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 subFilter === "ALL"
                   ? "bg-blue-600 text-white font-bold"
-                  : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800"
+                  : "bg-background text-muted-foreground hover:text-foreground border border-border"
               }`}
             >
               Tất cả
@@ -207,7 +207,7 @@ export default function MasterFleetPage() {
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                   subFilter === own
                     ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800"
+                    : "bg-background text-muted-foreground hover:text-foreground border border-border"
                 }`}
               >
                 {own}
@@ -218,7 +218,7 @@ export default function MasterFleetPage() {
 
         {activeTab === "TRAILERS" && uniqueTrailerTypes.length > 0 && (
           <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
-            <span className="text-xs text-slate-500 flex items-center gap-1 mr-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 mr-1">
               <Filter className="w-3 h-3" /> Loại:
             </span>
             <button
@@ -226,7 +226,7 @@ export default function MasterFleetPage() {
               className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 subFilter === "ALL"
                   ? "bg-blue-600 text-white font-bold"
-                  : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800"
+                  : "bg-background text-muted-foreground hover:text-foreground border border-border"
               }`}
             >
               Tất cả
@@ -238,7 +238,7 @@ export default function MasterFleetPage() {
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                   subFilter === type
                     ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800"
+                    : "bg-background text-muted-foreground hover:text-foreground border border-border"
                 }`}
               >
                 {type}
@@ -251,10 +251,10 @@ export default function MasterFleetPage() {
 
       {/* Main Table Content */}
       {activeTab === "TRACTORS" && (
-        <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-foreground">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
                   <th className="py-2.5 px-3">Mã đầu kéo</th>
@@ -264,30 +264,30 @@ export default function MasterFleetPage() {
                   <th className="py-2.5 px-3 text-center">Trạng thái Vận Hành</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTractors.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy đầu kéo phù hợp.
                     </td>
                   </tr>
                 ) : (
                   paginatedTractors.map((t, idx) => (
-                    <tr key={t.tractorId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                    <tr key={t.tractorId} className="hover:bg-surface-hover transition-colors">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground text-xs w-12">
                         {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs">
                         {t.tractorId}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-cyan-400 text-sm">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-cyan-400 text-sm">
                         {t.plateNumber}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-300">
+                      <td className="py-2.5 px-3 text-foreground">
                         {t.model || "—"}
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-800 font-mono text-slate-300 border border-slate-700">
+                        <span className="text-xs px-2 py-0.5 rounded bg-surface font-mono text-foreground border border-border">
                           {t.ownership}
                         </span>
                       </td>
@@ -304,10 +304,10 @@ export default function MasterFleetPage() {
       )}
 
       {activeTab === "TRAILERS" && (
-        <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-foreground">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
                   <th className="py-2.5 px-3">Mã rơ-moóc</th>
@@ -317,29 +317,29 @@ export default function MasterFleetPage() {
                   <th className="py-2.5 px-3 text-center">Trạng thái</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTrailers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy rơ-moóc phù hợp.
                     </td>
                   </tr>
                 ) : (
                   paginatedTrailers.map((tr, idx) => (
-                    <tr key={tr.trailerId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                    <tr key={tr.trailerId} className="hover:bg-surface-hover transition-colors">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground text-xs w-12">
                         {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs">
                         {tr.trailerId}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-cyan-400 text-sm">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-cyan-400 text-sm">
                         {tr.plateNumber}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-200 font-semibold">
+                      <td className="py-2.5 px-3 text-foreground font-semibold">
                         {tr.trailerType}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-300">
+                      <td className="py-2.5 px-3 text-right font-mono text-foreground">
                         {tr.payloadCapacityKg != null ? new Intl.NumberFormat("vi-VN").format(tr.payloadCapacityKg) + " kg" : "—"}
                       </td>
                       <td className="py-2.5 px-3 text-center">
@@ -355,10 +355,10 @@ export default function MasterFleetPage() {
       )}
 
       {activeTab === "DRIVERS" && (
-        <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-foreground">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">STT</th>
                   <th className="py-2.5 px-3">Mã tài xế</th>
@@ -368,39 +368,39 @@ export default function MasterFleetPage() {
                   <th className="py-2.5 px-3 text-center">Trạng thái</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedDrivers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy tài xế phù hợp.
                     </td>
                   </tr>
                 ) : (
                   paginatedDrivers.map((d, idx) => (
-                    <tr key={d.driverId} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 text-xs w-12">
+                    <tr key={d.driverId} className="hover:bg-surface-hover transition-colors">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground text-xs w-12">
                         {pagination.start + idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs">
                         {d.driverId}
                       </td>
-                      <td className="py-2.5 px-3 font-medium text-slate-100 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <td className="py-2.5 px-3 font-medium text-foreground flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                         <span>{d.fullName}</span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-300">
+                      <td className="py-2.5 px-3 font-mono text-foreground">
                         {d.phone ? (
                           <div className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                            <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
                             <span>{d.phone}</span>
                           </div>
                         ) : (
-                          <span className="text-slate-600">-</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-cyan-400">
+                      <td className="py-2.5 px-3 font-mono text-blue-600 dark:text-cyan-400">
                         <div className="flex items-center gap-1">
-                          <FileCheck className="w-3 h-3 text-slate-500 shrink-0" />
+                          <FileCheck className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span>{d.licenseNumber || "—"}</span>
                         </div>
                       </td>

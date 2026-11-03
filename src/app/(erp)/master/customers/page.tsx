@@ -299,11 +299,11 @@ export default function MasterCustomersPage() {
   const currentName = selectedCustomer?.customerName || selectedVendor?.vendorName || selectedPartner?.partnerName || "";
 
   return (
-    <div className="space-y-4 font-sans text-slate-200">
-      <PageHeader title="Đối tác" actions={<><RefreshButton onClick={loadData} loading={loading} /><Link href="/quotations/new" className="erp-button bg-blue-600 text-white hover:bg-blue-500"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
+    <div className="space-y-4 font-sans text-foreground">
+      <PageHeader title="Đối tác" actions={<><Link href="/master/manage" className="erp-button border border-border bg-surface hover:bg-surface-hover text-foreground">Quản lý dữ liệu</Link><RefreshButton onClick={loadData} loading={loading} /><Link href="/quotations/new" className="erp-button bg-primary text-primary-foreground hover:opacity-90 shadow-xs"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
 
       {/* Tabs and Instant Search */}
-      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+      <div className="p-2.5 rounded-xl bg-surface border border-border flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-xs">
         <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <button
             onClick={() => {
@@ -313,12 +313,12 @@ export default function MasterCustomersPage() {
             }}
             className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors ${
               activeTab === "CUSTOMERS"
-                ? "bg-blue-600 text-white font-semibold shadow-sm"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            Khách hàng ( {customers.length})
+            Khách hàng ({customers.length})
           </button>
 
           <button
@@ -329,8 +329,8 @@ export default function MasterCustomersPage() {
             }}
             className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors ${
               activeTab === "VENDORS"
-                ? "bg-blue-600 text-white font-semibold shadow-sm"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
             }`}
           >
             <Truck className="w-3.5 h-3.5" />
@@ -345,8 +345,8 @@ export default function MasterCustomersPage() {
             }}
             className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors ${
               activeTab === "PARTNERS"
-                ? "bg-blue-600 text-white font-semibold shadow-sm"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -360,7 +360,7 @@ export default function MasterCustomersPage() {
           {activeTab !== "VENDORS" && (
              <select aria-label="Trạng thái đối tác" value={roleStatusFilter}
               onChange={(e) => setRoleStatusFilter(e.target.value)}
-              className="px-2 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 text-xs bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
             >
               <option value="ALL">Tất cả vai trò</option>
               <option value="ACTIVE">Vai trò ACTIVE</option>
@@ -373,7 +373,7 @@ export default function MasterCustomersPage() {
           {activeTab === "CUSTOMERS" && (
              <select aria-label="Hạn thanh toán" value={paymentTermsFilter}
               onChange={(e) => setPaymentTermsFilter(e.target.value)}
-              className="px-2 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 text-xs bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
             >
               <option value="ALL">Tất cả hạn nợ</option>
               <option value="15">15 ngày</option>
@@ -385,24 +385,24 @@ export default function MasterCustomersPage() {
 
           {/* Instant Search Box */}
           <div className="relative w-full md:w-56">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Tìm kiếm đối tác, MST..." aria-label="Tìm kiếm đối tác, MST..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
             />
           </div>
         </div>
       </div>
 
       {/* Main Table View */}
-      <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
+      <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
         <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
           {activeTab === "CUSTOMERS" && (
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">Mã KH</th>
                   <th className="py-2.5 px-3">Tên Khách Hàng (SELL)</th>
@@ -487,8 +487,8 @@ export default function MasterCustomersPage() {
           )}
 
           {activeTab === "VENDORS" && (
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-foreground">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">Mã NCC</th>
                   <th className="py-2.5 px-3">Tên Nhà Xe / Đối Tác</th>
@@ -500,10 +500,10 @@ export default function MasterCustomersPage() {
                   <th className="py-2.5 px-3 text-right">Hành Động</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredVendors.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy nhà cung cấp phù hợp.
                     </td>
                   </tr>
@@ -512,36 +512,36 @@ export default function MasterCustomersPage() {
                     <tr
                       key={v.vendorId}
                       onClick={() => handleOpenVendorDrawer(v)}
-                      className="hover:bg-slate-800/40 cursor-pointer transition-colors"
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs whitespace-nowrap">
                         {v.vendorId}
                       </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-100 flex items-center gap-1.5">
-                        <Truck className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <td className="py-2.5 px-3 font-semibold text-foreground flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                         <span>{v.vendorName}</span>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono text-xs border border-blue-500/20">
+                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-mono text-xs border border-blue-500/20">
                           {v.vendorType}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground whitespace-nowrap">
                         {v.taxCode || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {getStatusBadge(v.status)}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono text-foreground whitespace-nowrap">
                         {v.phone || "-"}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
                         {v.email || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/rates?vendorId=${v.vendorId}`}
-                          className="px-2.5 py-1 rounded bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-600/15 dark:hover:bg-emerald-600/25 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
                         >
                           <ExternalLink className="w-3 h-3" /> Tra Cứu Cước
                         </Link>
@@ -554,8 +554,8 @@ export default function MasterCustomersPage() {
           )}
 
           {activeTab === "PARTNERS" && (
-            <table className="erp-table w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <table className="erp-table w-full text-left text-xs text-foreground">
+              <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="py-2.5 px-3">Mã Đối Tác</th>
                   <th className="py-2.5 px-3">Tên Pháp Nhân</th>
@@ -567,10 +567,10 @@ export default function MasterCustomersPage() {
                   <th className="py-2.5 px-3 text-right">Hành Động</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredPartners.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy đối tác trong danh mục.
                     </td>
                   </tr>
@@ -579,20 +579,20 @@ export default function MasterCustomersPage() {
                     <tr
                       key={p.partnerId}
                       onClick={() => handleOpenPartnerDrawer(p)}
-                      className="hover:bg-slate-800/40 cursor-pointer transition-colors"
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs whitespace-nowrap">
                         {p.partnerId}
                       </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-100 max-w-[240px] truncate" title={p.partnerName}>
+                      <td className="py-2.5 px-3 font-semibold text-foreground max-w-[240px] truncate" title={p.partnerName}>
                         {p.partnerName}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono text-xs">
+                        <span className="px-1.5 py-0.5 rounded bg-surface-hover text-muted-foreground font-mono text-xs border border-border">
                           {p.sourcePartnerType || "Đối tác"}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground whitespace-nowrap">
                         {p.taxCode || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -600,28 +600,28 @@ export default function MasterCustomersPage() {
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {p.isVendor ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/30">
                             VENDOR ({p.vendorType || "BUY"})
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-500 font-mono">-</span>
+                          <span className="text-xs text-muted-foreground font-mono">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-300 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-center font-mono text-foreground whitespace-nowrap">
                         {p.customerRoleStatus === "ACTIVE" ? `${p.paymentTermsDays} ngày` : "-"}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {p.customerRoleStatus === "ACTIVE" ? (
                           <Link
                             href={`/quotations/new?customerId=${p.partnerId}`}
-                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-600/15 dark:hover:bg-blue-600/25 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 text-xs font-medium inline-flex items-center gap-1"
                           >
                             <PlusCircle className="w-3 h-3" /> Lập báo giá
                           </Link>
                         ) : (
                           <button
                             onClick={() => handleOpenPartnerDrawer(p)}
-                            className="px-2.5 py-1 rounded bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-xs font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-600/15 dark:hover:bg-indigo-600/25 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 text-xs font-medium inline-flex items-center gap-1"
                           >
                             <ShieldCheck className="w-3 h-3" /> Quản Lý Role
                           </button>
@@ -640,21 +640,21 @@ export default function MasterCustomersPage() {
 
       {/* Slide-out Drawer for Lifecycle Management & Details */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end">
-          <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl p-5 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-200">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/50 backdrop-blur-xs flex justify-end">
+          <div className="w-full max-w-xl bg-surface border-l border-border shadow-2xl p-5 overflow-y-auto flex flex-col justify-between animate-in slide-in-from-right duration-200">
             <div className="space-y-4">
               {/* Drawer Header */}
-              <div className="flex items-start justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-start justify-between pb-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-blue-600/15 text-blue-400 border border-blue-500/20">
+                  <div className="p-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-600/15 dark:text-blue-400 dark:border-blue-500/20">
                     <Building2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                       {currentName}
                     </h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="font-mono text-xs text-slate-400">
+                      <span className="font-mono text-xs text-muted-foreground">
                         ID: {currentPartnerId}
                       </span>
                       {getStatusBadge(currentRoleStatus)}
@@ -663,20 +663,20 @@ export default function MasterCustomersPage() {
                 </div>
                 <button
                   aria-label="Đóng chi tiết" onClick={() => { setIsDrawerOpen(false); }}
-                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Drawer Sub-tabs */}
-              <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-background border border-border text-xs">
                 <button
                   onClick={() => setDrawerTab("INFO")}
                   className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors ${
                     drawerTab === "INFO"
-                      ? "bg-slate-800 text-white font-semibold"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-surface text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Hồ Sơ Đối Tác
@@ -685,8 +685,8 @@ export default function MasterCustomersPage() {
                   onClick={() => setDrawerTab("LIFECYCLE")}
                   className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors ${
                     drawerTab === "LIFECYCLE"
-                      ? "bg-blue-600 text-white font-semibold"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-blue-600 text-white font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Vòng Đời Role (Kích Hoạt/Ngừng)
@@ -695,8 +695,8 @@ export default function MasterCustomersPage() {
                   onClick={() => setDrawerTab("AUDIT")}
                   className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors ${
                     drawerTab === "AUDIT"
-                      ? "bg-slate-800 text-white font-semibold"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-surface text-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Lịch Sử Audit ({auditLogs.length})
@@ -706,67 +706,67 @@ export default function MasterCustomersPage() {
               {/* Tab 1: INFO */}
               {drawerTab === "INFO" && (
                 <div className="space-y-3 text-xs">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="p-3 rounded-lg bg-background border border-border space-y-2">
                     <div>
-                      <span className="text-xs text-slate-500 block">Tên doanh nghiệp:</span>
-                      <strong className="text-sm text-slate-100 block mt-0.5">
+                      <span className="text-xs text-muted-foreground block">Tên doanh nghiệp:</span>
+                      <strong className="text-sm text-foreground block mt-0.5">
                         {currentName}
                       </strong>
                     </div>
                     {(selectedCustomer?.taxCode || selectedVendor?.taxCode || selectedPartner?.taxCode) && (
                       <div>
-                        <span className="text-xs text-slate-500 block">Mã số thuế:</span>
-                        <span className="text-slate-200 font-mono font-bold">
+                        <span className="text-xs text-muted-foreground block">Mã số thuế:</span>
+                        <span className="text-foreground font-mono font-bold">
                           {selectedCustomer?.taxCode || selectedVendor?.taxCode || selectedPartner?.taxCode}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="flex items-start gap-2 text-slate-300">
-                      <MapPin className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                  <div className="p-3 rounded-lg bg-background border border-border space-y-2">
+                    <div className="flex items-start gap-2 text-foreground">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                       <span>{selectedCustomer?.address || selectedPartner?.address || "Chưa cập nhật địa chỉ"}</span>
                     </div>
                     {(selectedCustomer?.phone || selectedVendor?.phone || selectedPartner?.phone) && (
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <Phone className="w-4 h-4 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="font-mono">
                           {selectedCustomer?.phone || selectedVendor?.phone || selectedPartner?.phone}
                         </span>
                       </div>
                     )}
                     {(selectedCustomer?.email || selectedVendor?.email || selectedPartner?.email) && (
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <Mail className="w-4 h-4 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span>{selectedCustomer?.email || selectedVendor?.email || selectedPartner?.email}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 font-mono">
+                  <div className="p-3 rounded-lg bg-background border border-border space-y-2 font-mono">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 font-sans flex items-center gap-1">
+                      <span className="text-muted-foreground font-sans flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" /> Hạn nợ thương mại:
                       </span>
-                      <strong className="text-white">
+                      <strong className="text-foreground">
                         {termsDaysInput} ngày
                       </strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 font-sans flex items-center gap-1">
+                      <span className="text-muted-foreground font-sans flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5" /> Hạn mức tín dụng:
                       </span>
                       {creditLimitInput.trim() === "" ? (
-                        <span className="text-slate-400 italic font-mono text-xs">
+                        <span className="text-muted-foreground italic font-mono text-xs">
                           Chưa thiết lập (Không áp dụng)
                         </span>
                       ) : Number(creditLimitInput) === 0 ? (
-                        <span className="text-amber-400 font-mono font-medium">
+                        <span className="text-amber-600 dark:text-amber-400 font-mono font-medium">
                           0 ₫ (Không cấp nợ / Trả trước)
                         </span>
                       ) : (
-                        <strong className="text-emerald-400">
+                        <strong className="text-emerald-600 dark:text-emerald-400">
                           {formatVND(Number(creditLimitInput))}
                         </strong>
                       )}
@@ -778,31 +778,31 @@ export default function MasterCustomersPage() {
               {/* Tab 2: LIFECYCLE MANAGEMENT */}
               {drawerTab === "LIFECYCLE" && (
                 <div className="space-y-4 text-xs">
-                  <div className="p-3 rounded-lg bg-blue-950/30 border border-blue-800/40 space-y-2">
-                    <h4 className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800/40 space-y-2">
+                    <h4 className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4" /> Quy tắc Quản trị Vai trò (Role Enforcement)
                     </h4>
-                    <p className="text-slate-300 leading-relaxed text-xs">
+                    <p className="text-foreground leading-relaxed text-xs">
                       Một Đối tác chỉ có thể được chọn làm người mua dịch vụ trong Báo giá khi Customer Role ở trạng thái <strong>ACTIVE</strong>. Nếu đối tác chưa được kích hoạt hoặc đang bị tạm ngừng, hệ thống sẽ chặn không cho phép lập Báo giá (Fail-Closed).
                     </p>
                   </div>
 
                   {/* Terms & Credit Limit Configuration */}
-                  <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-                    <h4 className="font-bold text-white flex items-center gap-1.5">
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                  <div className="p-3.5 rounded-lg bg-background border border-border space-y-3">
+                    <h4 className="font-bold text-foreground flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       Cấu Hình Điều Khoản & Hạn Mức Tín Dụng
                     </h4>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">
+                        <label className="text-xs text-muted-foreground block mb-1">
                           Hạn nợ thương mại (ngày):
                         </label>
                         <select
                           value={termsDaysInput}
                           onChange={(e) => setTermsDaysInput(Number(e.target.value))}
-                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-md text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="0">0 ngày (Thanh toán ngay)</option>
                           <option value="7">7 ngày</option>
@@ -815,7 +815,7 @@ export default function MasterCustomersPage() {
                       </div>
 
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">
+                        <label className="text-xs text-muted-foreground block mb-1">
                           Hạn mức tín dụng (VND):
                         </label>
                         <input
@@ -825,9 +825,9 @@ export default function MasterCustomersPage() {
                           placeholder="Để trống: chưa cấu hình | 0: không cấp nợ" aria-label="Để trống: chưa cấu hình | 0: không cấp nợ"
                           value={creditLimitInput}
                           onChange={(e) => setCreditLimitInput(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-600"
+                          className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-md text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-muted-foreground"
                         />
-                        <span className="text-xs text-slate-500 block mt-0.5">
+                        <span className="text-xs text-muted-foreground block mt-0.5">
                           {creditLimitInput.trim() === ""
                             ? "Để trống: Chưa cấu hình hạn mức"
                             : Number(creditLimitInput) === 0
@@ -840,7 +840,7 @@ export default function MasterCustomersPage() {
                     {currentRoleStatus === "ACTIVE" && (
                       <button
                         onClick={() => handleUpdateTerms(currentPartnerId)}
-                        className="px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center gap-1 transition-colors"
+                        className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1 transition-colors"
                       >
                         <SlidersHorizontal className="w-3 h-3" /> Cập nhật Điều khoản & Hạn mức
                       </button>
@@ -849,13 +849,13 @@ export default function MasterCustomersPage() {
 
                   {/* Actions by current status */}
                   {currentRoleStatus !== "ACTIVE" ? (
-                    <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-                      <h4 className="font-bold text-emerald-400 flex items-center gap-1.5">
+                    <div className="p-3.5 rounded-lg bg-background border border-border space-y-3">
+                      <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Kích Hoạt Vai Trò Khách Hàng (Customer Role: ACTIVE)
                       </h4>
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">
+                        <label className="text-xs text-muted-foreground block mb-1">
                           Ghi chú phê duyệt kích hoạt (tùy chọn):
                         </label>
                         <input
@@ -863,7 +863,7 @@ export default function MasterCustomersPage() {
                           placeholder="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..." aria-label="VD: Đã thẩm định hồ sơ pháp lý & năng lực thanh toán..."
                           value={activationCommentInput}
                           onChange={(e) => setActivationCommentInput(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -876,7 +876,7 @@ export default function MasterCustomersPage() {
                         {currentRoleStatus === "NONE" && (
                           <button
                             onClick={() => handleRequestActivation(currentPartnerId)}
-                            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs flex items-center gap-1.5 transition-colors"
+                            className="px-3 py-2 rounded-lg bg-surface border border-border hover:bg-surface-hover text-foreground font-medium text-xs flex items-center gap-1.5 transition-colors"
                           >
                             Đề nghị xét duyệt (Pending)
                           </button>
@@ -884,13 +884,13 @@ export default function MasterCustomersPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-lg bg-slate-950 border border-rose-900/40 space-y-3">
-                      <h4 className="font-bold text-rose-400 flex items-center gap-1.5">
+                    <div className="p-3.5 rounded-lg bg-background border border-rose-200 dark:border-rose-900/40 space-y-3">
+                      <h4 className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
                         <Ban className="w-3.5 h-3.5" />
                         Tạm Ngừng Vai Trò Khách Hàng (Suspend Role)
                       </h4>
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">
+                        <label className="text-xs text-muted-foreground block mb-1">
                           Lý do tạm ngừng (bắt buộc để kiểm toán):
                         </label>
                         <input
@@ -898,7 +898,7 @@ export default function MasterCustomersPage() {
                           placeholder="VD: Quá hạn công nợ 60 ngày, đang giải quyết tranh chấp hợp đồng..." aria-label="VD: Quá hạn công nợ 60 ngày, đang giải quyết tranh chấp hợp đồng..."
                           value={suspendReasonInput}
                           onChange={(e) => setSuspendReasonInput(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                          className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500"
                         />
                       </div>
                       <button
@@ -916,21 +916,21 @@ export default function MasterCustomersPage() {
               {drawerTab === "AUDIT" && (
                 <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between pb-1">
-                    <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                      <History className="w-4 h-4 text-slate-400" />
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <History className="w-4 h-4 text-muted-foreground" />
                       Lịch Sử Thay Đổi Trạng thái Vai Trò
                     </span>
                     <button
                       onClick={() => loadAuditHistory(currentPartnerId)}
-                      className="text-xs text-blue-400 hover:underline flex items-center gap-1"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                     >
                       <RefreshCw className={`w-3 h-3 ${isLoadingAudit ? "animate-spin" : ""}`} />
                       Làm mới
                     </button>
                   </div>
 
-                  {isLoadingAudit ? <p role="status" className="py-8 text-center text-slate-400">Đang tải lịch sử…</p> : auditError ? <div role="alert" className="space-y-3 py-8 text-center text-slate-300"><p>Không tải được lịch sử thay đổi.</p><button type="button" onClick={() => loadAuditHistory(currentPartnerId)} className="erp-button border border-slate-700">Thử lại</button></div> : auditLogs.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 bg-slate-950 rounded-lg border border-slate-800">
+                  {isLoadingAudit ? <p role="status" className="py-8 text-center text-muted-foreground">Đang tải lịch sử…</p> : auditError ? <div role="alert" className="space-y-3 py-8 text-center text-foreground"><p>Không tải được lịch sử thay đổi.</p><button type="button" onClick={() => loadAuditHistory(currentPartnerId)} className="erp-button border border-border">Thử lại</button></div> : auditLogs.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground bg-background rounded-lg border border-border">
                       Chưa có lịch sử thay đổi cho đối tác này.
                     </div>
                   ) : (
@@ -938,40 +938,40 @@ export default function MasterCustomersPage() {
                       {auditLogs.map((log) => (
                         <div
                           key={log.logId}
-                          className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1 font-mono text-xs"
+                          className="p-3 rounded-lg bg-background border border-border space-y-1 font-mono text-xs"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-white flex items-center gap-1">
+                            <span className="font-bold text-foreground flex items-center gap-1">
                               {log.action === "ACTIVATE" && (
-                                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400">
+                                <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
                                   KÍCH HOẠT (ACTIVATE)
                                 </span>
                               )}
                               {log.action === "SUSPEND" && (
-                                <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400">
+                                <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400">
                                   TẠM NGỪNG (SUSPEND)
                                 </span>
                               )}
                               {log.action === "REQUEST_ACTIVATION" && (
-                                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400">
+                                <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
                                   ĐỀ NGHỊ (REQUEST)
                                 </span>
                               )}
                               {log.action === "UPDATE_TERMS" && (
-                                <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-400">
+                                <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 dark:bg-indigo-500/20 dark:text-indigo-400">
                                   ĐỔI HẠN MỨC (UPDATE)
                                 </span>
                               )}
                             </span>
-                            <span className="text-slate-500 text-xs">
+                            <span className="text-muted-foreground text-xs">
                               {new Date(log.createdAt).toLocaleString("vi-VN")}
                             </span>
                           </div>
-                          <div className="text-slate-400 font-sans text-xs pt-1">
-                            Người thực hiện: <strong>{log.actorName || log.actorId}</strong>
+                          <div className="text-muted-foreground font-sans text-xs pt-1">
+                            Người thực hiện: <strong className="text-foreground">{log.actorName || log.actorId}</strong>
                           </div>
                           {log.details && (
-                            <div className="text-slate-400 text-xs bg-slate-900/60 p-1.5 rounded mt-1 overflow-x-auto">
+                            <div className="text-muted-foreground text-xs bg-surface p-1.5 rounded border border-border mt-1 overflow-x-auto">
                               {JSON.stringify(log.details)}
                             </div>
                           )}
@@ -984,21 +984,21 @@ export default function MasterCustomersPage() {
             </div>
 
             {/* Drawer Footer */}
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
+            <div className="pt-4 border-t border-border flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
                 THILOGI ERP • Partner Lifecycle v1.0
               </span>
               <div className="flex items-center gap-2">
                 <button
                   aria-label="Đóng chi tiết" onClick={() => { setIsDrawerOpen(false); }}
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                  className="px-3.5 py-1.5 rounded-lg bg-surface border border-border hover:bg-surface-hover text-foreground text-xs font-semibold transition-colors"
                 >
                   Đóng
                 </button>
                 {currentRoleStatus === "ACTIVE" && (
                   <Link
                     href={`/quotations/new?customerId=${currentPartnerId}`}
-                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all"
+                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all"
                   >
                     <PlusCircle className="w-3.5 h-3.5" /> Lập báo giá
                   </Link>

@@ -49,6 +49,7 @@ export async function getQuotationMasterDataAction() {
 
     return {
       success: true,
+      actor,
       customers,
       regions: regions.filter((region) => actor.regionScopes.includes("*") || actor.regionScopes.includes(region.id)),
       locations,

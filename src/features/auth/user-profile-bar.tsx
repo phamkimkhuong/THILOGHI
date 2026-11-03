@@ -50,7 +50,7 @@ export function UserProfileBar() {
 
   if (!isLoaded) {
     return (
-      <div className="flex items-center gap-2 text-xs text-slate-400">
+      <div className="flex items-center gap-2 text-xs text-slate-400" suppressHydrationWarning>
         <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse" />
         Đang tải hồ sơ...
       </div>
@@ -58,7 +58,7 @@ export function UserProfileBar() {
   }
 
   if (!currentUser) {
-    return <div className="space-y-2 text-xs text-slate-400">
+    return <div className="space-y-2 text-xs text-slate-400" suppressHydrationWarning>
       {availableUsers.length > 0 ? <label>Chọn tài khoản thử nghiệm
         <select value="" onChange={(event) => handleSwitchUser(event.target.value)} disabled={isPending}
           className="mt-1 w-full rounded border border-slate-600 bg-slate-950 p-2">
@@ -84,23 +84,23 @@ export function UserProfileBar() {
     : "Chưa gán phân vùng";
 
   return (
-    <div className="flex items-center gap-3">
-      {error && <span role="alert" className="text-xs text-rose-300">{error}</span>}
-      <form action={logoutAction}><button className="text-xs text-slate-300">Đăng xuất</button></form>
+    <div className="flex items-center gap-3" suppressHydrationWarning>
+      {error && <span role="alert" className="text-xs text-rose-500 font-medium">{error}</span>}
+      <form action={logoutAction}><button className="text-xs text-muted-foreground hover:text-rose-600 font-medium transition-colors cursor-pointer">Đăng xuất</button></form>
       {/* Thông tin người dùng đang đăng nhập */}
       <div className="hidden sm:flex flex-col text-right">
         <div className="flex items-center justify-end gap-1.5">
-          <span className="text-xs font-bold text-slate-200">
+          <span className="text-xs font-bold text-foreground">
             {currentUser.fullName}
           </span>
         </div>
-        <span className="text-[11px] text-slate-400 font-medium truncate max-w-[220px]">
+        <span className="text-[11px] text-muted-foreground font-medium truncate max-w-[220px]">
           {roleLabels[currentUser.role] || currentUser.role}
         </span>
       </div>
 
       {/* Region Scope Badge */}
-      <div className="hidden xl:inline-flex items-center gap-1.5 text-slate-400 text-xs">
+      <div className="hidden xl:inline-flex items-center gap-1.5 text-muted-foreground text-xs">
         <Globe className="w-3.5 h-3.5 shrink-0" />
         <span title={formattedScopes} className="truncate max-w-[160px]">
           {formattedScopes}
@@ -114,7 +114,7 @@ export function UserProfileBar() {
               value={currentUser.userId}
               onChange={(e) => handleSwitchUser(e.target.value)}
               disabled={isPending}
-              className="max-w-[160px] bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="max-w-[160px] bg-surface border border-border hover:border-slate-400 rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-xs"
               aria-label="Tài khoản thử nghiệm" title="Chuyển tài khoản thử nghiệm"
             >
             {availableUsers.map((u) => (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import {
   PlusCircle,
@@ -38,6 +39,7 @@ import {
 } from "@/server/modules/quotation/quotation.service";
 
 export default function QuotationListPage() {
+  const router = useRouter();
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [regionFilter, setRegionFilter] = useState<string>("ALL");
@@ -50,9 +52,6 @@ export default function QuotationListPage() {
   const [drawerLoading, setDrawerLoading] = useState(false);
 
   // Customer printable sheet modal state
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [printDetail, setPrintDetail] = useState<QuotationDetailResponse | null>(null);
-  const printRequest = useRef(0);
 
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -107,18 +106,7 @@ export default function QuotationListPage() {
   };
 
   // Mở bản in khách hàng (Commercial Customer Sheet)
-  const handleOpenPrintModal = async (quotationId: string) => {
-    const requestId = ++printRequest.current;
-    try {
-      const res = await getQuotationDetailAction(quotationId);
-      if (requestId !== printRequest.current) return;
-      if (!res.success || !res.data) throw new Error("Load failed");
-      setPrintDetail(res.data);
-      setIsPrintModalOpen(true);
-    } catch {
-      if (requestId === printRequest.current) alert("Không tải được bản in. Vui lòng thử lại.");
-    }
-  };
+  const handleOpenPrintModal = (quotationId: string) => { router.push(`/quotations/print?id=${quotationId}`); };
 
   // Phê duyệt nhanh ngay trong Drawer
   const handleApproveFromDrawer = async () => {
@@ -219,11 +207,11 @@ export default function QuotationListPage() {
   const pagination = usePagination(quotations.length, JSON.stringify([statusFilter, regionFilter, searchTerm]));
 
   return (
-    <div className="space-y-4 font-sans text-slate-200">
-      <PageHeader title="Báo giá" actions={<><RefreshButton onClick={loadQuotations} loading={loading} /><Link href="/quotations/new" className="erp-button bg-blue-600 text-white hover:bg-blue-500"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
+    <div className="space-y-4 font-sans text-foreground">
+      <PageHeader title="Báo giá" actions={<><RefreshButton onClick={loadQuotations} loading={loading} /><Link href="/quotations/new" className="erp-button bg-primary text-primary-foreground hover:opacity-90 shadow-xs"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
 
       {/* Multi-Filter & Search Bar */}
-      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+      <div className="p-2.5 rounded-xl bg-surface border border-border flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-xs">
         {/* Status Filter Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
           {[
@@ -238,8 +226,8 @@ export default function QuotationListPage() {
               onClick={() => setStatusFilter(tab.id)}
               className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors ${
                 statusFilter === tab.id
-                  ? "bg-blue-600 text-white shadow-sm font-semibold"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
               }`}
             >
               {tab.label}
@@ -252,7 +240,7 @@ export default function QuotationListPage() {
           {/* Region Dropdown */}
            <select aria-label="Phân vùng" value={regionFilter}
             onChange={(e) => setRegionFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
           >
             {regionOptions.map((r) => (
               <option key={r.id} value={r.id}>
@@ -264,18 +252,18 @@ export default function QuotationListPage() {
           {/* Search Box */}
           <form onSubmit={handleSearch} className="flex items-center gap-1.5">
             <div className="relative flex-1 sm:w-56">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Tìm số báo giá, khách hàng..." aria-label="Tìm số báo giá, khách hàng..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
               />
             </div>
             <button
               type="submit"
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium"
+              className="px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover text-foreground rounded-lg text-xs font-medium shadow-xs"
             >
               Tìm
             </button>
@@ -284,10 +272,10 @@ export default function QuotationListPage() {
       </div>
 
       {/* Main Data Table */}
-      <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden shadow-sm">
+      <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
         <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
-          <table className="erp-table w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950 border-b border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <table className="erp-table w-full text-left text-xs">
+            <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="py-2.5 px-3">Số Báo Giá</th>
                 <th className="py-2.5 px-3">Khách Hàng</th>
@@ -301,7 +289,7 @@ export default function QuotationListPage() {
                 <th className="py-2.5 px-3 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-sans">
+            <tbody className="divide-y divide-border font-sans">
               {loading || loadError ? <TableFeedback columns={10} loading={loading} error={loadError} onRetry={loadQuotations} /> : quotations.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-slate-500">
@@ -320,37 +308,37 @@ export default function QuotationListPage() {
                       onClick={() => handleOpenDrawer(q.quotationId)}
                       className={`cursor-pointer transition-colors ${
                         isSelected
-                          ? "bg-blue-600/10 hover:bg-blue-600/15"
-                          : "hover:bg-slate-800/50"
+                          ? "bg-blue-50/80 hover:bg-blue-100/80 dark:bg-blue-900/20"
+                          : "hover:bg-surface-hover"
                       }`}
                     >
                       {/* Số Báo Giá */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-white whitespace-nowrap">
-                        <span className="text-blue-400 hover:underline flex items-center gap-1.5">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground whitespace-nowrap">
+                        <span className="text-primary hover:underline flex items-center gap-1.5 font-bold">
                           {q.quotationNo}
-                          <span className="text-xs px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-normal">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface-hover text-muted-foreground font-normal border border-border">
                             v{q.version}
                           </span>
                         </span>
                       </td>
 
                       {/* Khách Hàng */}
-                      <td className="py-2.5 px-3 font-medium text-slate-200 max-w-[200px] truncate" title={q.customerName}>
+                      <td className="py-2.5 px-3 font-semibold text-foreground max-w-[200px] truncate" title={q.customerName}>
                         {q.customerName}
                       </td>
 
                       {/* Phân Vùng */}
-                      <td className="py-2.5 px-3 text-slate-400 font-mono text-xs whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs whitespace-nowrap">
                         {q.regionName}
                       </td>
 
                       {/* Tuyến / Thiết Bị */}
-                      <td className="py-2.5 px-3 max-w-[190px] truncate text-xs text-slate-400" title={q.routeSummary}>
+                      <td className="py-2.5 px-3 max-w-[190px] truncate text-xs text-muted-foreground" title={q.routeSummary}>
                         {q.routeSummary ? (
                           <div className="flex items-center gap-1 truncate">
-                            <span className="truncate">{q.routeSummary}</span>
+                            <span className="truncate text-foreground font-medium">{q.routeSummary}</span>
                             {q.equipmentType && (
-                              <span className="font-mono text-xs px-1 py-0.2 rounded bg-slate-800 text-cyan-400 shrink-0">
+                              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-surface-hover text-primary shrink-0 border border-border">
                                 {q.equipmentType}
                               </span>
                             )}
@@ -447,23 +435,23 @@ export default function QuotationListPage() {
           />
 
           {/* Drawer Window */}
-          <div className="relative w-full max-w-2xl bg-slate-900 border-l border-slate-800 h-full overflow-y-auto shadow-2xl flex flex-col z-10">
+          <div className="relative w-full max-w-2xl bg-surface border-l border-border h-full overflow-y-auto shadow-2xl flex flex-col z-10 text-foreground">
             {/* Drawer Header */}
-            <div className="h-16 px-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80 sticky top-0 z-10 shrink-0">
+            <div className="h-16 px-5 border-b border-border flex items-center justify-between bg-surface/95 sticky top-0 z-10 shrink-0">
               <div className="flex items-center gap-2.5">
-                <FileText className="w-5 h-5 text-blue-400" />
+                <FileText className="w-5 h-5 text-primary" />
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold text-sm text-white">
+                    <span className="font-mono font-bold text-sm text-foreground">
                       {drawerDetail?.quote.quotationNo || "Chi tiết báo giá"}
                     </span>
                     {drawerDetail && (
-                      <span className="text-xs px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-surface-hover text-muted-foreground font-mono border border-border">
                         v{drawerDetail.quote.version}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-muted-foreground">
                     Chi tiết báo giá
                   </div>
                 </div>
@@ -473,14 +461,14 @@ export default function QuotationListPage() {
                 {drawerDetail && (
                   <Link
                     href={`/quotations/new?id=${drawerDetail.quote.quotationId}`}
-                    className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-semibold transition-colors"
+                    className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50"
                   >
                     Mở báo giá
                   </Link>
                 )}
                 <button
                   onClick={() => { detailRequest.current++; setIsDrawerOpen(false); }}
-                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -549,7 +537,7 @@ export default function QuotationListPage() {
                   <div className="flex items-center gap-2">
                     {drawerDetail.quote.status === "APPROVED" && (
                       <button
-                        onClick={() => setIsPrintModalOpen(true)}
+                        onClick={() => handleOpenPrintModal(drawerDetail.quote.quotationId)}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20"
                       >
                         <Printer className="w-3.5 h-3.5" /> Xuất Bảng Giá Khách Hàng
@@ -857,191 +845,8 @@ export default function QuotationListPage() {
       )}
 
       {/* ==================================================================== */}
-      {/* MODAL XUẤT BẢNG GIÁ KHÁCH HÀNG (CUSTOMER QUOTATION SHEET) */}
+
       {/* ==================================================================== */}
-      {isPrintModalOpen && printDetail && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-6 my-8">
-            {/* Header modal */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-base font-bold text-white">
-                  Bản in Báo Giá Thương Mại (Customer Quotation Sheet)
-                </h2>
-                <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">
-                  Đã khóa giá (Bảo mật: Ẩn giá BUY nội bộ)
-                </span>
-              </div>
-              <button
-                onClick={() => setIsPrintModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Khung tài liệu thương mại in được */}
-            <div id="printable-quotation" className="bg-white text-slate-900 p-8 rounded-xl space-y-6 shadow-inner font-sans">
-              {/* Tiêu đề & Logo công ty */}
-              <div className="flex items-start justify-between border-b-2 border-blue-900 pb-4">
-                <div>
-                  <div className="text-xl font-extrabold text-blue-950 tracking-wider">
-                    CÔNG TY CỔ PHẦN THILOGI
-                  </div>
-                  <div className="text-xs text-slate-600 font-medium mt-0.5">
-                    Tập đoàn Logistics THACO Chu Lai • Chu Lai Open Economic Zone, Núi Thành, Quảng Nam
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Hotline: (+84) 235 3567 888 • Email: commercial@thilogi.vn • Web: www.thilogi.vn
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-base font-semibold text-blue-900">
-                    BẢNG CHÀO GIÁ DỊCH VỤ
-                  </div>
-                  <div className="text-xs font-mono font-bold text-slate-700 mt-1">
-                    Số: {printDetail.quote.quotationNo}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Ngày phát hành: {new Date(printDetail.quote.createdAt).toLocaleDateString("vi-VN")}
-                  </div>
-                </div>
-              </div>
-
-              {/* Thông tin Khách hàng */}
-              <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div>
-                  <div className="text-slate-500">Đơn vị tiếp nhận (Khách hàng):</div>
-                  <div className="text-sm font-bold text-slate-900 mt-0.5">
-                    {printDetail.quote.customerName}
-                  </div>
-                  {printDetail.quote.taxCode && (
-                    <div className="text-slate-600 mt-1">
-                      Mã số thuế: <span className="font-mono font-semibold">{printDetail.quote.taxCode}</span>
-                    </div>
-                  )}
-                  <div className="text-slate-600 mt-0.5">
-                    Phân vùng áp dụng: <span className="font-semibold">{printDetail.quote.regionName}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Điều khoản thương mại:</div>
-                  <div className="text-slate-700 mt-0.5">
-                    Thời hạn công nợ thanh toán: <span className="font-bold text-slate-900">{printDetail.quote.paymentTermsDays} ngày</span>
-                  </div>
-                  <div className="text-slate-700 mt-0.5">
-                    Người phụ trách: <span className="font-semibold">{printDetail.quote.createdBy}</span>
-                  </div>
-                  {printDetail.quote.approvedBy && (
-                    <div className="text-emerald-700 mt-0.5 font-medium flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Phê duyệt thẩm định bởi: {printDetail.quote.approvedBy}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Bảng Dịch Vụ và Đơn Giá Bán (Hoàn toàn không có BUY Rate & Margin) */}
-              <div>
-                <table className="w-full text-left text-xs border-collapse border border-slate-200">
-                  <thead className="bg-blue-950 text-white text-xs">
-                    <tr>
-                      <th className="py-2.5 px-3 border border-blue-900 text-center w-10">STT</th>
-                      <th className="py-2.5 px-3 border border-blue-900">Dịch Vụ Logistics</th>
-                      <th className="py-2.5 px-3 border border-blue-900">Hành Trình / Phạm Vi</th>
-                      <th className="py-2.5 px-3 border border-blue-900">Thiết bị</th>
-                      <th className="py-2.5 px-3 border border-blue-900 text-center">ĐVT</th>
-                      <th className="py-2.5 px-3 border border-blue-900 text-center">Số Lượng</th>
-                      <th className="py-2.5 px-3 border border-blue-900 text-right">Đơn Giá Bán (VND)</th>
-                      <th className="py-2.5 px-3 border border-blue-900 text-right">Thành Tiền (VND)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-slate-800">
-                    {printDetail.items.map((it, idx) => (
-                      <tr key={it.itemId || idx} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 border border-slate-200 text-center font-mono">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 font-semibold text-blue-900">
-                          {it.servicePackage}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200">
-                          {it.originName || "Điểm đi"} &rarr; {it.destinationName || "Điểm đến"}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 font-mono">
-                          {it.equipmentType}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 text-center">
-                          {it.unit}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 text-center font-mono font-semibold">
-                          {it.plannedQuantity}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 text-right font-mono">
-                          {formatVND(Number(it.unitSellPrice))}
-                        </td>
-                        <td className="py-2 px-3 border border-slate-200 text-right font-mono font-bold text-slate-900">
-                          {formatVND(Number(it.totalSellPrice))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-100 font-bold text-slate-900">
-                      <td colSpan={7} className="py-3 px-4 border border-slate-200 text-right uppercase text-xs">
-                        Tổng Giá Trị Chào Giá (Chưa gồm VAT):
-                      </td>
-                      <td className="py-3 px-3 border border-slate-200 text-right font-mono text-sm text-blue-950">
-                        {formatVND(Number(printDetail.quote.totalSellAmount))}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Điều khoản ghi chú */}
-              <div className="text-xs text-slate-600 space-y-1 border-t border-slate-200 pt-3">
-                <div className="font-bold text-slate-800">Ghi chú & Điều kiện áp dụng:</div>
-                <div>1. Đơn giá trên chưa bao gồm thuế giá trị gia tăng (VAT) theo luật định.</div>
-                <div>2. Đơn giá có hiệu lực trong vòng 30 ngày kể từ ngày phát hành báo giá.</div>
-                <div>3. Dịch vụ được cung cấp theo quy chuẩn vận hành và kiểm soát an toàn của THILOGI.</div>
-              </div>
-
-              {/* Đại diện ký tên */}
-              <div className="grid grid-cols-2 pt-6 text-center text-xs">
-                <div>
-                  <div className="font-bold text-slate-800 uppercase">Đại Diện Khách Hàng</div>
-                  <div className="text-xs text-slate-500 italic mt-0.5">(Ký, ghi rõ họ tên và đóng dấu)</div>
-                  <div className="h-16" />
-                </div>
-                <div>
-                  <div className="font-bold text-blue-950 uppercase">Đại Diện THILOGI Logistics</div>
-                  <div className="text-xs text-slate-500 italic mt-0.5">Phòng Định Giá & Phát Triển Thương Mại</div>
-                  <div className="h-16" />
-                  <div className="font-semibold text-slate-800">{printDetail.quote.approvedBy || printDetail.quote.createdBy}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Nút hành động */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setIsPrintModalOpen(false)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                Đóng
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-600/20"
-              >
-                <Printer className="w-4 h-4" />
-                In Báo Giá / Lưu PDF
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

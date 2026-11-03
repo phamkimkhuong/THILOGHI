@@ -78,6 +78,8 @@ export async function lookupRoadRates(input: RateLookupQuery, client: Pick<PoolC
     FROM road_rates r
     JOIN vendors v ON r.vendor_id = v.vendor_id
     JOIN partners p ON v.vendor_id = p.partner_id
+    JOIN locations pickup ON pickup.location_id=r.pickup_location_id AND pickup.is_active=true
+    JOIN locations delivery ON delivery.location_id=r.delivery_location_id AND delivery.is_active=true
     WHERE r.pickup_location_id = $1
       AND r.delivery_location_id = $2
       AND r.equipment_type = $3

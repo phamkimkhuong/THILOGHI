@@ -285,9 +285,22 @@ export const roadRates = pgTable("road_rates", {
   buyRate: numeric("buy_rate", { precision: 15, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).default("VND"),
   validityRange: daterange("validity_range").notNull(),
-  status: varchar("status", { length: 20 }).default("APPROVED"),
+  status: varchar("status", { length: 20 }).default("DRAFT"),
   remarks: text("remarks"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const masterDataAudit = pgTable("master_data_audit", {
+  auditId: uuid("audit_id").defaultRandom().primaryKey(),
+  entityType: varchar("entity_type", { length: 30 }).notNull(),
+  entityId: varchar("entity_id", { length: 50 }).notNull(),
+  action: varchar("action", { length: 30 }).notNull(),
+  actorId: varchar("actor_id", { length: 50 }).notNull(),
+  actorName: varchar("actor_name", { length: 255 }).notNull(),
+  beforeData: jsonb("before_data"),
+  afterData: jsonb("after_data"),
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // --------------------------------------------------------------------
@@ -315,6 +328,8 @@ export const customerQuotations = pgTable("customer_quotations", {
   customerNameSnapshot: varchar("customer_name_snapshot", { length: 255 }),
   customerTaxCodeSnapshot: varchar("customer_tax_code_snapshot", { length: 50 }),
   customerAddressSnapshot: text("customer_address_snapshot"),
+  createdByUserId: varchar("created_by_user_id", { length: 50 }),
+  commercialSnapshot: jsonb("commercial_snapshot"),
   createdBy: varchar("created_by", { length: 100 }),
   approvedBy: varchar("approved_by", { length: 100 }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),

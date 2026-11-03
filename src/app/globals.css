@@ -1,29 +1,143 @@
 @import "tailwindcss";
-:root { --background: #020617; --foreground: #e2e8f0; }
+
+@media print {
+  body:has(#customer-quotation-print) * { visibility: hidden !important; }
+  #customer-quotation-print, #customer-quotation-print * { visibility: visible !important; }
+  #customer-quotation-print { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 12mm; color: #0f172a; background: white; }
+  #customer-quotation-print .overflow-x-auto { overflow: visible; }
+  #customer-quotation-print thead { display: table-header-group; }
+  #customer-quotation-print tr { break-inside: avoid; }
+}
+
+:root {
+  /* ==================================================================== */
+  /* THILOGI ENTERPRISE SEMANTIC TOKENS (LIGHT THEME - MẶC ĐỊNH)         */
+  /* ==================================================================== */
+  --background: #f8fafc;          /* slate-50: sáng sủa, thanh lịch, chuẩn ERP */
+  --foreground: #0f172a;          /* slate-900: chữ đen than đậm, sắc nét */
+  --surface: #ffffff;             /* Thẻ Card, Panel, Toolbar: trắng tinh khiết */
+  --surface-hover: #f1f5f9;       /* Trạng thái hover dòng, nút phụ: slate-100 */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  /* Viền và đường phân cách */
+  --border: #e2e8f0;              /* slate-200: viền sắc nét trên nền sáng */
+  --border-subtle: #f1f5f9;       /* slate-100 */
+
+  /* Chữ phụ, nhãn đơn vị và trạng thái Muted */
+  --muted: #f1f5f9;               /* slate-100 */
+  --muted-foreground: #64748b;    /* slate-500: nhãn phụ, placeholder */
+
+  /* Màu thương hiệu THACO / THILOGI (Royal Corporate Blue) */
+  --primary: #1d4ed8;             /* blue-700 */
+  --primary-hover: #1e40af;       /* blue-800 */
+  --primary-foreground: #ffffff;  /* Chữ trên nền primary */
+
+  /* Trạng thái nghiệp vụ Logistics */
+  --success: #059669;             /* emerald-600 */
+  --success-bg: #ecfdf5;          /* emerald-50 */
+  --warning: #d97706;             /* amber-600 */
+  --warning-bg: #fffbeb;          /* amber-50 */
+  --danger: #e11d48;              /* rose-600 */
+  --danger-bg: #fff1f2;           /* rose-50 */
+}
+
+.dark {
+  /* ==================================================================== */
+  /* THILOGI ENTERPRISE SEMANTIC TOKENS (DARK THEME - CHẾ ĐỘ BAN ĐÊM)    */
+  /* ==================================================================== */
+  --background: #020617;          /* slate-950 */
+  --foreground: #f8fafc;          /* slate-50 */
+  --surface: #0f172a;             /* slate-900 */
+  --surface-hover: #1e293b;       /* slate-800 */
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+
+  --border: #1e293b;              /* slate-800 */
+  --border-subtle: #0f172a;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;    /* slate-400 */
+
+  --primary: #2563eb;             /* blue-600 */
+  --primary-hover: #3b82f6;       /* blue-500 */
+  --primary-foreground: #ffffff;
+
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.15);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --danger: #f43f5e;
+  --danger-bg: rgba(244, 63, 94, 0.15);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
   --font-sans: "Segoe UI", Arial, Helvetica, sans-serif;
   --font-mono: Consolas, "Courier New", monospace;
 }
+
 body { background: var(--background); color: var(--foreground); }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button:not(:disabled), select:not(:disabled) { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
-:where(a, button, input, select, textarea):focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+:where(a, button, input, select, textarea):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
 @layer components {
-  .erp-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+  .erp-button {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
 }
-.erp-shell :where(input:not([type="checkbox"]), select) { min-height: 36px; }
+
+.erp-shell :where(input:not([type="checkbox"]), select) {
+  min-height: 36px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.erp-shell :where(input:not([type="checkbox"]), select):focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+
 .erp-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.erp-table thead { font-size: 12px; letter-spacing: normal; text-transform: none; }
-.erp-table th { padding: 12px; font-weight: 600; white-space: nowrap; color: #94a3b8; }
-.erp-table td { padding: 12px; vertical-align: middle; white-space: nowrap; }
+.erp-table thead { font-size: 12px; letter-spacing: normal; text-transform: none; border-bottom: 1px solid var(--border); }
+.erp-table th { padding: 10px 12px; font-weight: 600; white-space: nowrap; color: var(--muted-foreground); background-color: var(--surface-hover); }
+.erp-table td { padding: 12px; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid var(--border); color: var(--foreground); }
 .erp-table td[colspan] { white-space: normal; }
 .erp-table :where(td, td span, td a) { font-size: inherit; }
 .erp-table td.flex { display: table-cell; }
 .erp-table td > svg { display: inline-block; margin-right: 6px; vertical-align: middle; }
-.erp-table tbody tr:hover { background-color: rgb(30 41 59 / .4); }
+.erp-table tbody tr { transition: background-color 0.15s ease; }
+.erp-table tbody tr:hover { background-color: var(--surface-hover); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }

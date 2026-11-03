@@ -47,6 +47,8 @@ export const quotationServiceItemSchema = z.object({
   // P&L metrics
   itemGp: z.number().default(0),
   itemMarginPercent: z.number().default(0),
+}).refine(item => item.originLocationId !== item.destinationLocationId, {
+  message: "Điểm đi và điểm đến phải khác nhau.", path: ["destinationLocationId"],
 });
 
 export const createQuotationSchema = z.object({

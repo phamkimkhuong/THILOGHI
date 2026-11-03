@@ -1,1074 +1,168 @@
 "use client";
 
-import { useEffect, useState, useTransition, Suspense } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import {
-  FileText,
-  Search,
-  ArrowLeft,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  AlertTriangle,
-  Lock,
-  Layers,
-  ArrowRight,
-  DollarSign,
-  ShieldAlert,
-  Save,
-  Send,
-  Building,
-  Check,
-  XCircle,
-  RotateCcw,
-  RefreshCw,
-} from "lucide-react";
-import { restoreQuotationItems, ServiceItemState } from "@/features/quotation/editor-state";
+import { useRouter, useSearchParams } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { getQuotationMasterDataAction, getQuotationDetailAction, lookupRoadRatesAction, saveDraftQuotationAction, approveQuotationAction, rejectQuotationAction, returnQuotationToDraftAction } from "@/features/quotation/actions";
+import { createQuotationVersionAction } from "@/features/quotation/phase4-actions";
+import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
+import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
+import { evaluateApprovalAuthority, isQuotationAuthor } from "@/features/quotation/approval-policy";
 import { calculateQuotationFinancials, getBusinessDate } from "@/shared/utils/pricing";
-import { ServicePackage } from "@/shared/schemas/quotation.schema";
-import {
-  getQuotationMasterDataAction,
-  getQuotationDetailAction,
-  lookupRoadRatesAction,
-  saveDraftQuotationAction,
-  approveQuotationAction,
-  rejectQuotationAction,
-  returnQuotationToDraftAction,
-} from "@/features/quotation/actions";
-import type { RateCandidate } from "@/server/modules/supplier-pricing/rate-lookup.service";
-import { MasterOption } from "@/server/modules/master-data/master-data.service";
+import type { QuotationDetailResponse } from "@/server/modules/quotation/quotation.service";
+import type { MasterOption } from "@/server/modules/master-data/master-data.service";
+import type { ServicePackage } from "@/shared/schemas/quotation.schema";
 
-function QuotationWorkspaceContent() {
-  const searchParams = useSearchParams();
-  const idFromUrl = searchParams.get("id");
-  const customerIdFromUrl = searchParams.get("customerId");
-  const originFromUrl = searchParams.get("origin");
-  const destFromUrl = searchParams.get("dest");
-  const eqFromUrl = searchParams.get("eq");
-  const commodityIdFromUrl = searchParams.get("commodityId");
-
-  const [isPending, startTransition] = useTransition();
-
-  // Master Data state
-  const [customers, setCustomers] = useState<MasterOption[]>([]);
-  const [regions, setRegions] = useState<MasterOption[]>([]);
-  const [locations, setLocations] = useState<MasterOption[]>([]);
-  const [commodities, setCommodities] = useState<MasterOption[]>([]);
-  const [equipmentTypes, setEquipmentTypes] = useState<{ id: string; name: string }[]>([]);
-
-  // Form Header State
-  const [customerId, setCustomerId] = useState("");
-  const [regionId, setRegionId] = useState("");
-  const [commodityId, setCommodityId] = useState("");
-  const [paymentTermsDays, setPaymentTermsDays] = useState(30);
-
-  // Service Items State (ORDER_SERVICE_ITEMS)
-  const [items, setItems] = useState<ServiceItemState[]>([
-    {
-      id: "item-1",
-      servicePackage: "TRUCKING",
-      pricingInclusion: "INCLUDED",
-      originLocationId: "",
-      destinationLocationId: "",
-      equipmentType: "40HC",
-      plannedQuantity: 1,
-      unit: "TRIP",
-      unitBuyPrice: 0,
-      worstCaseBuyPrice: 0,
-      unitSellPrice: 0,
-    },
-  ]);
-
-  const [activeItemIndex, setActiveItemIndex] = useState(0);
-
-  // Result state
-  const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
-  const [revision, setRevision] = useState<string | undefined>();
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [loadAttempt, setLoadAttempt] = useState(0);
-  const [savedQuotationNo, setSavedQuotationNo] = useState<string | null>(null);
-  const [quotationStatus, setQuotationStatus] = useState<"DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED">("DRAFT");
-  const [isImmutableLocked, setIsImmutableLocked] = useState(false);
-  const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  const isReadOnly = isImmutableLocked || quotationStatus !== "DRAFT" || isPending || isInitializing || loadFailed;
-
-  // Load Master Data & Existing Quotation if ID provided
+const inputClass = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60";
+const panel = "rounded-xl border border-border bg-surface p-4 space-y-4 shadow-xs";
+const money = (n: number) => new Intl.NumberFormat("vi-VN", {maximumFractionDigits: 0}).format(n) + " ₫";
+const blankHeader = { customerId: "", regionId: "", commodityId: "", paymentTermsDays: 30 };
+type Master = Awaited<ReturnType<typeof getQuotationMasterDataAction>>;
+function Choice({label, value, options, onChange, disabled = false}: {label: string; value: string; options: MasterOption[]; onChange: (v: string) => void; disabled?: boolean}) {
+  const [search, setSearch] = useState("");
+  const filtered = options.filter(o => `${o.name} ${o.code ?? ""} ${o.id}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+  const current = options.find(o => o.id === value);
+  return <div className="space-y-1"><label className="block text-sm">{label}<select aria-label={label} className={inputClass} disabled={disabled} value={value} onChange={e => onChange(e.target.value)}><option value="">Chọn…</option>{value && !filtered.some(o => o.id === value) && <option value={value}>{current?.name ?? `${value} (không có trong danh mục hoạt động)`}</option>}{filtered.slice(0,100).map(o => <option key={o.id} value={o.id}>{o.name}{o.code ? ` · ${o.code}` : ""}</option>)}</select></label>{!disabled && options.length > 15 && <input aria-label={`Tìm ${label.toLowerCase()}`} className={inputClass} placeholder="Tìm theo mã / tên…" value={search} onChange={e => setSearch(e.target.value)} />}{!disabled && filtered.length > 100 && <small className="text-muted-foreground">100 kết quả đầu; nhập thêm để tìm.</small>}</div>;
+}
+function Workspace() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const routeKey = params.toString();
+  const [master, setMaster] = useState<Master | null>(null);
+  const [detail, setDetail] = useState<QuotationDetailResponse | null>(null);
+  const [header, setHeader] = useState(blankHeader);
+  const [items, setItems] = useState<ServiceItemState[]>([emptyServiceItem("first")]);
+  const [baseline, setBaseline] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [active, setActive] = useState(0);
+  const [review, setReview] = useState<"APPROVE" | "REJECT" | "RETURN" | null>(null);
+  const [comment, setComment] = useState("");
+  const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
+  const discarding = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const status = detail?.quote.status ?? "DRAFT";
+  const actor = master && "actor" in master ? master.actor : undefined;
+  const canEdit = !!actor && ["ADMIN", "DIRECTOR", "SALES", "PRICING_SPECIALIST", "PRICING_MANAGER"].includes(actor.role);
+  const manager = !!actor && ["ADMIN", "DIRECTOR", "PRICING_MANAGER"].includes(actor.role);
+  const locked = !canEdit || status !== "DRAFT" || !!detail?.quote.immutableLocked || busy || loading || !!loadError;
+  const dirty = !!baseline && commercialFingerprint(header, items) !== baseline;
+  const totals = calculateQuotationFinancials(items);
+  const missing = items.map((i,index) => ({index, warning: rateWarning(i)})).filter(i => i.warning);
+  const item = items[active];
+  const authority = evaluateApprovalAuthority(detail?.quote.estimatedMarginPercent ?? totals.estimatedMarginPercent, actor?.role ?? "");
+  const ownQuote = !!actor && !!detail && isQuotationAuthor(detail.quote.createdByUserId, detail.quote.createdBy, actor);
+  const applyDetail = useCallback((d: QuotationDetailResponse) => {
+    const h = {customerId: d.quote.customerId, regionId: d.quote.regionId, commodityId: d.quote.commodityId ?? "", paymentTermsDays: d.quote.paymentTermsDays};
+    const lines = restoreQuotationItems(d);
+    setDetail(d); setHeader(h); setItems(lines); setActive(0); setBaseline(commercialFingerprint(h, lines));
+  }, []);
   useEffect(() => {
-    let cancelled = false;
-    startTransition(async () => {
-      setIsInitializing(true);
-      setLoadFailed(false);
-      setSavedQuotationId(null);
-      setSavedQuotationNo(null);
-      setRevision(undefined);
-      setQuotationStatus("DRAFT");
-      setIsImmutableLocked(false);
-      setActiveItemIndex(0);
-      setActionMessage(null);
+    let current = true;
+    async function init() {
+      setLoading(true); setLoadError(""); setError(""); setMessage("");
       try {
-        const res = await getQuotationMasterDataAction();
-        if (cancelled) return;
-        setCustomers(res.customers);
-        setRegions(res.regions);
-        setLocations(res.locations);
-        setCommodities(res.commodities);
-        setEquipmentTypes(res.equipmentTypes);
-
-        if (res.error) {
-          setLoadFailed(true);
-          setActionMessage({
-            type: "error",
-            text: "Không tải được danh mục lập báo giá. Vui lòng thử lại.",
-          });
-        }
-
-        if (idFromUrl) {
-          // Tải thông tin báo giá đã có
-          const detailRes = await getQuotationDetailAction(idFromUrl);
-          if (cancelled) return;
-          if (detailRes.success && detailRes.data) {
-            const q = detailRes.data.quote;
-            setRevision(q.revision);
-            setSavedQuotationId(q.quotationId);
-            setSavedQuotationNo(q.quotationNo);
-            setQuotationStatus(q.status as "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED");
-            setIsImmutableLocked(q.immutableLocked);
-            setCustomerId(q.customerId);
-            setRegionId(q.regionId);
-            setCommodityId(q.commodityId || "");
-            setPaymentTermsDays(q.paymentTermsDays);
-
-            if (detailRes.data.items && detailRes.data.items.length > 0) {
-              setItems(restoreQuotationItems(detailRes.data));
-            }
-          } else {
-            setLoadFailed(true);
-            setActionMessage({ type: "error", text: detailRes.error || "Không thể tải báo giá." });
-          }
+        const m = await getQuotationMasterDataAction();
+        if (!current) return;
+        if (!m.success) throw new Error(m.error ?? "Không tải được danh mục.");
+        setMaster(m);
+        const query = new URLSearchParams(routeKey);
+        const id = query.get("id");
+        if (id) {
+          const r = await getQuotationDetailAction(id);
+          if (!current) return;
+          if (!r.success || !r.data) throw new Error(r.error ?? "Không tải được báo giá.");
+          applyDetail(r.data);
         } else {
-          // Thiết lập giá trị mặc định hoặc từ URL query parameters
-          const defaultCustomer = customerIdFromUrl || (res.customers.length > 0 ? res.customers[0].id : "");
-          setCustomerId(defaultCustomer);
-          if (res.regions.length > 0) setRegionId(res.regions[0].id);
-          const defaultCommodity = commodityIdFromUrl || (res.commodities.length > 0 ? res.commodities[0].id : "");
-          setCommodityId(defaultCommodity);
-
-          const origin = originFromUrl || (res.locations.length > 0 ? res.locations[0].id : "");
-          const dest = destFromUrl || (res.locations.length > 1 ? res.locations[1].id : "");
-          const eq = eqFromUrl || "40HC";
-
-          setItems([
-            {
-              id: "item-1",
-              servicePackage: "TRUCKING",
-              pricingInclusion: "INCLUDED",
-              originLocationId: origin,
-              destinationLocationId: dest,
-              equipmentType: eq,
-              plannedQuantity: 1,
-              unit: "TRIP",
-              unitBuyPrice: 0,
-              worstCaseBuyPrice: 0,
-              unitSellPrice: 0,
-            },
-          ]);
+          const pick = (key: string, options: {id: string}[]) => options.some(o => o.id === query.get(key)) ? query.get(key)! : "";
+          const h = {...blankHeader, customerId: pick("customerId",m.customers), commodityId: pick("commodityId",m.commodities)};
+          const line = {...emptyServiceItem("first"), originLocationId: pick("origin",m.locations), destinationLocationId: pick("dest",m.locations), equipmentType: pick("eq",m.equipmentTypes)};
+          setDetail(null); setHeader(h); setItems([line]); setActive(0); setBaseline(commercialFingerprint(h,[line]));
         }
-      } catch {
-        if (!cancelled) {
-          setLoadFailed(true);
-          setActionMessage({ type: "error", text: "Không tải được báo giá. Vui lòng thử lại." });
-        }
-      } finally {
-        if (!cancelled) setIsInitializing(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [idFromUrl, customerIdFromUrl, originFromUrl, destFromUrl, eqFromUrl, commodityIdFromUrl, loadAttempt]);
-
-  const currentItem = items[activeItemIndex] || items[0];
-
-  // Helper Tra cứu giá mua đầu vào (BUY Rate Lookup)
-  const handleLookupRate = (index: number) => {
-    const item = items[index];
-    if (!item.originLocationId || !item.destinationLocationId || !item.equipmentType) {
-      alert("Vui lòng chọn đầy đủ Điểm xếp hàng, Điểm dỡ hàng và Loại thiết bị");
-      return;
+      } catch (e) { if (current) setLoadError(e instanceof Error ? e.message : "Không tải được dữ liệu."); }
+      finally { if (current) setLoading(false); }
     }
-
-    startTransition(async () => {
-      const result = await lookupRoadRatesAction({
-        pickupLocationId: item.originLocationId,
-        deliveryLocationId: item.destinationLocationId,
-        equipmentType: item.equipmentType,
-        pricingDate: getBusinessDate(),
-      });
-
-      setItems((prev) =>
-        prev.map((it, idx) => {
-          if (idx !== index) return it;
-          const selected = result.status === "APPLY" || result.status === "MULTIPLE_CANDIDATES" ? result.selectedRate : undefined;
-          return {
-            ...it,
-            lookupResult: result,
-            selectedCandidate: selected,
-            selectedBuyRateId: selected?.rateId,
-            unitBuyPrice: selected ? selected.buyRateVnd : 0,
-            worstCaseBuyPrice: result.worstCaseBuy || 0,
-          };
-        })
-      );
-    });
-  };
-
-  // Chọn nhà cung cấp ứng viên (PR-04 Server-Authoritative)
-  const handleSelectCandidate = (index: number, candidate: RateCandidate) => {
-    if (items[index].lookupResult?.status === "CONFLICT_RATE" || items[index].lookupResult?.status === "ERROR") return;
-    setItems((prev) =>
-      prev.map((it, idx) => {
-        if (idx !== index) return it;
-        return {
-          ...it,
-          selectedCandidate: candidate,
-          selectedBuyRateId: candidate.rateId,
-          unitBuyPrice: candidate.buyRateVnd,
-        };
-      })
-    );
-  };
-
-  // Thêm gói dịch vụ mới
-  const handleAddItem = () => {
-    const newItem: ServiceItemState = {
-      id: `item-${Date.now()}`,
-      servicePackage: "TRUCKING",
-      pricingInclusion: "INCLUDED",
-      originLocationId: locations[0]?.id || "",
-      destinationLocationId: locations[1]?.id || "",
-      equipmentType: "40HC",
-      plannedQuantity: 1,
-      unit: "TRIP",
-      unitBuyPrice: 0,
-      worstCaseBuyPrice: 0,
-      unitSellPrice: 0,
+    const timer = setTimeout(() => void init(), 0); return () => { current = false; clearTimeout(timer); };
+  }, [routeKey, retry, applyDetail]);
+  useEffect(() => {
+    if (!dirty) return;
+    const unload = (event: BeforeUnloadEvent) => { if (!discarding.current) { event.preventDefault(); event.returnValue = ""; } };
+    const navigate = (event: MouseEvent) => {
+      const link = (event.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
+      if (link && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !link.hasAttribute("download") && link.target !== "_blank" && link.href !== window.location.href) {
+        event.preventDefault(); event.stopPropagation(); opener.current = link; setLeaveTarget(link.href);
+      }
     };
-    setItems((prev) => [...prev, newItem]);
-    setActiveItemIndex(items.length);
-  };
-
-  // Xóa dịch vụ
-  const handleRemoveItem = (index: number) => {
-    if (items.length <= 1) return;
-    setItems((prev) => prev.filter((_, i) => i !== index));
-    if (activeItemIndex >= items.length - 1) {
-      setActiveItemIndex(Math.max(0, items.length - 2));
-    }
-  };
-
-  // Tính toán Tổng tài chính P&L
-  const { totalSellAmount: totalSell, totalEstimatedBuy: totalBuy, totalWorstCaseBuy: totalWorstBuy,
-    estimatedGp: grossProfit, estimatedMarginPercent: marginPercent } = calculateQuotationFinancials(items);
-
-  // Lưu Báo giá Nháp (Create vs Update Draft)
-  const persistDraft = (submit: boolean) => {
-    startTransition(async () => {
-      const res = await saveDraftQuotationAction({
-        quotationId: savedQuotationId || undefined,
-        expectedUpdatedAt: revision,
-        customerId,
-        regionId,
-        commodityId,
-        paymentTermsDays,
-        items: items.map((it) => ({
-          servicePackage: it.servicePackage as ServicePackage,
-          pricingInclusion: it.pricingInclusion,
-          originLocationId: it.originLocationId,
-          destinationLocationId: it.destinationLocationId,
-          equipmentType: it.equipmentType,
-          plannedQuantity: it.plannedQuantity,
-          unit: it.unit,
-          selectedBuyRateId: it.selectedBuyRateId,
-          selectedVendorId: it.selectedCandidate?.vendorId,
-          selectedVendorName: it.selectedCandidate?.vendorName,
-          unitBuyPrice: it.unitBuyPrice,
-          worstCaseBuyPrice: it.worstCaseBuyPrice,
-          totalBuyAmount: it.unitBuyPrice * it.plannedQuantity,
-          unitSellPrice: it.unitSellPrice,
-          totalSellPrice: it.unitSellPrice * it.plannedQuantity,
-          itemGp: (it.unitSellPrice - it.unitBuyPrice) * it.plannedQuantity,
-          itemMarginPercent: it.unitSellPrice > 0 ? ((it.unitSellPrice - it.unitBuyPrice) / it.unitSellPrice) * 100 : 0,
-        })),
-      }, submit);
-
-      if (res.success && res.data) {
-        setSavedQuotationId(res.data.quotationId || null);
-        setSavedQuotationNo(res.data.quotationNo);
-        setRevision(res.data.revision);
-        setQuotationStatus(res.data.status);
-        setItems((previous) => previous.map((item, index) => ({ ...item, ...res.data.items[index] })));
-        setActionMessage({
-          type: "success",
-          text: submit ? `Đã lưu và trình duyệt báo giá [${res.data.quotationNo}].` : `Đã lưu báo giá nháp [${res.data.quotationNo}].`,
-        });
-      } else {
-        setActionMessage({ type: "error", text: res.error || "Lỗi khi lưu báo giá" });
-      }
-    });
-  };
-
-  const handleSaveDraft = () => persistDraft(false);
-  const handleSubmitForApproval = () => persistDraft(true);
-
-  // Phê duyệt Báo giá
-  const handleApprove = () => {
-    if (!savedQuotationId) return;
-    let comment: string | undefined;
-
-    if (marginPercent < 15) {
-      const input = prompt(
-        `Biên lợi nhuận (${marginPercent.toFixed(1)}%) dưới 15%. Vui lòng nhập lý do phê duyệt ngoại lệ:`
-      );
-      if (!input || input.trim().length < 5) {
-        alert("Bắt buộc nhập lý do giải trình khi biên lợi nhuận < 15%.");
-        return;
-      }
-      comment = input.trim();
-    }
-
-    startTransition(async () => {
-      const res = await approveQuotationAction(savedQuotationId, comment);
-      if (res.success) {
-        setQuotationStatus("APPROVED");
-        setIsImmutableLocked(true);
-        setActionMessage({
-          type: "success",
-          text: res.message || "Báo giá đã được PHÊ DUYỆT CHÍNH THỨC và KHÓA BẤT BIẾN.",
-        });
-      } else {
-        setActionMessage({ type: "error", text: res.error || "Lỗi khi phê duyệt báo giá" });
-      }
-    });
-  };
-
-  // Từ chối Báo giá
-  const handleReject = () => {
-    if (!savedQuotationId) return;
-    const comment = prompt("Vui lòng nhập lý do từ chối báo giá:");
-    if (!comment) return;
-    startTransition(async () => {
-      const res = await rejectQuotationAction(savedQuotationId, comment);
-      if (res.success) {
-        setQuotationStatus("REJECTED");
-        setActionMessage({
-          type: "success",
-          text: res.message || "Báo giá đã bị từ chối.",
-        });
-      } else {
-        setActionMessage({ type: "error", text: res.error || "Lỗi khi từ chối báo giá" });
-      }
-    });
-  };
-
-  // Trả về Bản Nháp để chỉnh sửa
-  const handleReturnToDraft = () => {
-    if (!savedQuotationId) return;
-    const comment = prompt("Vui lòng nhập ý kiến yêu cầu điều chỉnh lại báo giá:");
-    if (!comment) return;
-    startTransition(async () => {
-      const res = await returnQuotationToDraftAction(savedQuotationId, comment);
-      if (res.success) {
-        setQuotationStatus("DRAFT");
-        const refreshed = await getQuotationDetailAction(savedQuotationId);
-        if (refreshed.success && refreshed.data) setRevision(refreshed.data.quote.revision);
-        setIsImmutableLocked(false);
-        setActionMessage({
-          type: "success",
-          text: res.message || "Báo giá đã được mở lại ở trạng thái NHÁP để chỉnh sửa.",
-        });
-      } else {
-        setActionMessage({ type: "error", text: res.error || "Lỗi khi trả về bản nháp" });
-      }
-    });
-  };
-
-  const formatVND = (num: number) => {
-    return new Intl.NumberFormat("vi-VN").format(Math.round(num)) + " đ";
-  };
-
-  return (
-    <div className="space-y-5 font-sans">
-      {/* Workspace Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              Không Gian Lập báo giá Thương Mại
-            </h1>
-            {savedQuotationNo && (
-              <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 font-mono text-xs font-bold border border-blue-500/30">
-                {savedQuotationNo}
-              </span>
-            )}
-            {quotationStatus === "DRAFT" && (
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-xs font-bold border border-slate-700">
-                Bản nháp
-              </span>
-            )}
-            {quotationStatus === "PENDING_APPROVAL" && (
-              <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-xs font-bold border border-amber-500/30 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-amber-400" />
-                Chờ duyệt
-              </span>
-            )}
-            {quotationStatus === "APPROVED" && (
-              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold border border-emerald-500/30 flex items-center gap-1">
-                <Check className="w-3 h-3" />
-                Đã duyệt · Chỉ đọc
-              </span>
-            )}
-            {quotationStatus === "REJECTED" && (
-              <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono text-xs font-bold border border-rose-500/30 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                Từ chối
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Chọn tuyến, tra giá mua và lập giá bán để gửi duyệt.
-          </p>
-        </div>
-
-        {/* Global Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            href="/quotations"
-            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
-            <span>Danh sách báo giá</span>
-          </Link>
-
-          {quotationStatus === "DRAFT" && (
-            <>
-              <button
-                onClick={handleSaveDraft}
-                disabled={isReadOnly}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5 text-slate-400" />
-                Lưu nháp
-              </button>
-              <button
-                onClick={handleSubmitForApproval}
-                disabled={isReadOnly}
-                className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Gửi duyệt
-              </button>
-            </>
-          )}
-
-          {quotationStatus === "PENDING_APPROVAL" && (
-            <>
-              <button
-                onClick={handleReturnToDraft}
-                disabled={isPending}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 flex items-center gap-1 transition-colors disabled:opacity-50"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-                Trả về nháp
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={isPending}
-                className="px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Từ Chối
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={isPending}
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Phê Duyệt
-              </button>
-            </>
-          )}
-
-          {quotationStatus === "REJECTED" && (
-            <button
-              onClick={handleReturnToDraft}
-              disabled={isPending}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-              Mở Lại Bản Nháp
-            </button>
-          )}
-        </div>
+    window.addEventListener("beforeunload",unload); document.addEventListener("click",navigate,true);
+    return () => { window.removeEventListener("beforeunload",unload); document.removeEventListener("click",navigate,true); };
+  }, [dirty]);
+  async function perform(task: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError(""); setMessage("");
+    try { await task(); } catch(e) { setError(e instanceof Error ? e.message : "Thao tác thất bại. Vui lòng thử lại."); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function refresh(id: string) {
+    const r = await getQuotationDetailAction(id);
+    if (!r.success || !r.data) { setLoadError("Đã xử lý nhưng chưa tải lại được báo giá. Hãy tải lại trước khi thao tác tiếp."); throw new Error(r.error ?? "Không tải lại được báo giá."); }
+    applyDetail(r.data);
+  }
+  function updateItem(patch: Partial<ServiceItemState>, route = false) {
+    setItems(prev => prev.map((x,i) => i === active ? {...x,...patch,...(route ? {selectedBuyRateId: undefined,selectedCandidate: undefined,lookupResult: undefined,unitBuyPrice: 0,worstCaseBuyPrice: 0} : {})} : x));
+  }
+  function lookup() { if (!item) return; void perform(async () => {
+    if (!item.originLocationId || !item.destinationLocationId || !item.equipmentType) throw new Error("Chọn đủ điểm đi, điểm đến và thiết bị.");
+    if (item.originLocationId === item.destinationLocationId) throw new Error("Điểm đi và điểm đến phải khác nhau.");
+    const result = await lookupRoadRatesAction({pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId, equipmentType: item.equipmentType, pricingDate: getBusinessDate()});
+    setItems(prev => prev.map(x => x.id === item.id ? {...x,lookupResult: result, selectedBuyRateId: undefined,selectedCandidate: undefined,unitBuyPrice:0,worstCaseBuyPrice:result.worstCaseBuy ?? 0} : x));
+    if (["ERROR","CONFLICT_RATE","MISSING_RATE"].includes(result.status)) throw new Error(result.message ?? "Không có giá mua phù hợp.");
+    setMessage("Chọn một nhà cung cấp trong bảng so sánh.");
+  }); }
+  function save(submit: boolean) { void perform(async () => {
+    if (!header.customerId || !header.regionId) throw new Error("Chọn khách hàng và vùng phụ trách.");
+    if (items.some(x => !x.originLocationId || !x.destinationLocationId || !x.equipmentType || x.originLocationId === x.destinationLocationId || x.plannedQuantity < 1)) throw new Error("Mỗi dòng cần tuyến hợp lệ, thiết bị và số lượng từ 1.");
+    if (submit && missing.length) throw new Error("Chọn giá mua còn hiệu lực cho tất cả các dòng trước khi gửi duyệt.");
+    const result = await saveDraftQuotationAction({...header,quotationId:detail?.quote.quotationId,expectedUpdatedAt:detail?.quote.revision,items:items.map(x => ({...x,servicePackage:x.servicePackage as ServicePackage,totalBuyAmount:0,totalSellPrice:0,itemGp:0,itemMarginPercent:0}))},submit);
+    if (!result.success || !result.data) throw new Error(result.error ?? "Không lưu được báo giá.");
+    // Record the durable ID before refreshing so a failed reload cannot create a duplicate.
+    window.history.replaceState(window.history.state,"",`/quotations/new?id=${result.data.quotationId}`);
+    await refresh(result.data.quotationId);
+    setMessage(submit ? "Đã lưu và gửi duyệt." : "Đã lưu bản nháp.");
+  }); }
+  function decide() { if (!detail || !review) return; void perform(async () => {
+    if ((review !== "APPROVE" && !comment.trim()) || (review === "APPROVE" && detail.quote.estimatedMarginPercent < 15 && comment.trim().length < 5)) throw new Error("Vui lòng nhập lý do (duyệt biên thấp cần ít nhất 5 ký tự).");
+    const fn = review === "APPROVE" ? approveQuotationAction : review === "REJECT" ? rejectQuotationAction : returnQuotationToDraftAction;
+    const result = await fn(detail.quote.quotationId,comment.trim());
+    if (!result.success) throw new Error(result.error ?? "Không xử lý được yêu cầu.");
+    setReview(null); await refresh(detail.quote.quotationId); setMessage("Đã cập nhật trạng thái báo giá.");
+  }); }
+  function startReview(action: "APPROVE" | "REJECT" | "RETURN") { opener.current = document.activeElement as HTMLElement; setComment("");setError("");setReview(action); }
+  return <div className="space-y-5 text-foreground">
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">{detail ? `${detail.quote.quotationNo} · v${detail.quote.version}` : "Lập báo giá"}</h1><div className="mt-2 flex gap-3"><StatusBadge status={status} /><span className="text-sm text-amber-600 dark:text-amber-300">{dirty ? "Có thay đổi chưa lưu" : detail ? "Đã lưu" : "Bản mới"}</span></div></div><div className="flex flex-wrap gap-2"><Link href="/quotations" className="erp-button">Danh sách báo giá</Link>{status === "DRAFT" && canEdit && <><button className="erp-button" disabled={locked} onClick={() => save(false)}>Lưu nháp</button><button className="erp-button bg-blue-600 text-white font-bold" disabled={locked} onClick={() => save(true)}>Lưu và gửi duyệt</button></>}{["APPROVED","SUPERSEDED"].includes(status) && detail && <><Link href={`/quotations/print?id=${detail.quote.quotationId}`} className="erp-button">Bản in khách hàng</Link>{canEdit && status === "APPROVED" && <button className="erp-button" disabled={busy || loading || !!loadError} onClick={() => void perform(async () => { const result = await createQuotationVersionAction(detail.quote.quotationId,detail.quote.revision); if (!result.success) throw new Error(result.error); router.push(`/quotations/new?id=${result.id}`); })}>Tạo phiên bản mới</button>}</>}</div></header>
+    {loading && <p role="status">Đang tải báo giá…</p>}{loadError && <div role="alert" className="rounded border border-red-500 p-4">{loadError}<button className="erp-button ml-3" onClick={() => setRetry(x=>x+1)}>Tải lại</button></div>}
+    {message && <p role="status" className="rounded border border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 p-3">{message}</p>}{error && !review && <p role="alert" className="rounded border border-red-300 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-950 dark:text-red-300 p-3 whitespace-pre-wrap">{error}</p>}
+    {!loading && !loadError && <>
+      <section className={panel}><h2 className="text-lg font-semibold">1. Thông tin chung</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Choice label="Khách hàng" value={header.customerId} options={master?.customers ?? []} disabled={locked} onChange={v=>setHeader(h=>({...h,customerId:v}))} /><Choice label="Vùng phụ trách" value={header.regionId} options={master?.regions ?? []} disabled={locked} onChange={v=>setHeader(h=>({...h,regionId:v}))} /><Choice label="Hàng hóa (nếu có)" value={header.commodityId} options={master?.commodities ?? []} disabled={locked} onChange={v=>setHeader(h=>({...h,commodityId:v}))} /><label className="text-sm">Hạn thanh toán (ngày)<input className={inputClass} type="number" min={0} max={3650} step={1} disabled={locked} value={header.paymentTermsDays} onChange={e=>setHeader(h=>({...h,paymentTermsDays:Number(e.target.value)}))} /></label></div></section>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <section className={panel}><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">2. Các dòng dịch vụ</h2><button className="erp-button" disabled={locked || items.length>=200} onClick={()=>{setItems(prev=>[...prev,emptyServiceItem(crypto.randomUUID())]);setActive(items.length);}}>Thêm dòng</button></div>
+          <div className="overflow-x-auto"><table className="erp-table w-full"><thead><tr><th>Dòng</th><th>Tuyến</th><th>Số lượng</th><th>Giá mua / đơn vị</th><th>Giá bán / đơn vị</th><th /></tr></thead><tbody>{items.map((x,i)=><tr key={x.id} className={active===i ? "bg-blue-50 dark:bg-blue-950/50" : ""}><td><button className="erp-button" disabled={busy} aria-pressed={active===i} onClick={()=>setActive(i)}>{i+1}</button></td><td>{master?.locations.find(l=>l.id===x.originLocationId)?.name ?? x.originLocationId ?? ""} → {master?.locations.find(l=>l.id===x.destinationLocationId)?.name ?? x.destinationLocationId ?? ""}<small className="block text-amber-600 dark:text-amber-300">{status === "DRAFT" ? rateWarning(x) : ""}</small></td><td>{x.plannedQuantity} {x.unit}</td><td>{x.selectedBuyRateId ? money(x.unitBuyPrice) : "Chưa có"}</td><td>{money(x.unitSellPrice)}</td><td><button className="erp-button" aria-label={`Xóa dòng ${i+1}`} disabled={locked || items.length<=1} onClick={()=>{setItems(prev=>prev.filter((_,n)=>n!==i));setActive(0);}}>Xóa</button></td></tr>)}</tbody></table></div>
+          {item && <fieldset disabled={locked} className="space-y-4"><legend className="mb-3 font-semibold">Chi tiết dòng {active+1} · {item.servicePackage === "TRUCKING" ? "Vận tải đường bộ" : item.servicePackage}</legend><div className="grid gap-4 sm:grid-cols-2"><Choice label="Điểm đi" value={item.originLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({originLocationId:v},true)} /><Choice label="Điểm đến" value={item.destinationLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({destinationLocationId:v},true)} /><Choice label="Thiết bị" value={item.equipmentType} options={master?.equipmentTypes ?? []} disabled={locked} onChange={v=>updateItem({equipmentType:v},true)} /><label className="text-sm">Cách tính phí<select className={inputClass} value={item.pricingInclusion} onChange={e=>updateItem({pricingInclusion:e.target.value as ServiceItemState["pricingInclusion"]})}><option value="INCLUDED">Trong giá chào</option><option value="SEPARATELY_BILLED">Thu riêng</option><option value="PASS_THROUGH_ACTUAL">Thu theo thực tế (tạm tính)</option></select></label><label className="text-sm">Số lượng<input className={inputClass} type="number" min={1} max={99999999} step="0.01" value={item.plannedQuantity} onChange={e=>updateItem({plannedQuantity:Number(e.target.value)})} /></label><label className="text-sm">Đơn vị<input className={inputClass} maxLength={20} value={item.unit} onChange={e=>updateItem({unit:e.target.value})} /></label><label className="text-sm">Giá bán / đơn vị (VND)<input className={inputClass} type="number" min={0} step={1} value={item.unitSellPrice} onChange={e=>updateItem({unitSellPrice:Number(e.target.value)})} /></label></div><button type="button" className="erp-button bg-blue-600 text-white font-bold" onClick={lookup}>Tra và so sánh giá NCC</button></fieldset>}
+          {item?.selectedCandidate && <div className="rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-sm text-foreground">Đã chọn: <strong>{item.selectedCandidate.vendorName}</strong> · {money(item.unitBuyPrice)} / {item.unit}<div className="text-muted-foreground">Giá gốc {item.selectedCandidate.buyRate.toLocaleString("vi-VN")} {item.selectedCandidate.currency} · Hiệu lực {item.selectedCandidate.validityStart} → trước {item.selectedCandidate.validityEnd}</div></div>}
+          {!!item?.lookupResult?.candidates.length && <div className="overflow-x-auto"><p className="mb-2 text-sm text-muted-foreground">So sánh theo đơn giá quy đổi VND. Tỷ giá theo cấu hình nội bộ; chọn NCC để xác nhận.</p><table className="erp-table w-full"><thead><tr><th>NCC</th><th>Giá gốc</th><th>Tỷ giá</th><th>Quy đổi VND</th><th>Hiệu lực [từ, đến)</th><th /></tr></thead><tbody>{item.lookupResult.candidates.map(candidate=><tr key={candidate.rateId}><td>{candidate.vendorName}</td><td>{candidate.buyRate.toLocaleString("vi-VN")} {candidate.currency}</td><td>{candidate.fxRateToVnd}</td><td>{money(candidate.buyRateVnd)}</td><td>{candidate.validityStart} → {candidate.validityEnd}</td><td><button className="erp-button" disabled={locked || ["ERROR","CONFLICT_RATE"].includes(item.lookupResult!.status)} onClick={()=>updateItem({selectedCandidate:candidate,selectedBuyRateId:candidate.rateId,unitBuyPrice:candidate.buyRateVnd})}>{item.selectedBuyRateId===candidate.rateId ? "Đã chọn" : "Chọn NCC"}</button></td></tr>)}</tbody></table></div>}
+        </section>
+        <aside className={`${panel} self-start xl:sticky xl:top-4`}><h2 className="text-lg font-semibold">3. Tổng hợp nội bộ</h2>{status === "DRAFT" && missing.length>0 && <p role="status" className="text-sm text-amber-600 dark:text-amber-300">{missing.length} dòng thiếu giá hợp lệ. Chi phí và lợi nhuận chưa đầy đủ.</p>}<dl className="space-y-3">{[["Doanh thu",money(totals.totalSellAmount)],["Chi phí dự kiến",money(totals.totalEstimatedBuy)],["Chi phí cao nhất",money(totals.totalWorstCaseBuy)],["Lợi nhuận dự kiến",missing.length && status === "DRAFT" ? "Chưa đủ dữ liệu" : money(totals.estimatedGp)],["Biên lợi nhuận",missing.length && status === "DRAFT" ? "Chưa đủ dữ liệu" : `${totals.estimatedMarginPercent.toFixed(2)}%`]].map(([label,value])=><div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="text-lg font-semibold">{value}</dd></div>)}</dl><p className="text-xs text-muted-foreground">Tổng gồm các dòng tạm tính; cách thu phí được ghi riêng trên bản chào. Giá được kiểm tra và tính lại khi lưu.</p><p className="text-sm">Cấp duyệt: {authority.requiredRole === "DIRECTOR" ? "Giám đốc" : "Trưởng phòng định giá"}{authority.isBodEscalation ? " · Ngoại lệ biên thấp" : ""}</p></aside>
       </div>
-
-      {isInitializing && <p role="status" className="text-sm text-slate-400">Đang tải dữ liệu báo giá…</p>}
-      {/* Action Notification Banner */}
-      {actionMessage && (
-        <div
-          className={`p-3 rounded-lg border text-xs flex items-center gap-2.5 ${
-            actionMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-              : "bg-rose-500/10 border-rose-500/30 text-rose-300"
-          }`}
-        >
-          {actionMessage.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-          )}
-          <span role={actionMessage.type === "error" ? "alert" : "status"}>{actionMessage.text}</span>
-          {loadFailed && <button type="button" disabled={isInitializing} className="erp-button ml-auto border border-rose-500/40" onClick={() => setLoadAttempt(attempt => attempt + 1)}>Thử lại</button>}
-        </div>
-      )}
-
-      {/* Immutable Locked Banner */}
-      {isImmutableLocked && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>
-            <strong>Báo giá đã duyệt:</strong> Giá mua và giá bán đã được lưu, không thể chỉnh sửa.
-          </span>
-        </div>
-      )}
-
-      {/* 2-Column Split Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* ==================================================================== */}
-        {/* LEFT COLUMN: 4 / 12 - Thông tin thương mại & Danh mục dịch vụ */}
-        {/* ==================================================================== */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* Box 1: Thông tin khách hàng & phân vùng */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3.5 shadow-sm">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-blue-400" />
-                Khách Hàng & Phân Vùng
-              </span>
-              <span className="text-xs text-slate-500 font-mono">BƯỚC 01</span>
-            </div>
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Khách Hàng Mục Tiêu *</label>
-                <select
-                  disabled={isReadOnly}
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Phân vùng (Region Scope) *</label>
-                <select
-                  disabled={isReadOnly}
-                  value={regionId}
-                  onChange={(e) => setRegionId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {regions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Mặt Hàng Vận Chuyển</label>
-                <select
-                  disabled={isReadOnly}
-                  value={commodityId}
-                  onChange={(e) => setCommodityId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {commodities.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Hạn Nợ Thương Mại</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    disabled={isReadOnly}
-                    value={paymentTermsDays}
-                    onChange={(e) => setPaymentTermsDays(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                  />
-                  <span className="text-xs text-slate-400 shrink-0">ngày</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Box 2: Danh sách gói dịch vụ */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 shadow-sm">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                Gói Dịch Vụ ({items.length})
-              </span>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                disabled={isReadOnly}
-                className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                Thêm Dịch Vụ
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              {items.map((item, idx) => (
-                <div
-                  key={item.id}
-                  onClick={() => setActiveItemIndex(idx)}
-                  className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                    activeItemIndex === idx
-                      ? "bg-blue-600/10 border-blue-500/40 shadow-sm"
-                      : "bg-slate-950/70 border-slate-800 hover:border-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-slate-200">
-                      #{idx + 1}. {item.servicePackage === "TRUCKING" ? "Vận tải Đường bộ" : item.servicePackage}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs px-1.5 py-0.2 rounded bg-slate-800 font-mono text-slate-400">
-                        {item.plannedQuantity} {item.unit}
-                      </span>
-                      {items.length > 1 && !isReadOnly && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveItem(idx);
-                          }}
-                          className="text-slate-500 hover:text-rose-400 transition-colors p-0.5"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-1 text-xs text-slate-400 flex items-center gap-1 truncate">
-                    <span>{locations.find((l) => l.id === item.originLocationId)?.code || "Điểm đi"}</span>
-                    <ArrowRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
-                    <span>{locations.find((l) => l.id === item.destinationLocationId)?.code || "Điểm đến"}</span>
-                    <span className="text-slate-600">•</span>
-                    <span className="font-mono text-cyan-400">{item.equipmentType}</span>
-                  </div>
-
-                  <div className="mt-1.5 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Giá vốn BUY:</span>
-                    <span
-                      className={`font-semibold font-mono ${
-                        item.unitBuyPrice > 0 ? "text-emerald-400" : "text-amber-400"
-                      }`}
-                    >
-                      {item.unitBuyPrice > 0 ? formatVND(item.unitBuyPrice) : "Chưa tra cứu"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ==================================================================== */}
-        {/* RIGHT COLUMN: 8 / 12 - Tra cứu giá mua BUY, cấu thành giá SELL & P&L */}
-        {/* ==================================================================== */}
-        <div className="lg:col-span-8 space-y-4">
-          {/* Card 1: Tuyến vận chuyển & BUY Rate Lookup Engine */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm space-y-3.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wide">
-                  Chi Tiết Tuyến #{activeItemIndex + 1} & Tra Cứu Giá Mua (BUY Engine)
-                </h3>
-              </div>
-              <span className="text-xs text-slate-400">
-                Gói: <strong className="text-blue-400">{currentItem.servicePackage}</strong>
-              </span>
-            </div>
-
-            {/* Các dropdown tuyến đường */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Điểm Nhận / Xếp Hàng *</label>
-                <select
-                  disabled={isReadOnly}
-                  value={currentItem.originLocationId}
-                  onChange={(e) =>
-                    setItems((prev) =>
-                      prev.map((it, idx) =>
-                        idx === activeItemIndex
-                          ? {
-                              ...it,
-                              originLocationId: e.target.value,
-                              lookupResult: undefined,
-                              selectedCandidate: undefined,
-                              selectedBuyRateId: undefined,
-                              unitBuyPrice: 0,
-                              worstCaseBuyPrice: 0,
-                            }
-                          : it
-                      )
-                    )
-                  }
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name} ({loc.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Điểm Giao / Dỡ Hàng *</label>
-                <select
-                  disabled={isReadOnly}
-                  value={currentItem.destinationLocationId}
-                  onChange={(e) =>
-                    setItems((prev) =>
-                      prev.map((it, idx) =>
-                        idx === activeItemIndex
-                          ? {
-                              ...it,
-                              destinationLocationId: e.target.value,
-                              lookupResult: undefined,
-                              selectedCandidate: undefined,
-                              selectedBuyRateId: undefined,
-                              unitBuyPrice: 0,
-                              worstCaseBuyPrice: 0,
-                            }
-                          : it
-                      )
-                    )
-                  }
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name} ({loc.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Thiết bị / Phương Tiện *</label>
-                <select
-                  disabled={isReadOnly}
-                  value={currentItem.equipmentType}
-                  onChange={(e) =>
-                    setItems((prev) =>
-                      prev.map((it, idx) =>
-                        idx === activeItemIndex
-                          ? {
-                              ...it,
-                              equipmentType: e.target.value,
-                              lookupResult: undefined,
-                              selectedCandidate: undefined,
-                              selectedBuyRateId: undefined,
-                              unitBuyPrice: 0,
-                              worstCaseBuyPrice: 0,
-                            }
-                          : it
-                      )
-                    )
-                  }
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                >
-                  {equipmentTypes.map((eq) => (
-                    <option key={eq.id} value={eq.id}>
-                      {eq.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Số lượng chuyến & Nút tra cứu */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">Số lượng dự kiến:</span>
-                <input
-                  type="number"
-                  min="1"
-                  disabled={isReadOnly}
-                  value={currentItem.plannedQuantity}
-                  onChange={(e) =>
-                    setItems((prev) =>
-                      prev.map((it, idx) =>
-                        idx === activeItemIndex ? { ...it, plannedQuantity: Math.max(1, Number(e.target.value)) } : it
-                      )
-                    )
-                  }
-                  className="w-20 bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-slate-200 font-mono text-center focus:outline-none focus:border-blue-500"
-                />
-                <span className="text-xs text-slate-400">{currentItem.unit}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleLookupRate(activeItemIndex)}
-                disabled={isReadOnly}
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
-              >
-                <Search className="w-3.5 h-3.5" />
-                Tra giá mua
-              </button>
-            </div>
-
-            {/* Kết Quả Tra Cứu Giá Mua BUY */}
-            {currentItem.lookupResult && (
-              <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-300">Kết Quả Tra Cứu:</span>
-                    {currentItem.lookupResult.status === "MULTIPLE_CANDIDATES" && (
-                      <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 font-semibold text-xs border border-blue-500/30">
-                        {currentItem.lookupResult.candidates.length} Nhà cung cấp hợp lệ
-                      </span>
-                    )}
-                    {currentItem.lookupResult.status === "APPLY" && (
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold text-xs border border-emerald-500/30">
-                        Áp Dụng Tự Động (01 Nhà cung cấp)
-                      </span>
-                    )}
-                    {currentItem.lookupResult.status === "MISSING_RATE" && (
-                      <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold text-xs border border-amber-500/30">
-                        Chưa có giá mua cho tuyến này
-                      </span>
-                    )}
-                  </div>
-
-                  {currentItem.worstCaseBuyPrice > 0 && (
-                    <div className="text-right">
-                      <span className="text-xs text-slate-400">Worst-case BUY: </span>
-                      <strong className="text-xs font-mono text-amber-400">
-                        {formatVND(currentItem.worstCaseBuyPrice)}
-                      </strong>
-                    </div>
-                  )}
-                </div>
-
-                {currentItem.lookupResult.message && (
-                  <p role="alert" className="text-xs text-amber-300">{currentItem.lookupResult.message}</p>
-                )}
-                {(currentItem.lookupResult.status === "APPLY" || currentItem.lookupResult.status === "MULTIPLE_CANDIDATES") && currentItem.lookupResult.candidates.length > 0 && (
-                  <div className="border border-slate-800 rounded-lg overflow-hidden">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900/80 text-slate-400 text-xs uppercase border-b border-slate-800">
-                        <tr>
-                          <th className="py-2 px-3">Lựa Chọn</th>
-                          <th className="py-2 px-3">Nhà cung cấp</th>
-                          <th className="py-2 px-3">Khoảng Hiệu lực</th>
-                          <th className="py-2 px-3 text-right">Đơn giá mua</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-sans">
-                        {currentItem.lookupResult.candidates.map((cand) => {
-                          const isSelected = currentItem.selectedCandidate?.vendorId === cand.vendorId;
-                          return (
-                            <tr
-                              key={cand.rateId}
-                              onClick={() => !isReadOnly && handleSelectCandidate(activeItemIndex, cand)}
-                              className={`cursor-pointer transition-colors ${
-                                isSelected ? "bg-blue-600/15 text-white" : "hover:bg-slate-900/50 text-slate-300"
-                              }`}
-                            >
-                              <td className="py-2 px-3">
-                                <input
-                                  type="radio"
-                                  name={`candidate-${currentItem.id}`}
-                                  checked={isSelected}
-                                  onChange={() => {}}
-                                  disabled={isReadOnly}
-                                  className="text-blue-500 focus:ring-0"
-                                />
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-200">
-                                {cand.vendorName}
-                              </td>
-                              <td className="py-2 px-3 text-slate-400 font-mono text-xs">
-                                {cand.validityRange}
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-400">
-                                <div>{formatVND(cand.buyRateVnd)}</div>
-                                {cand.currency !== "VND" && (
-                                  <div className="text-xs text-slate-400 font-normal">
-                                    ({new Intl.NumberFormat().format(cand.buyRate)} {cand.currency})
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Card 2: Cấu thành giá SELL & Live P&L */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm space-y-3.5">
-            <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
-              <span className="font-bold text-xs text-slate-200 uppercase tracking-wide flex items-center gap-1.5">
-                <DollarSign className="w-4 h-4 text-blue-400" />
-                Cấu Thành Giá Bán (SELL) & Hiệu Quả Kinh Doanh (P&L Matrix)
-              </span>
-              <span className="text-xs text-slate-400">Đơn vị: <strong>VND</strong></span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Đơn Giá Bán Đề Xuất (SELL / {currentItem.unit}) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="500000"
-                    disabled={isReadOnly}
-                    value={currentItem.unitSellPrice}
-                    onChange={(e) =>
-                      setItems((prev) =>
-                        prev.map((it, idx) =>
-                          idx === activeItemIndex ? { ...it, unitSellPrice: Number(e.target.value) } : it
-                        )
-                      )
-                    }
-                    className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-sm text-slate-100 font-mono font-semibold focus:outline-none focus:border-blue-500"
-                  />
-                  <span className="absolute right-3 top-2 text-xs text-slate-500">VND</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Tổng Giá Bán Dịch Vụ Này</label>
-                <div className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-sm font-mono font-bold text-blue-400">
-                  {formatVND((currentItem.unitSellPrice || 0) * (currentItem.plannedQuantity || 1))}
-                </div>
-              </div>
-            </div>
-
-            {/* LIVE KPI METRICS CỦA TOÀN BỘ BÁO GIÁ */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-800">
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-xs text-slate-400 block">Doanh Thu (SELL)</span>
-                <span className="text-base font-semibold font-mono text-white block mt-0.5">
-                  {formatVND(totalSell)}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-xs text-slate-400 block">Giá Vốn (BUY)</span>
-                <span className="text-base font-semibold font-mono text-amber-400 block mt-0.5">
-                  {formatVND(totalBuy)}
-                </span>
-                {totalWorstBuy > 0 && (
-                  <span className="text-xs text-slate-500 font-mono block">Worst: {formatVND(totalWorstBuy)}</span>
-                )}
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-xs text-slate-400 block">Lợi Nhuận Gộp (GP)</span>
-                <span
-                  className={`text-base font-semibold font-mono block mt-0.5 ${
-                    grossProfit >= 0 ? "text-emerald-400" : "text-rose-400"
-                  }`}
-                >
-                  {formatVND(grossProfit)}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
-                <span className="text-xs text-slate-400 block">Biên Lợi Nhuận</span>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span
-                    className={`text-base font-semibold font-mono ${
-                      marginPercent >= 15
-                        ? "text-emerald-400"
-                        : marginPercent >= 5
-                        ? "text-amber-400"
-                        : "text-rose-400"
-                    }`}
-                  >
-                    {marginPercent.toFixed(1)}%
-                  </span>
-                  <span
-                    className={`text-[9px] px-1 py-0.2 rounded font-medium ${
-                      marginPercent >= 15
-                        ? "bg-emerald-500/20 text-emerald-300"
-                        : marginPercent >= 5
-                        ? "bg-amber-500/20 text-amber-300"
-                        : "bg-rose-500/20 text-rose-300"
-                    }`}
-                  >
-                    {marginPercent >= 15 ? "Chuẩn" : marginPercent >= 5 ? "Cần Duyệt" : "Dưới Sàn"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Thông báo chính sách margin THILOGI */}
-            <div className="p-2.5 rounded-lg bg-blue-950/20 border border-blue-900/30 text-xs text-blue-300/90 flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-              <span>
-                <strong>Chính sách Margin THILOGI:</strong> Biên lợi nhuận $\ge 15\%$ được phê duyệt nhanh bởi Trưởng bộ phận Pricing. Từ $5\% - 15\%$ yêu cầu thẩm định Phó Giám Đốc. Dưới $5\%$ chỉ được duyệt khi có chủ trương bù tải của Ban Giám Đốc.
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+      {detail && <section className={panel}><h2 className="text-lg font-semibold">Thẩm định và lịch sử</h2>{ownQuote && status === "PENDING_APPROVAL" && <p className="text-amber-600 dark:text-amber-300">Người lập không tự duyệt báo giá của mình.</p>}{status === "PENDING_APPROVAL" && !authority.allowed && <p className="text-sm text-muted-foreground">{authority.reason}</p>}<div className="flex flex-wrap gap-2">{status === "PENDING_APPROVAL" && <>{authority.allowed && !ownQuote && <button className="erp-button bg-emerald-700 text-white" disabled={busy} onClick={()=>startReview("APPROVE")}>Duyệt báo giá</button>}{manager && <button className="erp-button" disabled={busy} onClick={()=>startReview("REJECT")}>Từ chối</button>}</>}{manager && ["PENDING_APPROVAL","REJECTED"].includes(status) && <button className="erp-button" disabled={busy} onClick={()=>startReview("RETURN")}>Trả về nháp</button>}</div>{detail.approvalLogs.length ? <ol className="space-y-3">{detail.approvalLogs.map(log=><li key={log.logId} className="border-l-2 border-border pl-3"><strong>{log.action}</strong> · {log.actorName ?? log.actorId} · v{log.version}<div className="text-sm text-muted-foreground">{new Date(log.createdAt).toLocaleString("vi-VN")} · {log.comment ?? ""}</div></li>)}</ol> : <p className="text-sm text-muted-foreground">Chưa có sự kiện thẩm định.</p>}</section>}
+    </>}
+    <Dialog.Root open={!!leaveTarget} onOpenChange={value=>{if(!value)setLeaveTarget(null);}}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs" /><Dialog.Content onCloseAutoFocus={e=>{e.preventDefault();opener.current?.focus();}} className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-foreground space-y-4 shadow-2xl"><Dialog.Title className="text-xl font-semibold">Có thay đổi chưa lưu</Dialog.Title><Dialog.Description className="text-muted-foreground">Bạn có muốn bỏ các thay đổi và rời màn hình báo giá?</Dialog.Description><div className="flex flex-wrap gap-2"><Dialog.Close className="erp-button">Ở lại để lưu</Dialog.Close><button className="erp-button bg-red-700 text-white" onClick={()=>{if(!leaveTarget)return;const target=new URL(leaveTarget);discarding.current=true;setLeaveTarget(null);if(target.origin===window.location.origin)router.push(target.pathname+target.search+target.hash);else window.location.href=target.href;}}>Bỏ thay đổi và rời trang</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+    <Dialog.Root open={!!review} onOpenChange={value=>{if(!value && !busy)setReview(null);}}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs" /><Dialog.Content onCloseAutoFocus={e=>{e.preventDefault();opener.current?.focus();}} className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 text-foreground space-y-4 shadow-2xl"><Dialog.Title className="text-xl font-semibold">{review === "APPROVE" ? "Duyệt báo giá" : review === "REJECT" ? "Từ chối báo giá" : "Trả về nháp"}</Dialog.Title><Dialog.Description className="text-muted-foreground">Thao tác được lưu vào lịch sử. Duyệt báo giá sẽ khóa nội dung thương mại của phiên bản này.</Dialog.Description><label className="block">Ý kiến / lý do<textarea className={inputClass} maxLength={2000} rows={4} disabled={busy} value={comment} onChange={e=>setComment(e.target.value)} /></label>{error && <p role="alert" className="text-red-600 dark:text-red-300">{error}</p>}<div className="flex gap-2"><button className="erp-button bg-blue-600 text-white font-bold" disabled={busy} onClick={decide}>Xác nhận</button><Dialog.Close className="erp-button" disabled={busy}>Hủy</Dialog.Close></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+  </div>;
 }
-
-export default function NewQuotationWorkspacePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-          <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-          Đang khởi tạo Không Gian Báo Giá...
-        </div>
-      }
-    >
-      <QuotationWorkspaceContent />
-    </Suspense>
-  );
-}
+export default function QuotationWorkspacePage() { return <Suspense fallback={<p>Đang tải báo giá…</p>}><Workspace /></Suspense>; }

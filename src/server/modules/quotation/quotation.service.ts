@@ -6,6 +6,7 @@ import { pool } from "@/server/db";
 import { CreateQuotationInput, createQuotationSchema } from "@/shared/schemas/quotation.schema";
 import { CurrentActor } from "@/server/auth/types";
 import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
+import { validateApprovalRates } from "./approval-rates";
 
 export interface QuotationFinancialSummary {
   totalSellAmount: number;
@@ -15,70 +16,8 @@ export interface QuotationFinancialSummary {
   estimatedMarginPercent: number;
 }
 
-export interface ApprovalAuthorityResult {
-  allowed: boolean;
-  requiredRole: "PRICING_MANAGER" | "DIRECTOR";
-  isBodEscalation: boolean;
-  reason?: string;
-}
-
-/**
- * Ma trận Phân quyền Duyệt Báo giá theo Biên lợi nhuận (PR-05 Approval Matrix)
- * - Margin >= 15%: Trưởng phòng Định giá & Thương mại (PRICING_MANAGER) hoặc cấp cao hơn
- * - Margin 5% - 14.9%: Phó Giám Đốc Thương Mại (DIRECTOR)
- * - Margin < 5%: Bắt buộc Ban Giám Đốc (DIRECTOR) với cờ ngoại lệ phê duyệt đặc biệt (BOD Exception)
- * - SALES: Không có quyền phê duyệt
- */
-export function evaluateApprovalAuthority(
-  marginPercent: number,
-  actorRole: string
-): ApprovalAuthorityResult {
-  const isBodEscalation = marginPercent < 5;
-  const requiredRole = marginPercent >= 15 ? "PRICING_MANAGER" : "DIRECTOR";
-
-  if (actorRole === "SALES" || actorRole === "OPERATIONS" || actorRole === "ACCOUNTANT") {
-    return {
-      allowed: false,
-      requiredRole,
-      isBodEscalation,
-      reason: "Chuyên viên Kinh doanh / Tác nghiệp không có thẩm quyền phê duyệt báo giá thương mại.",
-    };
-  }
-
-  if (actorRole === "PRICING_MANAGER") {
-    if (marginPercent < 15) {
-      return {
-        allowed: false,
-        requiredRole: "DIRECTOR",
-        isBodEscalation,
-        reason: `Báo giá có biên lợi nhuận ${marginPercent}% (< 15%). Theo ma trận phân quyền THILOGI, chỉ cấp Phó Giám Đốc Thương Mại (DIRECTOR) mới có thẩm quyền duyệt.`,
-      };
-    }
-    return {
-      allowed: true,
-      requiredRole: "PRICING_MANAGER",
-      isBodEscalation: false,
-    };
-  }
-
-  if (actorRole === "DIRECTOR") {
-    return {
-      allowed: true,
-      requiredRole: "DIRECTOR",
-      isBodEscalation,
-      reason: isBodEscalation
-        ? "Phê duyệt ngoại lệ đặc biệt cấp Ban Giám Đốc (BOD Special Exception) cho biên lợi nhuận thấp < 5%."
-        : undefined,
-    };
-  }
-
-  return {
-    allowed: false,
-    requiredRole: "DIRECTOR",
-    isBodEscalation: true,
-    reason: "Tài khoản không có thẩm quyền phê duyệt báo giá.",
-  };
-}
+import { evaluateApprovalAuthority, isQuotationAuthor } from "@/features/quotation/approval-policy";
+export { evaluateApprovalAuthority } from "@/features/quotation/approval-policy";
 
 export { calculateQuotationFinancials } from "@/shared/utils/pricing";
 
@@ -289,13 +228,13 @@ export async function saveQuotationDraft(
            region_id, commodity_id,
            status, total_sell_amount, total_estimated_buy, total_worst_case_buy,
            estimated_gp, estimated_margin_percent, payment_terms_days,
-           immutable_locked, created_by
+           immutable_locked, created_by, created_by_user_id
          ) VALUES (
            $1, 1, $2, $3, $4, $5,
            $6, $7,
            'DRAFT', $8, $9, $10,
            $11, $12, $13,
-           false, $14
+           false, $14, $15
          ) RETURNING quotation_id;`,
         [
           quotationNo,
@@ -312,6 +251,7 @@ export async function saveQuotationDraft(
           Number(estimatedMarginPercent.toFixed(2)),
           input.paymentTermsDays,
           createdBy,
+          actor.userId,
         ]
       );
 
@@ -531,7 +471,7 @@ export async function approveQuotation(
     await client.query("BEGIN");
 
     const quoteCheck = await client.query(
-      `SELECT quotation_id, quotation_no, version, region_id, status, immutable_locked, estimated_margin_percent, created_by 
+      `SELECT quotation_id, quotation_no, version, customer_id, region_id, status, immutable_locked, estimated_margin_percent, created_by, created_by_user_id
        FROM customer_quotations 
        WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
@@ -564,9 +504,7 @@ export async function approveQuotation(
 
     // Kiểm tra nguyên tắc 4 mắt (Four-Eyes Principle): Người lập không được tự phê duyệt báo giá của chính mình
     if (
-      actor.role !== "DIRECTOR" &&
-      currentQuote.created_by &&
-      (currentQuote.created_by.includes(actor.fullName) || currentQuote.created_by.includes(actor.userId))
+      isQuotationAuthor(currentQuote.created_by_user_id, currentQuote.created_by, actor)
     ) {
       await client.query("ROLLBACK");
       return {
@@ -596,10 +534,14 @@ export async function approveQuotation(
       };
     }
 
+    const activeCustomer = await client.query("SELECT c.customer_id FROM customers c JOIN partners p ON p.partner_id=c.customer_id WHERE c.customer_id=$1 AND c.role_status='ACTIVE' AND p.status='ACTIVE' FOR SHARE OF c,p", [currentQuote.customer_id]);
+    if (!activeCustomer.rows.length) throw new Error("Khách hàng đã ngừng hoạt động. Không thể duyệt báo giá.");
+    await validateApprovalRates(client, quotationId);
+
     // Cập nhật APPROVED & Khóa Bất Biến (Immutable Locked) kèm xác nhận Snapshot
     await client.query(
       `UPDATE customer_quotations q
-       SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = clock_timestamp(),
+       SET commercial_snapshot = quotation_commercial_snapshot(q.quotation_id), status = 'APPROVED', approved_by = $1, approved_at = NOW(), immutable_locked = true, updated_at = clock_timestamp(),
            customer_name_snapshot = COALESCE(q.customer_name_snapshot, p.partner_name),
            customer_tax_code_snapshot = COALESCE(q.customer_tax_code_snapshot, p.tax_code),
            customer_address_snapshot = COALESCE(q.customer_address_snapshot, p.address)
@@ -609,6 +551,12 @@ export async function approveQuotation(
       [`${actor.fullName} (${actor.role})`, quotationId]
     );
 
+    await client.query(`WITH replaced AS (
+      UPDATE customer_quotations SET status='SUPERSEDED', updated_at=clock_timestamp()
+      WHERE quotation_no=$1 AND version<$2 AND status='APPROVED' RETURNING quotation_id,version,estimated_margin_percent
+    ) INSERT INTO quotation_approval_log(quotation_id,version,action,actor_id,actor_name,comment,snapshot_margin_percent)
+      SELECT quotation_id,version,'SUPERSEDED',$3,$4,$5,estimated_margin_percent FROM replaced`,
+      [currentQuote.quotation_no, currentQuote.version, actor.userId, actor.fullName, `Thay thế bởi phiên bản ${currentQuote.version}`]);
     // Ghi Audit Log
     const auditComment = comment || authority.reason || `Phê duyệt chính thức bởi [${actor.fullName} - ${actor.role}]`;
     await client.query(
@@ -904,6 +852,7 @@ export interface QuotationDetailResponse {
     paymentTermsDays: number;
     immutableLocked: boolean;
     createdBy: string;
+    createdByUserId?: string;
     approvedBy?: string;
     approvedAt?: string;
     createdAt: string;
@@ -957,6 +906,7 @@ export async function getQuotationsList(actor: CurrentActor, filters?: {
       q.estimated_margin_percent as "estimatedMarginPercent",
       q.payment_terms_days as "paymentTermsDays",
       q.created_by as "createdBy",
+       q.created_by_user_id as "createdByUserId",
       q.created_at as "createdAt",
       (SELECT COUNT(*) FROM quotation_service_items WHERE quotation_id = q.quotation_id) as "itemCount",
       (SELECT CONCAT(COALESCE(orig.name, 'Điểm đi'), ' → ', COALESCE(dest.name, 'Điểm đến'))
@@ -1152,6 +1102,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
       paymentTermsDays: Number(quote.paymentTermsDays ?? 30),
       immutableLocked: Boolean(quote.immutableLocked),
       createdBy: quote.createdBy || "System",
+      createdByUserId: quote.createdByUserId || undefined,
       approvedBy: quote.approvedBy || undefined,
       approvedAt: quote.approvedAt ? new Date(quote.approvedAt).toISOString() : undefined,
       createdAt: quote.createdAt ? new Date(quote.createdAt).toISOString() : new Date().toISOString(),
