@@ -132,7 +132,7 @@ export default function RoadRatesLibraryPage() {
 
   return (
     <div className="space-y-4 font-sans text-foreground">
-      <PageHeader title="Giá mua đường bộ" actions={<><Link href="/master/manage" className="erp-button">Quản lý dữ liệu</Link><RefreshButton onClick={loadRates} loading={loading} /><Link href="/quotations/new" className="erp-button bg-blue-600 text-white hover:bg-blue-500"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
+      <PageHeader title="Giá mua đường bộ" actions={<><Link href="/master/manage" className="erp-button">Quản lý dữ liệu</Link><RefreshButton onClick={loadRates} loading={loading} /><Link href="/quotations/new" className="erp-button bg-primary text-white hover:bg-primary-hover"><PlusCircle className="h-4 w-4" />Lập báo giá</Link></>} />
 
       {/* QUICK ROUTE MATCHER BOX (Tra Cứu Tuyến Tức Thời) */}
       <div className="p-3.5 rounded-xl bg-surface border border-border shadow-xs space-y-3">

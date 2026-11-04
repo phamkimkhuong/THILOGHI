@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @media print {
@@ -11,64 +12,64 @@
 
 :root {
   /* ==================================================================== */
-  /* THILOGI ENTERPRISE SEMANTIC TOKENS (LIGHT THEME - MẶC ĐỊNH)         */
+  /* THILOGI ENTERPRISE SEMANTIC TOKENS (SALESFLOW / ICE-BLUE CRM THEME)  */
   /* ==================================================================== */
-  --background: #f8fafc;          /* slate-50: sáng sủa, thanh lịch, chuẩn ERP */
-  --foreground: #0f172a;          /* slate-900: chữ đen than đậm, sắc nét */
+  --background: #f5f8fc;          /* Nền canvas băng xanh nhạt siêu mát mắt, chống lóa */
+  --foreground: #16254a;          /* Chữ Deep Navy Charcoal, sắc nét và sang trọng */
   --surface: #ffffff;             /* Thẻ Card, Panel, Toolbar: trắng tinh khiết */
-  --surface-hover: #f1f5f9;       /* Trạng thái hover dòng, nút phụ: slate-100 */
+  --surface-hover: #f1f6fc;       /* Trạng thái hover dòng, nút phụ: xanh băng nhẹ */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #16254a;
 
-  /* Viền và đường phân cách */
-  --border: #e2e8f0;              /* slate-200: viền sắc nét trên nền sáng */
-  --border-subtle: #f1f5f9;       /* slate-100 */
+  /* Viền và đường phân cách sắc nét */
+  --border: #e2eaf4;              /* Viền xanh băng nhạt thanh lịch */
+  --border-subtle: #edf3fa;
 
   /* Chữ phụ, nhãn đơn vị và trạng thái Muted */
-  --muted: #f1f5f9;               /* slate-100 */
-  --muted-foreground: #64748b;    /* slate-500: nhãn phụ, placeholder */
+  --muted: #f1f6fc;
+  --muted-foreground: #647895;    /* Xám xanh navy dịu mắt */
 
-  /* Màu thương hiệu THACO / THILOGI (Royal Corporate Blue) */
-  --primary: #1d4ed8;             /* blue-700 */
-  --primary-hover: #1e40af;       /* blue-800 */
+  /* Màu thương hiệu THILOGI / Cobalt Royal Blue chuẩn SalesFlow */
+  --primary: #2672df;             /* Cobalt Blue rực rỡ, uy tín */
+  --primary-hover: #1d66c5;
   --primary-foreground: #ffffff;  /* Chữ trên nền primary */
 
   /* Trạng thái nghiệp vụ Logistics */
-  --success: #059669;             /* emerald-600 */
-  --success-bg: #ecfdf5;          /* emerald-50 */
-  --warning: #d97706;             /* amber-600 */
-  --warning-bg: #fffbeb;          /* amber-50 */
-  --danger: #e11d48;              /* rose-600 */
-  --danger-bg: #fff1f2;           /* rose-50 */
+  --success: #14a773;             /* Xanh ngọc lục bảo sắc nét */
+  --success-bg: #e5f8f0;
+  --warning: #e6921d;             /* Vàng hổ phách */
+  --warning-bg: #fff4df;
+  --danger: #e45a63;              /* Đỏ san hô */
+  --danger-bg: #fff0f1;
 }
 
 .dark {
   /* ==================================================================== */
-  /* THILOGI ENTERPRISE SEMANTIC TOKENS (DARK THEME - CHẾ ĐỘ BAN ĐÊM)    */
+  /* THILOGI ENTERPRISE SEMANTIC TOKENS (DARK NAVY THEME)                 */
   /* ==================================================================== */
-  --background: #020617;          /* slate-950 */
-  --foreground: #f8fafc;          /* slate-50 */
-  --surface: #0f172a;             /* slate-900 */
-  --surface-hover: #1e293b;       /* slate-800 */
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
+  --background: #0b172b;          /* Dark Navy sâu thẳm, đồng điệu với palette */
+  --foreground: #f1f6fc;
+  --surface: #10223d;
+  --surface-hover: #173259;
+  --card: #10223d;
+  --card-foreground: #f1f6fc;
 
-  --border: #1e293b;              /* slate-800 */
-  --border-subtle: #0f172a;
+  --border: #1d375e;
+  --border-subtle: #142846;
 
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;    /* slate-400 */
+  --muted: #173259;
+  --muted-foreground: #8aa1c4;
 
-  --primary: #2563eb;             /* blue-600 */
-  --primary-hover: #3b82f6;       /* blue-500 */
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
   --primary-foreground: #ffffff;
 
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.15);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.15);
-  --danger: #f43f5e;
-  --danger-bg: rgba(244, 63, 94, 0.15);
+  --success: #2dd4bf;
+  --success-bg: rgba(45, 212, 191, 0.15);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.15);
+  --danger: #fb7185;
+  --danger-bg: rgba(251, 113, 133, 0.15);
 }
 
 @theme inline {
@@ -85,7 +86,7 @@
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
-  --font-sans: "Segoe UI", Arial, Helvetica, sans-serif;
+  --font-sans: "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: Consolas, "Courier New", monospace;
 }
 
@@ -124,19 +125,22 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .erp-shell :where(input:not([type="checkbox"]), select):focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+  box-shadow: 0 0 0 3px rgba(38, 114, 223, 0.14);
 }
 
 .erp-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.erp-table thead { font-size: 12px; letter-spacing: normal; text-transform: none; border-bottom: 1px solid var(--border); }
-.erp-table th { padding: 10px 12px; font-weight: 600; white-space: nowrap; color: var(--muted-foreground); background-color: var(--surface-hover); }
-.erp-table td { padding: 12px; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid var(--border); color: var(--foreground); }
+.erp-table thead { font-size: 11.5px; letter-spacing: 0.3px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.erp-table th { padding: 10px 12px; font-weight: 600; white-space: nowrap; color: #6c7e99; background-color: #f7f9fc; }
+.dark .erp-table th { color: var(--muted-foreground); background-color: var(--surface-hover); }
+.erp-table td { padding: 12px; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid #edf1f6; color: #263b61; }
+.dark .erp-table td { border-bottom: 1px solid var(--border); color: var(--foreground); }
 .erp-table td[colspan] { white-space: normal; }
 .erp-table :where(td, td span, td a) { font-size: inherit; }
 .erp-table td.flex { display: table-cell; }
 .erp-table td > svg { display: inline-block; margin-right: 6px; vertical-align: middle; }
 .erp-table tbody tr { transition: background-color 0.15s ease; }
-.erp-table tbody tr:hover { background-color: var(--surface-hover); }
+.erp-table tbody tr:hover { background-color: #f4f8fe; }
+.dark .erp-table tbody tr:hover { background-color: var(--surface-hover); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }

@@ -2,29 +2,22 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { logoutAction } from "@/features/auth/actions";
 import { Globe } from "lucide-react";
-import { getCurrentUserAction, switchUserAction, getAvailableUsersAction } from "@/features/quotation/actions";
+import { getCurrentUserAction } from "@/features/quotation/actions";
 import { CurrentActor } from "@/server/auth/types";
 
 export function UserProfileBar() {
-  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<CurrentActor | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<CurrentActor[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     startTransition(async () => {
       try {
-        const [user, allUsers] = await Promise.all([
-          getCurrentUserAction(),
-          getAvailableUsersAction(),
-        ]);
+        const user = await getCurrentUserAction();
         setCurrentUser(user);
-        setAvailableUsers(allUsers);
       } catch {
         setError("Không thể tải phiên đăng nhập.");
       } finally {
@@ -33,41 +26,22 @@ export function UserProfileBar() {
     });
   }, []);
 
-  const handleSwitchUser = (userId: string) => {
-    startTransition(async () => {
-      try {
-        const res = await switchUserAction(userId);
-        if (res.success) {
-          if (window.location.pathname === "/login") router.replace("/quotations");
-          else window.location.reload(); // Discard all data cached in client state when switching identity.
-        }
-      } catch {
-        setError("Không thể chuyển tài khoản. Vui lòng kiểm tra cấu hình chế độ thử và JWT_SECRET.");
-      }
-
-    });
-  };
-
   if (!isLoaded) {
     return (
-      <div className="flex items-center gap-2 text-xs text-slate-400" suppressHydrationWarning>
-        <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse" />
+      <div className="flex items-center gap-2 text-xs text-muted-foreground" suppressHydrationWarning>
+        <span className="w-2 h-2 rounded-full bg-primary/60 animate-pulse" />
         Đang tải hồ sơ...
       </div>
     );
   }
 
   if (!currentUser) {
-    return <div className="space-y-2 text-xs text-slate-400" suppressHydrationWarning>
-      {availableUsers.length > 0 ? <label>Chọn tài khoản thử nghiệm
-        <select value="" onChange={(event) => handleSwitchUser(event.target.value)} disabled={isPending}
-          className="mt-1 w-full rounded border border-slate-600 bg-slate-950 p-2">
-          <option value="" disabled>Chọn tài khoản</option>
-          {availableUsers.map((user) => <option key={user.userId} value={user.userId}>{user.fullName} ({user.role})</option>)}
-        </select>
-      </label> : <Link href="/login">Chưa đăng nhập</Link>}
-      {error && <p role="alert" className="text-rose-300">{error}</p>}
-    </div>;
+    return (
+      <div className="space-y-1 text-xs text-muted-foreground" suppressHydrationWarning>
+        <Link href="/login" className="hover:text-primary transition-colors font-medium">Chưa đăng nhập</Link>
+        {error && <p role="alert" className="text-rose-500">{error}</p>}
+      </div>
+    );
   }
 
   const roleLabels: Record<string, string> = {
@@ -99,6 +73,11 @@ export function UserProfileBar() {
         </span>
       </div>
 
+      {/* Avatar tròn chuẩn SalesFlow */}
+      <div className="w-8 h-8 rounded-full bg-[#dceafa] text-[#1763c7] font-bold text-xs flex items-center justify-center shrink-0 border border-[#c2dafc]" aria-hidden="true">
+        {currentUser.fullName ? currentUser.fullName.trim().split(" ").slice(-1)[0][0] : "U"}
+      </div>
+
       {/* Region Scope Badge */}
       <div className="hidden xl:inline-flex items-center gap-1.5 text-muted-foreground text-xs">
         <Globe className="w-3.5 h-3.5 shrink-0" />
@@ -106,25 +85,6 @@ export function UserProfileBar() {
           {formattedScopes}
         </span>
       </div>
-
-      {/* Dropdown chuyển đổi tài khoản (Chỉ hiển thị trong môi trường Dev/UAT để test phân quyền) */}
-      {availableUsers.length > 0 && (
-          <div className="relative">
-            <select
-              value={currentUser.userId}
-              onChange={(e) => handleSwitchUser(e.target.value)}
-              disabled={isPending}
-              className="max-w-[160px] bg-surface border border-border hover:border-slate-400 rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-xs"
-              aria-label="Tài khoản thử nghiệm" title="Chuyển tài khoản thử nghiệm"
-            >
-            {availableUsers.map((u) => (
-              <option key={u.userId} value={u.userId}>
-                {u.fullName} ({u.role} - {u.regionScopes.join("/")})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }

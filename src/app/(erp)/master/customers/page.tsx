@@ -414,10 +414,10 @@ export default function MasterCustomersPage() {
                   <th className="py-2.5 px-3 text-right">Hành Động</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-border font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-500">
+                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
                       Không tìm thấy khách hàng phù hợp.
                     </td>
                   </tr>
@@ -426,54 +426,54 @@ export default function MasterCustomersPage() {
                     <tr
                       key={c.customerId}
                       onClick={() => handleOpenCustomerDrawer(c)}
-                      className="hover:bg-slate-800/40 cursor-pointer transition-colors"
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-white text-xs whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs whitespace-nowrap">
                         {c.customerId}
                       </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-100 max-w-[220px] truncate" title={c.customerName}>
+                      <td className="py-2.5 px-3 font-semibold text-foreground max-w-[220px] truncate" title={c.customerName}>
                         {c.customerName}
                         {c.shortName && (
-                          <span className="block text-xs text-slate-400 font-normal">
+                          <span className="block text-xs text-muted-foreground font-normal">
                             {c.shortName}
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground whitespace-nowrap">
                         {c.taxCode || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {getStatusBadge(c.status)}
                       </td>
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-300 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-xs">
+                      <td className="py-2.5 px-3 text-center font-mono text-foreground whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded bg-surface border border-border text-xs">
                           {c.paymentTermsDays ?? 30} ngày
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-200 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono text-foreground whitespace-nowrap">
                         {c.creditLimit == null ? (
-                          <span className="text-slate-500 italic text-xs">Chưa cấu hình</span>
+                          <span className="text-muted-foreground italic text-xs">Chưa cấu hình</span>
                         ) : Number(c.creditLimit) === 0 ? (
-                          <span className="text-amber-400 font-medium">0 ₫ (Trả trước)</span>
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">0 ₫ (Trả trước)</span>
                         ) : (
                           formatVND(Number(c.creditLimit))
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-400 text-xs max-w-[200px] truncate" title={c.address}>
+                      <td className="py-2.5 px-3 text-muted-foreground text-xs max-w-[200px] truncate" title={c.address}>
                         {c.address || "-"}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {c.status === "ACTIVE" ? (
                           <Link
                             href={`/quotations/new?customerId=${c.customerId}`}
-                            className="px-2.5 py-1 rounded bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
+                            className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-600/15 dark:hover:bg-blue-600/25 dark:text-blue-300 dark:border-blue-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
                           >
                             <PlusCircle className="w-3 h-3" /> Báo Giá
                           </Link>
                         ) : (
                           <button
                             onClick={() => handleOpenCustomerDrawer(c)}
-                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded bg-surface border border-border hover:bg-surface-hover text-foreground text-xs font-medium inline-flex items-center gap-1 transition-colors"
                           >
                             <SlidersHorizontal className="w-3 h-3" /> Quản lý Role
                           </button>

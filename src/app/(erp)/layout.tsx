@@ -16,7 +16,7 @@ export default function ErpLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-slate-400">Đang tải phiên làm việc…</p>}>
+    <Suspense fallback={<p className="p-6 text-sm text-muted-foreground">Đang tải phiên làm việc…</p>}>
       <AuthenticatedErp>{children}</AuthenticatedErp>
     </Suspense>
   );

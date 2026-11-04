@@ -252,7 +252,7 @@ export async function getCommoditiesDetailedList(filters?: { search?: string }) 
     commodityId: r.commodityId,
     name: r.name,
     englishName: r.englishName,
-    category: r.category || "Hàng bách hóa",
+    category: r.category || "",
     specialRequirements: r.specifications || r.purpose || (r.origin ? `Xuất xứ: ${r.origin}` : ""),
     notes: [
       r.origin ? `Xuất xứ: ${r.origin}` : null,

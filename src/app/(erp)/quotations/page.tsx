@@ -184,22 +184,22 @@ export default function QuotationListPage() {
     DRAFT: {
       label: "Bản Nháp",
       icon: Clock,
-      className: "bg-slate-800 text-slate-300 border-slate-700",
+      className: "bg-surface-hover text-muted-foreground border-border",
     },
     PENDING_APPROVAL: {
       label: "Chờ Duyệt",
       icon: AlertTriangle,
-      className: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+      className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30",
     },
     APPROVED: {
       label: "Đã Duyệt",
       icon: CheckCircle2,
-      className: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30",
     },
     REJECTED: {
       label: "Từ Chối",
       icon: XCircle,
-      className: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+      className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30",
     },
   };
 
@@ -292,13 +292,13 @@ export default function QuotationListPage() {
             <tbody className="divide-y divide-border font-sans">
               {loading || loadError ? <TableFeedback columns={10} loading={loading} error={loadError} onRetry={loadQuotations} /> : quotations.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
                     Không tìm thấy hồ sơ báo giá phù hợp.
                   </td>
                 </tr>
               ) : (
                 quotations.slice(pagination.start, pagination.end).map((q) => {
-                  const badge = statusBadges[q.status] || { label: q.status, icon: Clock, className: "bg-slate-800 text-slate-300 border-slate-700" };
+                  const badge = statusBadges[q.status] || { label: q.status, icon: Clock, className: "bg-surface-hover text-muted-foreground border-border" };
                   const Icon = badge.icon;
                   const isSelected = selectedQuotationId === q.quotationId && isDrawerOpen;
 
@@ -344,19 +344,19 @@ export default function QuotationListPage() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-600 italic">Chưa chọn tuyến</span>
+                          <span className="text-muted-foreground italic">Chưa chọn tuyến</span>
                         )}
                       </td>
 
                       {/* Doanh Thu SELL */}
-                      <td className="py-2.5 px-3 text-right font-mono font-semibold text-white whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground whitespace-nowrap">
                         {formatVND(q.totalSellAmount)}
                       </td>
 
                       {/* Lãi Gộp GP */}
                       <td
-                        className={`py-2.5 px-3 text-right font-mono font-medium whitespace-nowrap ${
-                          q.estimatedGp >= 0 ? "text-emerald-400" : "text-rose-400"
+                        className={`py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap ${
+                          q.estimatedGp >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                         }`}
                       >
                         {formatVND(q.estimatedGp)}
@@ -367,10 +367,10 @@ export default function QuotationListPage() {
                         <span
                           className={`px-1.5 py-0.5 rounded text-xs font-bold ${
                             q.estimatedMarginPercent >= 15
-                              ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                              ? "text-emerald-700 bg-emerald-50 border border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20"
                               : q.estimatedMarginPercent >= 5
-                              ? "text-amber-400 bg-amber-500/10 border border-amber-500/20"
-                              : "text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                              ? "text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20"
+                              : "text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-400 dark:bg-rose-500/10 dark:border-rose-500/20"
                           }`}
                         >
                           {q.estimatedMarginPercent}%
@@ -388,7 +388,7 @@ export default function QuotationListPage() {
                       </td>
 
                       {/* Người Lập */}
-                      <td className="py-2.5 px-3 text-slate-400 text-xs truncate max-w-[130px]" title={q.createdBy}>
+                      <td className="py-2.5 px-3 text-muted-foreground text-xs truncate max-w-[130px]" title={q.createdBy}>
                         {q.createdBy}
                       </td>
 
@@ -398,7 +398,7 @@ export default function QuotationListPage() {
                           {q.status === "APPROVED" && (
                             <button
                               onClick={() => handleOpenPrintModal(q.quotationId)}
-                              className="px-2 py-1 rounded bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-xs font-medium flex items-center gap-1 transition-colors"
+                              className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-600/15 dark:hover:bg-emerald-600/25 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-medium flex items-center gap-1 transition-colors"
                               title="Xuất bảng chào giá thương mại cho khách hàng"
                             >
                               <Printer className="w-3 h-3" />
@@ -407,7 +407,7 @@ export default function QuotationListPage() {
                           )}
                           <button
                             onClick={() => handleOpenDrawer(q.quotationId)}
-                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-0.5 transition-colors"
+                            className="px-2.5 py-1 rounded bg-surface border border-border hover:bg-surface-hover text-foreground text-xs font-medium flex items-center gap-0.5 transition-colors shadow-xs"
                           >
                             Chi tiết <ChevronRight className="w-3 h-3" />
                           </button>
@@ -495,39 +495,39 @@ export default function QuotationListPage() {
 
             {/* Drawer Body Content */}
             {drawerLoading ? (
-              <div className="flex-1 flex items-center justify-center p-12 text-slate-500 text-xs">
+              <div className="flex-1 flex items-center justify-center p-12 text-muted-foreground text-xs">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
                 Đang tải chi tiết báo giá…
               </div>
             ) : !drawerDetail ? (
-              <div className="flex-1 p-8 text-center text-slate-500 text-xs">
+              <div className="flex-1 p-8 text-center text-muted-foreground text-xs">
                 <p role="alert">Không tải được chi tiết báo giá.</p>
-                <button type="button" className="erp-button mt-3 border border-slate-700" onClick={() => selectedQuotationId && handleOpenDrawer(selectedQuotationId)}>Thử lại</button>
+                <button type="button" className="erp-button mt-3 border border-border" onClick={() => selectedQuotationId && handleOpenDrawer(selectedQuotationId)}>Thử lại</button>
               </div>
             ) : (
               <div className="flex-1 p-5 space-y-6">
                 {/* Status Bar */}
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <div className="p-3.5 rounded-xl bg-background border border-border flex items-center justify-between">
                   <div>
-                    <div className="text-xs text-slate-400">Trạng thái Hồ Sơ:</div>
-                    <div className="text-xs font-bold text-white mt-0.5 flex items-center gap-1.5">
+                    <div className="text-xs text-muted-foreground">Trạng thái Hồ Sơ:</div>
+                    <div className="text-xs font-bold text-foreground mt-0.5 flex items-center gap-1.5">
                       {drawerDetail.quote.status === "APPROVED" && (
-                        <span className="text-emerald-400 flex items-center gap-1">
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-4 h-4" /> ĐÃ PHÊ DUYỆT (IMMUTABLE LOCKED)
                         </span>
                       )}
                       {drawerDetail.quote.status === "PENDING_APPROVAL" && (
-                        <span className="text-amber-400 flex items-center gap-1">
+                        <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
                           <Clock className="w-4 h-4" /> CHỜ HỘI ĐỒNG PHÊ DUYỆT
                         </span>
                       )}
                       {drawerDetail.quote.status === "DRAFT" && (
-                        <span className="text-slate-300 flex items-center gap-1">
-                          <Clock className="w-4 h-4 text-slate-500" /> Bản nháp
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-4 h-4" /> Bản nháp
                         </span>
                       )}
                       {drawerDetail.quote.status === "REJECTED" && (
-                        <span className="text-rose-400 flex items-center gap-1">
+                        <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
                           <XCircle className="w-4 h-4" /> ĐÃ TỪ CHỐI (REJECTED)
                         </span>
                       )}
@@ -538,7 +538,7 @@ export default function QuotationListPage() {
                     {drawerDetail.quote.status === "APPROVED" && (
                       <button
                         onClick={() => handleOpenPrintModal(drawerDetail.quote.quotationId)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
                       >
                         <Printer className="w-3.5 h-3.5" /> Xuất Bảng Giá Khách Hàng
                       </button>
@@ -548,50 +548,50 @@ export default function QuotationListPage() {
 
                 {/* Section 1: Customer & Commercial Terms */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-primary" />
                     Khách Hàng & Điều Khoản Thương Mại
                   </div>
-                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-background border border-border text-xs">
                     <div>
-                      <span className="text-slate-500 block text-xs">Đơn vị khách hàng:</span>
-                      <strong className="text-slate-100 font-semibold mt-0.5 block">
+                      <span className="text-muted-foreground block text-xs">Đơn vị khách hàng:</span>
+                      <strong className="text-foreground font-semibold mt-0.5 block">
                         {drawerDetail.quote.customerName}
                       </strong>
                       {drawerDetail.quote.taxCode && (
-                        <span className="text-slate-400 font-mono text-xs block mt-0.5">
+                        <span className="text-muted-foreground font-mono text-xs block mt-0.5">
                           MST: {drawerDetail.quote.taxCode}
                         </span>
                       )}
                     </div>
 
                     <div>
-                      <span className="text-slate-500 block text-xs">Phân vùng áp dụng:</span>
-                      <strong className="text-slate-100 font-semibold mt-0.5 block">
+                      <span className="text-muted-foreground block text-xs">Phân vùng áp dụng:</span>
+                      <strong className="text-foreground font-semibold mt-0.5 block">
                         {drawerDetail.quote.regionName}
                       </strong>
-                      <span className="text-slate-400 text-xs block mt-0.5">
-                        Hạn thanh toán: <strong className="text-slate-200">{drawerDetail.quote.paymentTermsDays} ngày</strong>
+                      <span className="text-muted-foreground text-xs block mt-0.5">
+                        Hạn thanh toán: <strong className="text-foreground">{drawerDetail.quote.paymentTermsDays} ngày</strong>
                       </span>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-slate-500 block text-xs">Người lập báo giá:</span>
-                      <span className="text-slate-300 font-medium text-xs mt-0.5 block">
+                    <div className="pt-2 border-t border-border">
+                      <span className="text-muted-foreground block text-xs">Người lập báo giá:</span>
+                      <span className="text-foreground font-medium text-xs mt-0.5 block">
                         {drawerDetail.quote.createdBy}
                       </span>
-                      <span className="text-slate-500 text-xs font-mono block">
+                      <span className="text-muted-foreground text-xs font-mono block">
                         Ngày tạo: {new Date(drawerDetail.quote.createdAt).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-slate-500 block text-xs">Người thẩm định duyệt:</span>
-                      <span className="text-slate-300 font-medium text-xs mt-0.5 block">
+                    <div className="pt-2 border-t border-border">
+                      <span className="text-muted-foreground block text-xs">Người thẩm định duyệt:</span>
+                      <span className="text-foreground font-medium text-xs mt-0.5 block">
                         {drawerDetail.quote.approvedBy || "Chưa phê duyệt"}
                       </span>
                       {drawerDetail.quote.approvedAt && (
-                        <span className="text-emerald-400 text-xs font-mono block">
+                        <span className="text-emerald-600 dark:text-emerald-400 text-xs font-mono block">
                           Ngày duyệt: {new Date(drawerDetail.quote.approvedAt).toLocaleDateString("vi-VN")}
                         </span>
                       )}
@@ -601,45 +601,45 @@ export default function QuotationListPage() {
 
                 {/* Section 2: P&L Summary Matrix */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     Hiệu Quả Kinh Doanh P&L (Chuẩn VND)
                   </div>
-                  <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-center font-mono">
-                    <div className="p-2 rounded bg-slate-900 border border-slate-800/60">
-                      <span className="text-xs text-slate-400 block font-sans">Doanh Thu (SELL)</span>
-                      <span className="text-xs font-bold text-white mt-1 block">
+                  <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-background border border-border text-center font-mono">
+                    <div className="p-2 rounded bg-surface border border-border shadow-xs">
+                      <span className="text-xs text-muted-foreground block font-sans">Doanh Thu (SELL)</span>
+                      <span className="text-xs font-bold text-foreground mt-1 block">
                         {formatVND(drawerDetail.quote.totalSellAmount)}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded bg-slate-900 border border-slate-800/60">
-                      <span className="text-xs text-slate-400 block font-sans">Giá Vốn (BUY)</span>
-                      <span className="text-xs font-bold text-amber-400 mt-1 block">
+                    <div className="p-2 rounded bg-surface border border-border shadow-xs">
+                      <span className="text-xs text-muted-foreground block font-sans">Giá Vốn (BUY)</span>
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-1 block">
                         {formatVND(drawerDetail.quote.totalEstimatedBuy)}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded bg-slate-900 border border-slate-800/60">
-                      <span className="text-xs text-slate-400 block font-sans">Lãi Gộp (GP)</span>
+                    <div className="p-2 rounded bg-surface border border-border shadow-xs">
+                      <span className="text-xs text-muted-foreground block font-sans">Lãi Gộp (GP)</span>
                       <span
                         className={`text-xs font-bold mt-1 block ${
-                          drawerDetail.quote.estimatedGp >= 0 ? "text-emerald-400" : "text-rose-400"
+                          drawerDetail.quote.estimatedGp >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                         }`}
                       >
                         {formatVND(drawerDetail.quote.estimatedGp)}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded bg-slate-900 border border-slate-800/60">
-                      <span className="text-xs text-slate-400 block font-sans">Biên Lợi Nhuận</span>
+                    <div className="p-2 rounded bg-surface border border-border shadow-xs">
+                      <span className="text-xs text-muted-foreground block font-sans">Biên Lợi Nhuận</span>
                       <span
                         className={`text-xs font-semibold mt-1 block ${
                           drawerDetail.quote.estimatedMarginPercent >= 15
-                            ? "text-emerald-400"
+                            ? "text-emerald-600 dark:text-emerald-400"
                             : drawerDetail.quote.estimatedMarginPercent >= 5
-                            ? "text-amber-400"
-                            : "text-rose-400"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-rose-600 dark:text-rose-400"
                         }`}
                       >
                         {drawerDetail.quote.estimatedMarginPercent}%
@@ -650,17 +650,17 @@ export default function QuotationListPage() {
 
                 {/* Section 3: Service Items & Routes */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                      <Layers className="w-3.5 h-3.5 text-primary" />
                       Danh Mục Dịch Vụ Logistics ({drawerDetail.items.length})
                     </span>
-                    <span className="text-xs text-slate-500 font-mono">ORDER_SERVICE_ITEMS</span>
+                    <span className="text-xs text-muted-foreground font-mono">ORDER_SERVICE_ITEMS</span>
                   </div>
 
-                  <div className="border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="border border-border rounded-xl overflow-hidden bg-surface shadow-xs">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
+                      <thead className="bg-surface-hover text-muted-foreground text-xs uppercase border-b border-border">
                         <tr>
                           <th className="py-2 px-3">Dịch Vụ / Tuyến</th>
                           <th className="py-2 px-2 text-center">Thiết Bị</th>
@@ -670,39 +670,39 @@ export default function QuotationListPage() {
                           <th className="py-2 px-2 text-center">Margin</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-border font-sans">
                         {drawerDetail.items.map((it, idx) => (
-                          <tr key={it.itemId || idx} className="hover:bg-slate-950/40">
+                          <tr key={it.itemId || idx} className="hover:bg-surface-hover transition-colors">
                             <td className="py-2.5 px-3">
-                              <div className="font-semibold text-slate-200">
+                              <div className="font-semibold text-foreground">
                                 #{idx + 1}. {it.servicePackage}
                               </div>
-                              <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                                 <span>{it.originName || "Điểm đi"}</span>
-                                <ArrowRight className="w-3 h-3 text-slate-600 shrink-0" />
+                                <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
                                 <span>{it.destinationName || "Điểm đến"}</span>
                               </div>
                             </td>
-                            <td className="py-2.5 px-2 text-center font-mono text-xs text-cyan-400">
+                            <td className="py-2.5 px-2 text-center font-mono text-xs text-primary font-bold">
                               {it.equipmentType}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-mono text-xs">
+                            <td className="py-2.5 px-2 text-center font-mono text-xs text-foreground">
                               {it.plannedQuantity} {it.unit}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-white">
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-foreground">
                               {formatVND(it.totalSellPrice)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-amber-400">
+                            <td className="py-2.5 px-3 text-right font-mono text-amber-600 dark:text-amber-400">
                               {formatVND(it.estimatedBuyAmount)}
                             </td>
                             <td className="py-2.5 px-2 text-center font-mono font-bold text-xs">
                               <span
                                 className={
                                   it.itemMarginPercent >= 15
-                                    ? "text-emerald-400"
+                                    ? "text-emerald-600 dark:text-emerald-400"
                                     : it.itemMarginPercent >= 5
-                                    ? "text-amber-400"
-                                    : "text-rose-400"
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-rose-600 dark:text-rose-400"
                                 }
                               >
                                 {it.itemMarginPercent}%
@@ -718,32 +718,32 @@ export default function QuotationListPage() {
                 {/* Section 4: BUY Snapshot (Thẩm định giá mua NCC nội bộ) */}
                 {drawerDetail.snapshots.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-amber-400" />
+                        <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                         Giá mua đã lưu · Nội bộ
                       </span>
-                      <span className="text-xs text-amber-400/80 font-mono">Chỉ đọc</span>
+                      <span className="text-xs text-amber-600/80 dark:text-amber-400/80 font-mono">Chỉ đọc</span>
                     </div>
 
                     <div className="space-y-1.5">
                       {drawerDetail.snapshots.map((s, sIdx) => (
                         <div
                           key={s.snapshotId || sIdx}
-                          className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs flex items-center justify-between"
+                          className="p-3 rounded-lg bg-background border border-border text-xs flex items-center justify-between shadow-xs"
                         >
                           <div>
-                            <div className="font-semibold text-slate-200">{s.vendorName}</div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5">
+                            <div className="font-semibold text-foreground">{s.vendorName}</div>
+                            <div className="text-xs text-muted-foreground font-mono mt-0.5">
                               Hiệu lực: {s.validityStart} &rarr; {s.validityEnd}
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-mono font-bold text-amber-400">
+                            <div className="font-mono font-bold text-amber-600 dark:text-amber-400">
                               Đơn giá: {formatVND(s.rateAmountVnd)}
                             </div>
                             {s.originalCurrency !== "VND" && (
-                              <div className="text-xs text-slate-500 font-mono">
+                              <div className="text-xs text-muted-foreground font-mono">
                                 ({s.rateAmount} {s.originalCurrency} • FX {s.fxRateToVnd})
                               </div>
                             )}
@@ -757,8 +757,8 @@ export default function QuotationListPage() {
                 {/* Section 5: Approval Audit Trail */}
                 {drawerDetail.approvalLogs.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                    <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-primary" />
                       Nhật Ký Thẩm Định & Phê Duyệt (Audit Trail)
                     </div>
 
@@ -766,37 +766,37 @@ export default function QuotationListPage() {
                       {drawerDetail.approvalLogs.map((log) => (
                         <div
                           key={log.logId}
-                          className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-xs flex items-start justify-between gap-3"
+                          className="p-2.5 rounded-lg bg-background border border-border text-xs flex items-start justify-between gap-3 shadow-xs"
                         >
                           <div>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-xs px-1.5 py-0.2 rounded font-mono font-bold ${
+                                className={`text-xs px-1.5 py-0.5 rounded font-mono font-bold ${
                                   log.action === "APPROVED"
-                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300"
                                     : log.action === "REJECTED"
-                                    ? "bg-rose-500/15 text-rose-300"
-                                    : "bg-blue-500/15 text-blue-300"
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-300"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-300"
                                 }`}
                               >
                                 {log.action}
                               </span>
-                              <span className="font-semibold text-slate-200">
+                              <span className="font-semibold text-foreground">
                                 {log.actorName || log.actorId}
                               </span>
                             </div>
                             {log.comment && (
-                              <p className="text-xs text-slate-400 mt-1 italic">
+                              <p className="text-xs text-muted-foreground mt-1 italic">
                                 &ldquo;{log.comment}&rdquo;
                               </p>
                             )}
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="text-xs text-slate-500 font-mono block">
+                            <span className="text-xs text-muted-foreground font-mono block">
                               {new Date(log.createdAt).toLocaleDateString("vi-VN")}
                             </span>
                             {log.snapshotMarginPercent != null && (
-                              <span className="text-xs text-slate-400 font-mono block">
+                              <span className="text-xs text-muted-foreground font-mono block">
                                 Margin: {log.snapshotMarginPercent}%
                               </span>
                             )}
@@ -811,29 +811,29 @@ export default function QuotationListPage() {
 
             {/* Drawer Footer Actions (When PENDING_APPROVAL) */}
             {drawerDetail && drawerDetail.quote.status === "PENDING_APPROVAL" && (
-              <div className="p-4 border-t border-slate-800 bg-slate-950 shrink-0 flex items-center justify-between gap-2">
-                <span className="text-xs text-amber-400 font-medium flex items-center gap-1">
+              <div className="p-4 border-t border-border bg-surface shrink-0 flex items-center justify-between gap-2">
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" /> Chờ thẩm định
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleReturnToDraftFromDrawer}
                     disabled={isPending}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-surface border border-border hover:bg-surface-hover text-foreground text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> Trả về nháp
                   </button>
                   <button
                     onClick={handleRejectFromDrawer}
                     disabled={isPending}
-                    className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-600/20 dark:hover:bg-rose-600/30 dark:text-rose-300 dark:border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-colors"
                   >
                     <XCircle className="w-3.5 h-3.5" /> Từ Chối
                   </button>
                   <button
                     onClick={handleApproveFromDrawer}
                     disabled={isPending}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20"
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
                   >
                     <Check className="w-3.5 h-3.5" /> Phê Duyệt
                   </button>
