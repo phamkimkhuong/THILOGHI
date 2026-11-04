@@ -4,7 +4,11 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
+import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { usePermission } from "@/components/auth/permission-guard";
+import { CurrencyInput, QuantityInput } from "@/components/ui/currency-input";
+import { Button } from "@/components/ui/button";
 import { getQuotationMasterDataAction, getQuotationDetailAction, lookupRoadRatesAction, saveDraftQuotationAction, approveQuotationAction, rejectQuotationAction, returnQuotationToDraftAction } from "@/features/quotation/actions";
 import { createQuotationVersionAction } from "@/features/quotation/phase4-actions";
 import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
@@ -50,8 +54,8 @@ function Workspace() {
   const opener = useRef<HTMLElement | null>(null);
   const status = detail?.quote.status ?? "DRAFT";
   const actor = master && "actor" in master ? master.actor : undefined;
-  const canEdit = !!actor && ["ADMIN", "DIRECTOR", "SALES", "PRICING_SPECIALIST", "PRICING_MANAGER"].includes(actor.role);
-  const manager = !!actor && ["ADMIN", "DIRECTOR", "PRICING_MANAGER"].includes(actor.role);
+  const { can: canDo, isManager: manager } = usePermission(actor);
+  const canEdit = canDo("QUOTATION_EDIT");
   const locked = !canEdit || status !== "DRAFT" || !!detail?.quote.immutableLocked || busy || loading || !!loadError;
   const dirty = !!baseline && commercialFingerprint(header, items) !== baseline;
   const totals = calculateQuotationFinancials(items);
@@ -106,7 +110,11 @@ function Workspace() {
   async function perform(task: () => Promise<void>) {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setError(""); setMessage("");
-    try { await task(); } catch(e) { setError(e instanceof Error ? e.message : "Thao tác thất bại. Vui lòng thử lại."); }
+    try { await task(); } catch(e) {
+      const msg = e instanceof Error ? e.message : "Thao tác thất bại. Vui lòng thử lại.";
+      setError(msg);
+      toast.error(msg);
+    }
     finally { busyRef.current = false; setBusy(false); }
   }
   async function refresh(id: string) {
@@ -134,14 +142,20 @@ function Workspace() {
     // Record the durable ID before refreshing so a failed reload cannot create a duplicate.
     window.history.replaceState(window.history.state,"",`/quotations/new?id=${result.data.quotationId}`);
     await refresh(result.data.quotationId);
-    setMessage(submit ? "Đã lưu và gửi duyệt." : "Đã lưu bản nháp.");
+    const saveMsg = submit ? "Đã lưu và gửi duyệt báo giá." : "Đã lưu bản nháp báo giá.";
+    setMessage(saveMsg);
+    toast.success(saveMsg);
   }); }
   function decide() { if (!detail || !review) return; void perform(async () => {
     if ((review !== "APPROVE" && !comment.trim()) || (review === "APPROVE" && detail.quote.estimatedMarginPercent < 15 && comment.trim().length < 5)) throw new Error("Vui lòng nhập lý do (duyệt biên thấp cần ít nhất 5 ký tự).");
     const fn = review === "APPROVE" ? approveQuotationAction : review === "REJECT" ? rejectQuotationAction : returnQuotationToDraftAction;
     const result = await fn(detail.quote.quotationId,comment.trim());
     if (!result.success) throw new Error(result.error ?? "Không xử lý được yêu cầu.");
-    setReview(null); await refresh(detail.quote.quotationId); setMessage("Đã cập nhật trạng thái báo giá.");
+    setReview(null);
+    await refresh(detail.quote.quotationId);
+    const statusMsg = review === "APPROVE" ? "Đã phê duyệt báo giá thành công." : review === "REJECT" ? "Đã từ chối báo giá." : "Đã trả báo giá về bản nháp.";
+    setMessage(statusMsg);
+    toast.success(statusMsg);
   }); }
   function startReview(action: "APPROVE" | "REJECT" | "RETURN") { opener.current = document.activeElement as HTMLElement; setComment("");setError("");setReview(action); }
   return <div className="space-y-5 text-foreground">
@@ -153,7 +167,7 @@ function Workspace() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section className={panel}><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">2. Các dòng dịch vụ</h2><button className="erp-button" disabled={locked || items.length>=200} onClick={()=>{setItems(prev=>[...prev,emptyServiceItem(crypto.randomUUID())]);setActive(items.length);}}>Thêm dòng</button></div>
           <div className="overflow-x-auto"><table className="erp-table w-full"><thead><tr><th>Dòng</th><th>Tuyến</th><th>Số lượng</th><th>Giá mua / đơn vị</th><th>Giá bán / đơn vị</th><th /></tr></thead><tbody>{items.map((x,i)=><tr key={x.id} className={active===i ? "bg-blue-50 dark:bg-blue-950/50" : ""}><td><button className="erp-button" disabled={busy} aria-pressed={active===i} onClick={()=>setActive(i)}>{i+1}</button></td><td>{master?.locations.find(l=>l.id===x.originLocationId)?.name ?? x.originLocationId ?? ""} → {master?.locations.find(l=>l.id===x.destinationLocationId)?.name ?? x.destinationLocationId ?? ""}<small className="block text-amber-600 dark:text-amber-300">{status === "DRAFT" ? rateWarning(x) : ""}</small></td><td>{x.plannedQuantity} {x.unit}</td><td>{x.selectedBuyRateId ? money(x.unitBuyPrice) : "Chưa có"}</td><td>{money(x.unitSellPrice)}</td><td><button className="erp-button" aria-label={`Xóa dòng ${i+1}`} disabled={locked || items.length<=1} onClick={()=>{setItems(prev=>prev.filter((_,n)=>n!==i));setActive(0);}}>Xóa</button></td></tr>)}</tbody></table></div>
-          {item && <fieldset disabled={locked} className="space-y-4"><legend className="mb-3 font-semibold">Chi tiết dòng {active+1} · {item.servicePackage === "TRUCKING" ? "Vận tải đường bộ" : item.servicePackage}</legend><div className="grid gap-4 sm:grid-cols-2"><Choice label="Điểm đi" value={item.originLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({originLocationId:v},true)} /><Choice label="Điểm đến" value={item.destinationLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({destinationLocationId:v},true)} /><Choice label="Thiết bị" value={item.equipmentType} options={master?.equipmentTypes ?? []} disabled={locked} onChange={v=>updateItem({equipmentType:v},true)} /><label className="text-sm">Cách tính phí<select className={inputClass} value={item.pricingInclusion} onChange={e=>updateItem({pricingInclusion:e.target.value as ServiceItemState["pricingInclusion"]})}><option value="INCLUDED">Trong giá chào</option><option value="SEPARATELY_BILLED">Thu riêng</option><option value="PASS_THROUGH_ACTUAL">Thu theo thực tế (tạm tính)</option></select></label><label className="text-sm">Số lượng<input className={inputClass} type="number" min={1} max={99999999} step="0.01" value={item.plannedQuantity} onChange={e=>updateItem({plannedQuantity:Number(e.target.value)})} /></label><label className="text-sm">Đơn vị<input className={inputClass} maxLength={20} value={item.unit} onChange={e=>updateItem({unit:e.target.value})} /></label><label className="text-sm">Giá bán / đơn vị (VND)<input className={inputClass} type="number" min={0} step={1} value={item.unitSellPrice} onChange={e=>updateItem({unitSellPrice:Number(e.target.value)})} /></label></div><button type="button" className="erp-button bg-blue-600 text-white font-bold" onClick={lookup}>Tra và so sánh giá NCC</button></fieldset>}
+          {item && <fieldset disabled={locked} className="space-y-4"><legend className="mb-3 font-semibold">Chi tiết dòng {active+1} · {item.servicePackage === "TRUCKING" ? "Vận tải đường bộ" : item.servicePackage}</legend><div className="grid gap-4 sm:grid-cols-2"><Choice label="Điểm đi" value={item.originLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({originLocationId:v},true)} /><Choice label="Điểm đến" value={item.destinationLocationId} options={master?.locations ?? []} disabled={locked} onChange={v=>updateItem({destinationLocationId:v},true)} /><Choice label="Thiết bị" value={item.equipmentType} options={master?.equipmentTypes ?? []} disabled={locked} onChange={v=>updateItem({equipmentType:v},true)} /><label className="text-sm">Cách tính phí<select className={inputClass} value={item.pricingInclusion} onChange={e=>updateItem({pricingInclusion:e.target.value as ServiceItemState["pricingInclusion"]})}><option value="INCLUDED">Trong giá chào</option><option value="SEPARATELY_BILLED">Thu riêng</option><option value="PASS_THROUGH_ACTUAL">Thu theo thực tế (tạm tính)</option></select></label><label className="text-sm">Số lượng<QuantityInput disabled={locked} value={item.plannedQuantity} onValueChange={v=>updateItem({plannedQuantity: v ?? 1})} /></label><label className="text-sm">Đơn vị<input className={inputClass} maxLength={20} value={item.unit} onChange={e=>updateItem({unit:e.target.value})} /></label><label className="text-sm">Giá bán / đơn vị (VND)<CurrencyInput disabled={locked} value={item.unitSellPrice} onValueChange={v=>updateItem({unitSellPrice: v ?? 0})} /></label></div><Button type="button" variant="primary" loading={busy} onClick={lookup}>Tra và so sánh giá NCC</Button></fieldset>}
           {item?.selectedCandidate && <div className="rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-sm text-foreground">Đã chọn: <strong>{item.selectedCandidate.vendorName}</strong> · {money(item.unitBuyPrice)} / {item.unit}<div className="text-muted-foreground">Giá gốc {item.selectedCandidate.buyRate.toLocaleString("vi-VN")} {item.selectedCandidate.currency} · Hiệu lực {item.selectedCandidate.validityStart} → trước {item.selectedCandidate.validityEnd}</div></div>}
           {!!item?.lookupResult?.candidates.length && <div className="overflow-x-auto"><p className="mb-2 text-sm text-muted-foreground">So sánh theo đơn giá quy đổi VND. Tỷ giá theo cấu hình nội bộ; chọn NCC để xác nhận.</p><table className="erp-table w-full"><thead><tr><th>NCC</th><th>Giá gốc</th><th>Tỷ giá</th><th>Quy đổi VND</th><th>Hiệu lực [từ, đến)</th><th /></tr></thead><tbody>{item.lookupResult.candidates.map(candidate=><tr key={candidate.rateId}><td>{candidate.vendorName}</td><td>{candidate.buyRate.toLocaleString("vi-VN")} {candidate.currency}</td><td>{candidate.fxRateToVnd}</td><td>{money(candidate.buyRateVnd)}</td><td>{candidate.validityStart} → {candidate.validityEnd}</td><td><button className="erp-button" disabled={locked || ["ERROR","CONFLICT_RATE"].includes(item.lookupResult!.status)} onClick={()=>updateItem({selectedCandidate:candidate,selectedBuyRateId:candidate.rateId,unitBuyPrice:candidate.buyRateVnd})}>{item.selectedBuyRateId===candidate.rateId ? "Đã chọn" : "Chọn NCC"}</button></td></tr>)}</tbody></table></div>}
         </section>

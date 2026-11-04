@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   PlusCircle,
   Clock,
@@ -292,8 +293,16 @@ export default function QuotationListPage() {
             <tbody className="divide-y divide-border font-sans">
               {loading || loadError ? <TableFeedback columns={10} loading={loading} error={loadError} onRetry={loadQuotations} /> : quotations.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                    Không tìm thấy hồ sơ báo giá phù hợp.
+                  <td colSpan={10} className="p-8">
+                    <EmptyState
+                      title="Không tìm thấy hồ sơ báo giá phù hợp"
+                      description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo trạng thái / phân vùng."
+                      action={
+                        <Link href="/quotations/new" className="erp-button bg-primary text-white hover:bg-primary-hover shadow-xs font-bold inline-flex items-center gap-1.5">
+                          <PlusCircle className="w-4 h-4" /> Lập báo giá mới
+                        </Link>
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

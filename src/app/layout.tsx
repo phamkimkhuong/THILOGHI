@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "THILOGI | Quản lý báo giá",
+  title: {
+    default: "THILOGI - Chu Lai International Logistics Hub",
+    template: "%s | THILOGI",
+  },
   description:
-    "Quản lý danh mục logistics, giá mua đường bộ và báo giá khách hàng.",
+    "Hệ thống quản lý định giá, cước vận tải đường bộ và báo giá khách hàng - Tập đoàn THILOGI.",
 };
 
 export default function RootLayout({
@@ -16,6 +20,7 @@ export default function RootLayout({
     <html lang="vi" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-blue-600 selection:text-white" suppressHydrationWarning>
         {children}
+        <Toaster />
       </body>
     </html>
   );

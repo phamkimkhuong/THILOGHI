@@ -6,6 +6,8 @@ import Link from "next/link";
 import { catalogs, type Catalog, type Field } from "@/features/master-data/maintenance-config";
 import { historyMaintenanceAction, listMaintenanceAction, optionsMaintenanceAction, saveMaintenanceAction } from "@/features/master-data/maintenance-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { toast } from "sonner";
+import { usePermission } from "@/components/auth/permission-guard";
 
 type Row = Record<string, unknown>;
 const control = "w-full rounded border border-border bg-surface p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -62,7 +64,7 @@ export default function MaintenancePage() {
   const historyGeneration = useRef(0);
   const generation = useRef(0);
   const c = catalogs[kind];
-  const manager = ["ADMIN", "DIRECTOR", "PRICING_MANAGER"].includes(role);
+  const { isManager: manager } = usePermission({ role });
   const canWrite = manager || (kind === "rates" && role === "PRICING_SPECIALIST");
   const editable = canWrite && (kind !== "rates" || !selected || ["DRAFT", "REJECTED"].includes(String(selected.status)));
   const dirty = selected && (c.fields as Field[]).some(f => (fields[f.key] ?? "") !== (selected[f.key] == null ? "" : String(selected[f.key])));
@@ -95,8 +97,13 @@ export default function MaintenancePage() {
     try {
       const result = await saveMaintenanceAction({ kind, action, id: selected ? String(selected[c.id]) : ["customers", "vendors"].includes(kind) ? partnerId : undefined, revision: selected ? String(selected.revision) : undefined, fields: action === "SAVE" ? fields : undefined, comment });
       if (!result.success) throw new Error(result.error);
-      setOpen(false); setNotice(`Đã lưu thao tác cho ${result.id}.`); await load();
-    } catch (e) { setFormError(e instanceof Error ? e.message : "Không lưu được. Vui lòng thử lại."); }
+      const msg = `Đã lưu thao tác cho ${result.id}.`;
+      setOpen(false); setNotice(msg); toast.success(msg); await load();
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : "Không lưu được. Vui lòng thử lại.";
+      setFormError(errMsg);
+      toast.error(errMsg);
+    }
     finally { setBusy(false); }
   }
   async function showHistory() {
