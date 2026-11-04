@@ -26,6 +26,8 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   getCustomersAndVendorsAction,
   getPartnersDirectoryAction,
@@ -88,7 +90,7 @@ export default function MasterCustomersPage() {
   const { loading: isLoadingAudit, error: auditError, runLoad: runAudit } = useListFeedback();
 
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("customers_directory_cache");
 
   const loadData = useCallback(() => {
     void runLoad(async (isCurrent) => {
@@ -417,8 +419,12 @@ export default function MasterCustomersPage() {
               <tbody className="divide-y divide-border font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy khách hàng phù hợp.
+                    <td colSpan={8} className="p-8">
+                      <EmptyState
+                        icon={Building2}
+                        title="Không tìm thấy khách hàng phù hợp"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo trạng thái / hạn nợ."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -503,8 +509,12 @@ export default function MasterCustomersPage() {
               <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredVendors.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy nhà cung cấp phù hợp.
+                    <td colSpan={8} className="p-8">
+                      <EmptyState
+                        icon={Truck}
+                        title="Không tìm thấy nhà xe / đối tác phù hợp"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo loại hình vận tải."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -570,8 +580,12 @@ export default function MasterCustomersPage() {
               <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={8} loading={loading} error={loadError} onRetry={loadData} /> : filteredPartners.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy đối tác trong danh mục.
+                    <td colSpan={8} className="p-8">
+                      <EmptyState
+                        icon={Users}
+                        title="Không tìm thấy đối tác trong danh mục"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc theo trạng thái vai trò."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -818,14 +832,12 @@ export default function MasterCustomersPage() {
                         <label className="text-xs text-muted-foreground block mb-1">
                           Hạn mức tín dụng (VND):
                         </label>
-                        <input
-                          type="number"
-                          step="10000000"
-                          min="0"
-                          placeholder="Để trống: chưa cấu hình | 0: không cấp nợ" aria-label="Để trống: chưa cấu hình | 0: không cấp nợ"
-                          value={creditLimitInput}
-                          onChange={(e) => setCreditLimitInput(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-md text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-muted-foreground"
+                        <CurrencyInput
+                          value={creditLimitInput === "" ? undefined : Number(creditLimitInput)}
+                          onValueChange={(val) => setCreditLimitInput(val !== undefined ? String(val) : "")}
+                          placeholder="Để trống: chưa cấu hình | 0: không cấp nợ"
+                          aria-label="Hạn mức tín dụng VND"
+                          className="w-full text-xs font-mono"
                         />
                         <span className="text-xs text-muted-foreground block mt-0.5">
                           {creditLimitInput.trim() === ""

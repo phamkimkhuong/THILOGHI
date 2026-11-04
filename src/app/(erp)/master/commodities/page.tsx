@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -25,7 +26,7 @@ export default function MasterCommoditiesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("commodities_list");
 
   const loadData = useCallback(() => {
     void runLoad(async (isCurrent) => {
@@ -141,8 +142,12 @@ export default function MasterCommoditiesPage() {
             <tbody className="divide-y divide-border/60 font-sans">
               {loading || loadError ? <TableFeedback columns={5} loading={loading} error={loadError} onRetry={loadData} /> : filteredCommodities.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
-                    Không tìm thấy mặt hàng phù hợp với điều kiện tìm kiếm.
+                  <td colSpan={5} className="p-8">
+                    <EmptyState
+                      icon={Package}
+                      title="Không tìm thấy mặt hàng phù hợp"
+                      description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo nhóm phân loại hàng hóa."
+                    />
                   </td>
                 </tr>
               ) : (

@@ -2,6 +2,7 @@
 
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
@@ -10,6 +11,7 @@ import {
   Filter,
   Phone,
   FileCheck,
+  Truck,
 } from "lucide-react";
 import { getFleetAction } from "@/features/master-data/actions";
 
@@ -47,7 +49,7 @@ export default function MasterFleetPage() {
 
 
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("fleet_list");
 
   const loadData = useCallback(() => {
     void runLoad(async (isCurrent) => {
@@ -267,8 +269,12 @@ export default function MasterFleetPage() {
               <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTractors.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy đầu kéo phù hợp.
+                    <td colSpan={6} className="p-8">
+                      <EmptyState
+                        icon={Truck}
+                        title="Không tìm thấy đầu kéo phù hợp"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm biển số hoặc tình trạng bảo dưỡng."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -320,8 +326,12 @@ export default function MasterFleetPage() {
               <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedTrailers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy rơ-moóc phù hợp.
+                    <td colSpan={6} className="p-8">
+                      <EmptyState
+                        icon={Truck}
+                        title="Không tìm thấy rơ-moóc phù hợp"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm biển số hoặc loại rơ-moóc chuyên dụng."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -371,8 +381,12 @@ export default function MasterFleetPage() {
               <tbody className="divide-y divide-border/60 font-sans">
                 {loading || loadError ? <TableFeedback columns={6} loading={loading} error={loadError} onRetry={loadData} /> : paginatedDrivers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                      Không tìm thấy tài xế phù hợp.
+                    <td colSpan={6} className="p-8">
+                      <EmptyState
+                        icon={User}
+                        title="Không tìm thấy tài xế phù hợp"
+                        description="Hãy thử thay đổi từ khóa tìm kiếm tên, số điện thoại hoặc giấy phép lái xe."
+                      />
                     </td>
                   </tr>
                 ) : (

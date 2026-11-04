@@ -14,18 +14,34 @@ export function RefreshButton({ onClick, loading }: { onClick: () => void; loadi
     <RefreshCw aria-hidden="true" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Làm mới
   </button>;
 }
+// Cache bộ nhớ tạm Client-side để hỗ trợ Stale-While-Revalidate khi chuyển tab
+const clientMemoryCache = new Set<string>();
+
+export function clearClientListCache(key?: string) {
+  if (key) clientMemoryCache.delete(key);
+  else clientMemoryCache.clear();
+}
+
 // A failed request must not look like an empty result.
-export function useListFeedback() {
-  const [loading, setLoading] = useState(true);
+export function useListFeedback(cacheKey?: string) {
+  const [loading, setLoading] = useState(() => (cacheKey ? !clientMemoryCache.has(cacheKey) : true));
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
-  const runLoad = useCallback(async (work: (isCurrent: () => boolean) => Promise<void>) => {
+
+  const runLoad = useCallback(async (work: (isCurrent: () => boolean) => Promise<void>, forceSpinner = false) => {
     const id = ++request.current;
-    setLoading(true); setError(null);
-    try { await work(() => id === request.current); }
+    if (forceSpinner || (cacheKey ? !clientMemoryCache.has(cacheKey) : true)) {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      await work(() => id === request.current);
+      if (cacheKey) clientMemoryCache.add(cacheKey);
+    }
     catch { if (id === request.current) setError("Không tải được dữ liệu. Vui lòng thử lại."); }
     finally { if (id === request.current) setLoading(false); }
-  }, []);
+  }, [cacheKey]);
+
   return { loading, error, runLoad };
 }
 export function TableFeedback({ columns, loading, error, onRetry }: { columns: number; loading: boolean; error: string | null; onRetry: () => void }) {

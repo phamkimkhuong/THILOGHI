@@ -2,6 +2,7 @@
 
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -48,7 +49,7 @@ export default function RoadRatesLibraryPage() {
   const [matcherEquipment, setMatcherEquipment] = useState("ALL");
 
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("road_rates_list");
 
   const loadRates = useCallback(() => {
     void runLoad(async (isCurrent) => {
@@ -295,8 +296,11 @@ export default function RoadRatesLibraryPage() {
             <tbody className="divide-y divide-border/60 font-sans">
               {loading || loadError ? <TableFeedback columns={9} loading={loading} error={loadError} onRetry={loadRates} /> : filteredRates.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                    Không tìm thấy bảng giá cước phù hợp với điều kiện lọc.
+                  <td colSpan={9} className="p-6">
+                    <EmptyState
+                      title="Không tìm thấy bảng giá cước"
+                      description="Không có tuyến vận chuyển nào phù hợp với điều kiện tìm kiếm hoặc bộ lọc hiện tại."
+                    />
                   </td>
                 </tr>
               ) : (

@@ -8,6 +8,7 @@ import { historyMaintenanceAction, listMaintenanceAction, optionsMaintenanceActi
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { usePermission } from "@/components/auth/permission-guard";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Row = Record<string, unknown>;
 const control = "w-full rounded border border-border bg-surface p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -125,7 +126,52 @@ export default function MaintenancePage() {
     <div className="flex flex-wrap gap-2"><input className={`${control} max-w-sm`} aria-label="Tìm bản ghi" placeholder="Tìm mã, tên, NCC hoặc tuyến…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} /><button className="erp-button" onClick={() => void load()} disabled={loading}>Tải lại</button>{canWrite && <button className="erp-button bg-blue-600 text-white" onClick={() => edit(null)}>Thêm {c.title.toLowerCase()}</button>}</div>
     {notice && <p role="status" className="text-green-700">{notice}</p>}
     {error && <p role="alert" className="text-red-600">{error}</p>}
-    {loading ? <p role="status">Đang tải…</p> : !error && <div className="overflow-x-auto"><table className="erp-table w-full"><thead><tr><th>Mã</th><th>{kind === "rates" ? "Tuyến / giá mua / hiệu lực" : "Tên / thông tin"}</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{rows.map(row => <tr key={String(row[c.id])}><td>{String(row[c.id])}</td><td>{kind === "rates" ? <><div>{String(row.pickup_name ?? row.pickup_location_id)} → {String(row.delivery_name ?? row.delivery_location_id)}</div><div>{String(row.vendor_name ?? row.vendor_id)} · {String(row.equipment_type)} · {String(row.buy_rate)} {String(row.currency)}</div><small>{String(row.valid_from)} → trước {String(row.valid_to)}</small></> : String(row.display_name ?? row[c.name] ?? "—")}</td><td><StatusBadge status={String(row.role_status ?? row.status ?? (row.is_active ? "ACTIVE" : "INACTIVE"))} /></td><td><button className="erp-button" onClick={() => edit(row)}>Mở chi tiết</button></td></tr>)}</tbody></table>{!rows.length && <p className="p-6">Không có dữ liệu phù hợp.</p>}</div>}
+    {loading ? <p role="status">Đang tải…</p> : !error && (
+      !rows.length ? (
+        <EmptyState
+          title="Không có dữ liệu phù hợp"
+          description="Không tìm thấy bản ghi nào khớp với điều kiện tìm kiếm hoặc danh mục hiện tại."
+          className="my-6"
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="erp-table w-full">
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>{kind === "rates" ? "Tuyến / giá mua / hiệu lực" : "Tên / thông tin"}</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={String(row[c.id])}>
+                  <td>{String(row[c.id])}</td>
+                  <td>
+                    {kind === "rates" ? (
+                      <>
+                        <div>{String(row.pickup_name ?? row.pickup_location_id)} → {String(row.delivery_name ?? row.delivery_location_id)}</div>
+                        <div>{String(row.vendor_name ?? row.vendor_id)} · {String(row.equipment_type)} · {String(row.buy_rate)} {String(row.currency)}</div>
+                        <small>{String(row.valid_from)} → trước {String(row.valid_to)}</small>
+                      </>
+                    ) : (
+                      String(row.display_name ?? row[c.name] ?? "—")
+                    )}
+                  </td>
+                  <td>
+                    <StatusBadge status={String(row.role_status ?? row.status ?? (row.is_active ? "ACTIVE" : "INACTIVE"))} />
+                  </td>
+                  <td>
+                    <button className="erp-button" onClick={() => edit(row)}>Mở chi tiết</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    )}
     <div className="flex items-center gap-3"><button className="erp-button" disabled={page === 1 || loading} onClick={() => setPage(p => p - 1)}>Trước</button><span>Trang {page} · 25 bản ghi/trang</span><button className="erp-button" disabled={!more || loading} onClick={() => setPage(p => p + 1)}>Tiếp</button></div>
     <Dialog.Root open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs" /><Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[95vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-surface border border-border p-5 text-foreground shadow-2xl">
       <Dialog.Title className="text-xl font-semibold text-foreground">{selected ? "Chi tiết" : "Thêm mới"} · {c.title}</Dialog.Title><Dialog.Description className="mb-4 text-sm text-muted-foreground">{kind === "rates" ? "Lưu nháp trước khi gửi duyệt. Người duyệt phải khác người sửa giá gần nhất. Giá đã duyệt chỉ có thể ngừng sử dụng." : "Giữ đúng dữ liệu nguồn; để trống thông tin chưa biết. Mã định danh được giữ nguyên khi chỉnh sửa."}</Dialog.Description>

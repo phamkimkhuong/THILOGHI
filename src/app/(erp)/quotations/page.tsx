@@ -25,7 +25,9 @@ import {
   Lock,
   RotateCcw,
   Check,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportQuotationToExcel } from "@/shared/utils/excel";
 import {
   getQuotationRegionsAction,
   getQuotationsListAction,
@@ -57,7 +59,7 @@ export default function QuotationListPage() {
   const [isPending, startTransition] = useTransition();
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("quotations_list");
   const [regions, setRegions] = useState<{ id: string; name: string }[]>([]);
   const detailRequest = useRef(0);
 
@@ -468,12 +470,45 @@ export default function QuotationListPage() {
 
               <div className="flex items-center gap-2">
                 {drawerDetail && (
-                  <Link
-                    href={`/quotations/new?id=${drawerDetail.quote.quotationId}`}
-                    className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50"
-                  >
-                    Mở báo giá
-                  </Link>
+                  <>
+                    <button
+                      type="button"
+                      title="Xuất Báo giá ra file Excel (.xlsx)"
+                      onClick={() => {
+                        void exportQuotationToExcel({
+                          quotationNo: drawerDetail.quote.quotationNo,
+                          version: drawerDetail.quote.version,
+                          customerName: drawerDetail.quote.customerName,
+                          taxCode: drawerDetail.quote.taxCode,
+                          commodity: drawerDetail.quote.commodityName,
+                          paymentTermsDays: drawerDetail.quote.paymentTermsDays,
+                          approvedAt: drawerDetail.quote.approvedAt,
+                          currency: "VND",
+                          totalSellAmount: drawerDetail.quote.totalSellAmount,
+                          items: drawerDetail.items.map((i) => ({
+                            service: i.servicePackage,
+                            origin: i.originName || i.originLocationId,
+                            destination: i.destinationName || i.destinationLocationId,
+                            equipment: i.equipmentType,
+                            quantity: Number(i.plannedQuantity),
+                            unit: i.unit,
+                            unitPrice: Number(i.unitSellPrice),
+                            amount: Number(i.totalSellPrice),
+                            inclusion: i.pricingInclusion,
+                          })),
+                        });
+                      }}
+                      className="px-2.5 py-1 rounded bg-surface border border-border text-foreground hover:bg-surface-hover text-xs font-semibold inline-flex items-center gap-1 transition-colors shadow-2xs"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel
+                    </button>
+                    <Link
+                      href={`/quotations/new?id=${drawerDetail.quote.quotationId}`}
+                      className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50"
+                    >
+                      Mở báo giá
+                    </Link>
+                  </>
                 )}
                 <button
                   onClick={() => { detailRequest.current++; setIsDrawerOpen(false); }}

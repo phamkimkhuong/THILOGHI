@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useActionState, useEffect } from "react";
+import { toast } from "sonner";
 import { loginAction } from "@/features/auth/actions";
 import {
   Truck,
@@ -20,6 +21,14 @@ import {
 export default function LoginPage() {
   const [state, action, pending] = useActionState(loginAction, { error: "" });
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (state?.error) {
+      toast.error("Đăng nhập không thành công", {
+        description: state.error,
+      });
+    }
+  }, [state?.error]);
 
   return (
     <main className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f5f8fc] text-[#16254a] font-sans selection:bg-[#2672df] selection:text-white antialiased">

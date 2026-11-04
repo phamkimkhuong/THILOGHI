@@ -2,6 +2,7 @@
 
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -41,7 +42,7 @@ export default function MasterLocationsPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { loading, error: loadError, runLoad } = useListFeedback();
+  const { loading, error: loadError, runLoad } = useListFeedback("locations_list");
 
   const loadData = useCallback(() => {
     void runLoad(async (isCurrent) => {
@@ -196,8 +197,12 @@ export default function MasterLocationsPage() {
             <tbody className="divide-y divide-border/60 font-sans">
               {loading || loadError ? <TableFeedback columns={7} loading={loading} error={loadError} onRetry={loadData} /> : filteredLocations.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                    Không tìm thấy địa điểm phù hợp với điều kiện tìm kiếm.
+                  <td colSpan={7} className="p-8">
+                    <EmptyState
+                      icon={MapPin}
+                      title="Không tìm thấy địa điểm phù hợp"
+                      description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo loại địa điểm / phân vùng."
+                    />
                   </td>
                 </tr>
               ) : (

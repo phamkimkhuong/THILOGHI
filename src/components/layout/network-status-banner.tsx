@@ -1,39 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { WifiOff } from "lucide-react";
-import { toast } from "sonner";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+function getSnapshot() {
+  return navigator.onLine;
+}
+
+function getServerSnapshot() {
+  return true;
+}
 
 export function NetworkStatusBanner() {
-  const [isOnline, setIsOnline] = useState(true);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    setIsOnline(navigator.onLine);
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success("Đã khôi phục kết nối mạng Internet thành công.", {
-        description: "Hệ thống đã sẵn sàng đồng bộ dữ liệu.",
-      });
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.warning("Mất kết nối Internet!", {
-        description: "Vui lòng kiểm tra lại đường truyền mạng để tránh gián đoạn.",
-      });
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+  const isOnline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (isOnline) return null;
 
