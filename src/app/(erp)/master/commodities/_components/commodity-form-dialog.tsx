@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Package, AlertCircle } from "lucide-react";
+import { X, Package, AlertCircle, Calendar, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { saveCommodityAction } from "@/features/master-data/actions";
@@ -10,6 +10,8 @@ import {
   DEFAULT_COMMODITY_FORM,
   COMMON_CATEGORIES,
   COMMON_SPECIFICATIONS,
+  COMMON_ORIGINS,
+  COMMON_PURPOSES,
   type CommodityFormData,
   type CommodityRecord,
 } from "./types";
@@ -19,6 +21,7 @@ interface CommodityFormDialogProps {
   onOpenChange: (open: boolean) => void;
   initialData: CommodityRecord | null;
   categories: string[];
+  currentUserName?: string;
   onSuccess: () => void;
 }
 
@@ -27,6 +30,7 @@ export function CommodityFormDialog({
   onOpenChange,
   initialData,
   categories,
+  currentUserName = "Bùi Hiếu",
   onSuccess,
 }: CommodityFormDialogProps) {
   const [formData, setFormData] = useState<CommodityFormData>(DEFAULT_COMMODITY_FORM);
@@ -47,10 +51,10 @@ export function CommodityFormDialog({
           name: initialData.name,
           englishName: initialData.englishName || "",
           category: initialData.category || "Nông sản",
-          specifications: initialData.specifications || "",
+          specifications: initialData.specifications || "Đóng bao",
           components: initialData.components || "",
           origin: initialData.origin || "Việt Nam",
-          purpose: initialData.purpose || "",
+          purpose: initialData.purpose || "Thực phẩm",
           imageUrl: initialData.imageUrl || "",
           note: initialData.note || "",
           status: initialData.status || "Đã duyệt",
@@ -73,8 +77,24 @@ export function CommodityFormDialog({
       setFormError("Tên hàng hóa không được để trống.");
       return;
     }
+    if (!formData.englishName.trim()) {
+      setFormError("Tên tiếng Anh (English Name) không được để trống để phục vụ vận đơn và hải quan.");
+      return;
+    }
     if (!formData.category.trim()) {
-      setFormError("Vui lòng chọn nhóm phân loại hàng hóa.");
+      setFormError("Vui lòng chọn loại hàng hóa.");
+      return;
+    }
+    if (!formData.specifications.trim()) {
+      setFormError("Vui lòng chọn quy cách đóng gói.");
+      return;
+    }
+    if (!formData.origin.trim()) {
+      setFormError("Vui lòng chọn quốc gia xuất xứ.");
+      return;
+    }
+    if (!formData.purpose.trim()) {
+      setFormError("Vui lòng chọn mục đích sử dụng.");
       return;
     }
 
@@ -98,11 +118,42 @@ export function CommodityFormDialog({
     }
   };
 
+  const isActive = formData.status === "Đã duyệt" || formData.status === "Active";
+
+  // Định dạng thời gian tạo hiển thị
+  const formatDateTime = (isoDate?: string) => {
+    if (!isoDate) {
+      return new Date().toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+    }
+    try {
+      return new Date(isoDate).toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return isoDate;
+    }
+  };
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-foreground shadow-2xl animate-in zoom-in-95 duration-150 focus:outline-none font-sans">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-4 sm:p-6 text-foreground shadow-2xl animate-in zoom-in-95 duration-150 focus:outline-none font-sans">
+          {/* Header Dialog */}
           <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
             <div>
               <Dialog.Title className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -110,7 +161,7 @@ export function CommodityFormDialog({
                 <span>{formData.commodityId ? "Chỉnh sửa mặt hàng" : "Thêm mới mặt hàng"}</span>
               </Dialog.Title>
               <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
-                Cập nhật thông số danh mục mặt hàng phục vụ vận tải đường bộ và vận chuyển quốc tế.
+                Thiết lập thông số danh mục mặt hàng chuẩn hóa phục vụ vận tải đường bộ và vận chuyển quốc tế.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -132,40 +183,40 @@ export function CommodityFormDialog({
 
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Tên hàng hóa tiếng Việt */}
+              {/* 1. Tên hàng hóa tiếng Việt */}
               <div className="sm:col-span-2">
                 <label htmlFor="comm-name" className="block font-medium text-foreground mb-1">
-                  Tên hàng hóa (Tiếng Việt) <span className="text-red-500">*</span>
+                  Tên hàng hóa <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="comm-name"
                   type="text"
-                  placeholder="VD: Quả chuối tươi, Tinh bột sắn, Xe xúc lật"
+                  placeholder="VD: Quả chuối tươi, Tinh bột sắn, Cám bắp, Quặng sắt..."
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                 />
               </div>
 
-              {/* Tên tiếng Anh */}
+              {/* 2. Tên tiếng Anh */}
               <div className="sm:col-span-2">
                 <label htmlFor="comm-english" className="block font-medium text-foreground mb-1">
-                  Tên tiếng Anh (English Name - Dùng cho vận đơn & hải quan)
+                  Tên tiếng Anh (English Name) <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="comm-english"
                   type="text"
-                  placeholder="VD: Fresh Bananas, Tapioca, Dump Truck"
+                  placeholder="VD: Fresh Bananas, Tapioca, Corn bran, Iron ore..."
                   value={formData.englishName}
                   onChange={(e) => setFormData({ ...formData, englishName: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 italic"
                 />
               </div>
 
-              {/* Nhóm / Phân loại */}
+              {/* 3. Loại hàng */}
               <div>
                 <label htmlFor="comm-category" className="block font-medium text-foreground mb-1">
-                  Nhóm phân loại <span className="text-red-500">*</span>
+                  Loại hàng <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="comm-category"
@@ -181,31 +232,44 @@ export function CommodityFormDialog({
                 </select>
               </div>
 
-              {/* Quy cách đóng gói */}
+              {/* 4. Quy cách */}
               <div>
                 <label htmlFor="comm-spec" className="block font-medium text-foreground mb-1">
-                  Quy cách đóng gói
+                  Quy cách <span className="text-red-500">*</span>
                 </label>
-                <input
+                <select
                   id="comm-spec"
-                  type="text"
-                  list="spec-suggestions"
-                  placeholder="VD: Đóng bao, Đóng thùng Carton..."
                   value={formData.specifications}
                   onChange={(e) => setFormData({ ...formData, specifications: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <datalist id="spec-suggestions">
+                >
                   {COMMON_SPECIFICATIONS.map((s) => (
-                    <option key={s} value={s} />
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
 
-              {/* Quốc gia xuất xứ */}
+              {/* 5. Thành phần */}
+              <div>
+                <label htmlFor="comm-components" className="block font-medium text-foreground mb-1">
+                  Thành phần
+                </label>
+                <input
+                  id="comm-components"
+                  type="text"
+                  placeholder="VD: Giấy, Nhựa PVC, Kim loại, Độ ẩm < 51%..."
+                  value={formData.components}
+                  onChange={(e) => setFormData({ ...formData, components: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 6. Xuất xứ */}
               <div>
                 <label htmlFor="comm-origin" className="block font-medium text-foreground mb-1">
-                  Quốc gia xuất xứ
+                  Xuất xứ <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="comm-origin"
@@ -213,75 +277,86 @@ export function CommodityFormDialog({
                   onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="Việt Nam">Việt Nam 🇻🇳</option>
-                  <option value="Lào">Lào 🇱🇦</option>
-                  <option value="Campuchia">Campuchia 🇰🇭</option>
-                  <option value="Trung Quốc">Trung Quốc 🇨🇳</option>
-                  <option value="Belarus">Belarus 🇧🇾</option>
-                  <option value="Brunei">Brunei 🇧🇳</option>
-                  <option value="Khác">Quốc gia khác</option>
+                  {COMMON_ORIGINS.map((orig) => (
+                    <option key={orig} value={orig}>
+                      {orig}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Mục đích sử dụng */}
+              {/* 7. Mục đích */}
               <div>
                 <label htmlFor="comm-purpose" className="block font-medium text-foreground mb-1">
-                  Mục đích sử dụng
+                  Mục đích <span className="text-red-500">*</span>
                 </label>
-                <input
+                <select
                   id="comm-purpose"
-                  type="text"
-                  placeholder="VD: Thực phẩm, Chăm sóc cây, Xây dựng..."
                   value={formData.purpose}
                   onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Thành phần cấu tạo */}
-              <div>
-                <label htmlFor="comm-components" className="block font-medium text-foreground mb-1">
-                  Thành phần cấu tạo
-                </label>
-                <input
-                  id="comm-components"
-                  type="text"
-                  placeholder="VD: Giấy, Hạt nhựa, Kim loại..."
-                  value={formData.components}
-                  onChange={(e) => setFormData({ ...formData, components: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Trạng thái phê duyệt */}
-              <div>
-                <label htmlFor="comm-status" className="block font-medium text-foreground mb-1">
-                  Trạng thái áp dụng
-                </label>
-                <select
-                  id="comm-status"
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                 >
-                  <option value="Đã duyệt">Đã duyệt (Active)</option>
-                  <option value="Tạm ngưng">Tạm ngưng (Inactive)</option>
+                  {COMMON_PURPOSES.map((purp) => (
+                    <option key={purp} value={purp}>
+                      {purp}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Ghi chú nghiệp vụ */}
+              {/* 8. Ghi chú */}
               <div className="sm:col-span-2">
                 <label htmlFor="comm-note" className="block font-medium text-foreground mb-1">
-                  Ghi chú nghiệp vụ & Hướng dẫn xếp dỡ
+                  Ghi chú
                 </label>
                 <textarea
                   id="comm-note"
                   rows={2}
-                  placeholder="VD: Yêu cầu che bạt chống ướt, nhiệt độ bảo quản 13-14 độ C đối với container lạnh..."
+                  placeholder="VD: Yêu cầu bạt che chống ướt, nhiệt độ bảo quản 13-14°C đối với xe lạnh, hướng dẫn bốc xếp an toàn..."
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs resize-none"
                 />
+              </div>
+
+              {/* 9. Trạng thái hoạt động (Quản trị tập trung - Active/Inactive) */}
+              <div className="sm:col-span-2 pt-2 border-t border-border">
+                <label className="flex items-start gap-2.5 cursor-pointer p-3 rounded-xl bg-background border border-border hover:border-blue-300 dark:hover:border-blue-800 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) =>
+                      setFormData({ ...formData, status: e.target.checked ? "Đã duyệt" : "Tạm ngưng" })
+                    }
+                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-border cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-semibold text-foreground text-xs block">
+                      Kích hoạt sử dụng mặt hàng này ngay (Active)
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block mt-0.5">
+                      Mặt hàng ở trạng thái kích hoạt sẽ hiển thị trực tiếp trong danh sách chọn của phân hệ Báo giá và Đơn vận chuyển.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* 10. Audit Log (Read-only hiển thị thời gian & người tạo) */}
+              <div className="sm:col-span-2 p-3 rounded-xl bg-surface border border-border grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Thời gian tạo:</span>
+                  <strong className="text-foreground font-mono">
+                    {formatDateTime(initialData?.createdAt)}
+                  </strong>
+                </div>
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Người tạo:</span>
+                  <strong className="text-foreground">
+                    {initialData?.createdBy || currentUserName}
+                  </strong>
+                </div>
               </div>
             </div>
 
@@ -302,4 +377,3 @@ export function CommodityFormDialog({
     </Dialog.Root>
   );
 }
-

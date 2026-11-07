@@ -227,12 +227,12 @@ export function LocationTable({
                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.gpsCoordinates)}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-600 dark:text-cyan-400 hover:underline bg-blue-50/70 dark:bg-blue-900/30 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/50"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono text-foreground hover:text-blue-600 bg-surface px-1.5 py-0.5 rounded border border-border transition-colors hover:border-slate-300 dark:hover:border-slate-700"
                             title="Mở Google Maps"
                           >
-                            <Compass className="w-3 h-3" />
-                            {l.gpsCoordinates.length > 18 ? `${l.gpsCoordinates.substring(0, 18)}…` : l.gpsCoordinates}
-                            <ExternalLink className="w-2.5 h-2.5" />
+                            <Compass className="w-3 h-3 text-muted-foreground" />
+                            <span>{l.gpsCoordinates.length > 18 ? `${l.gpsCoordinates.substring(0, 18)}…` : l.gpsCoordinates}</span>
+                            <ExternalLink className="w-2.5 h-2.5 text-muted-foreground" />
                           </a>
                           <button
                             type="button"

@@ -45,7 +45,7 @@ export function CommodityDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200 font-sans">
       <div
-        className="w-full max-w-lg bg-surface border-l border-border h-full shadow-2xl flex flex-col transform transition-transform animate-in slide-in-from-right duration-300"
+        className="w-full sm:max-w-md md:max-w-lg bg-surface border-l border-border h-full shadow-2xl flex flex-col transform transition-transform animate-in slide-in-from-right duration-300"
         role="dialog"
         aria-modal="true"
         aria-labelledby="commodity-drawer-title"
@@ -83,7 +83,7 @@ export function CommodityDetailDrawer({
         {/* Nội dung chi tiết Drawer */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-foreground">
           {/* Nhóm & Quy cách */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="p-3 rounded-xl bg-background border border-border">
               <span className="text-muted-foreground text-[11px] block">Nhóm phân loại</span>
               <div className="mt-1 font-semibold text-foreground text-sm flex items-center gap-1.5">
@@ -102,7 +102,7 @@ export function CommodityDetailDrawer({
           </div>
 
           {/* Xuất xứ & Mục đích sử dụng */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="p-3 rounded-xl bg-background border border-border">
               <span className="text-muted-foreground text-[11px] block">Quốc gia xuất xứ</span>
               <div className="mt-1 flex items-center gap-1.5 font-semibold text-foreground text-sm">

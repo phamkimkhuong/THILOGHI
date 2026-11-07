@@ -22,12 +22,19 @@ export function getDbPool(): Pool {
       );
     }
 
-    globalForDb.conn = new Pool({
+    const p = new Pool({
       connectionString,
       max: 20, // Giới hạn tối đa 20 connections trên VPS
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
     });
+
+    // Lắng nghe lỗi trên client rỗi để tránh uncaughtException làm crash tiến trình Node.js
+    p.on("error", (err) => {
+      console.warn("Lỗi kết nối PostgreSQL Pool (idle client):", (err as Error)?.message || err);
+    });
+
+    globalForDb.conn = p;
   }
   return globalForDb.conn;
 }

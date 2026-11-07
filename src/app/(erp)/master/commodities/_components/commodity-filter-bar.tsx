@@ -54,7 +54,7 @@ export function CommodityFilterBar({
               aria-label="Chọn nhóm hàng"
               value={selectedCategory}
               onChange={(e) => onCategoryChange(e.target.value)}
-              className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="max-w-[190px] sm:max-w-xs truncate bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="ALL">Tất cả nhóm ({totalCount})</option>
               {categories.map((cat) => (

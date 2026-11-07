@@ -12,6 +12,7 @@ import {
   toggleCommodityStatusAction,
   deleteCommodityAction,
 } from "@/features/master-data/actions";
+import { getCurrentUserAction } from "@/features/quotation/actions";
 
 import { CommodityFilterBar } from "./_components/commodity-filter-bar";
 import { CommodityTable } from "./_components/commodity-table";
@@ -43,6 +44,7 @@ export default function MasterCommoditiesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<CommodityRecord | null>(null);
   const [toggleLoading, setToggleLoading] = useState(false);
+  const [currentUserName, setCurrentUserName] = useState("Bùi Hiếu");
 
   const { loading, error: loadError, runLoad } = useListFeedback("commodities_list");
 
@@ -60,6 +62,9 @@ export default function MasterCommoditiesPage() {
 
   useEffect(() => {
     loadData();
+    void getCurrentUserAction().then((user) => {
+      if (user?.fullName) setCurrentUserName(user.fullName);
+    });
   }, [loadData]);
 
   // Danh sách các nhóm & thống kê số lượng
@@ -239,6 +244,7 @@ export default function MasterCommoditiesPage() {
         onOpenChange={setIsFormOpen}
         initialData={editingCommodity}
         categories={categories}
+        currentUserName={currentUserName}
         onSuccess={loadData}
       />
 
