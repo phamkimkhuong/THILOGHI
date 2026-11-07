@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { User, Phone, FileCheck, Eye, AlertTriangle } from "lucide-react";
+import { User, Phone, FileCheck, Eye, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { DriverFleetItem, getOwnershipBadge } from "./types";
 
 interface DriversTableProps {
@@ -17,6 +17,8 @@ interface DriversTableProps {
   loadError: string | null;
   onRetry: () => void;
   onView: (driver: DriverFleetItem) => void;
+  onEdit: (driver: DriverFleetItem) => void;
+  onDelete: (driver: DriverFleetItem) => void;
   filterKey: string;
 }
 
@@ -26,6 +28,8 @@ export function DriversTable({
   loadError,
   onRetry,
   onView,
+  onEdit,
+  onDelete,
   filterKey,
 }: DriversTableProps) {
   const pagination = usePagination(drivers.length, filterKey);
@@ -175,14 +179,32 @@ export function DriversTable({
                       className="py-2.5 px-3 text-center"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        onClick={() => onView(d)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
-                        title="Xem chi tiết hồ sơ tài xế"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onView(d)}
+                          className="p-1.5 text-muted-foreground hover:text-blue-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xem chi tiết hồ sơ tài xế"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEdit(d)}
+                          className="p-1.5 text-muted-foreground hover:text-amber-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Chỉnh sửa hồ sơ tài xế"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(d)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xóa tài xế"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

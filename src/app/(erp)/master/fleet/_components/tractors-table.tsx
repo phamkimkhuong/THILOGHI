@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Truck, Eye } from "lucide-react";
+import { Truck, Eye, Pencil, Trash2 } from "lucide-react";
 import {
   TractorFleetItem,
   getOwnershipBadge,
@@ -21,6 +21,8 @@ interface TractorsTableProps {
   loadError: string | null;
   onRetry: () => void;
   onView: (tractor: TractorFleetItem) => void;
+  onEdit: (tractor: TractorFleetItem) => void;
+  onDelete: (tractor: TractorFleetItem) => void;
   filterKey: string;
 }
 
@@ -30,6 +32,8 @@ export function TractorsTable({
   loadError,
   onRetry,
   onView,
+  onEdit,
+  onDelete,
   filterKey,
 }: TractorsTableProps) {
   const pagination = usePagination(tractors.length, filterKey);
@@ -154,14 +158,32 @@ export function TractorsTable({
                       className="py-2.5 px-3 text-center"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        onClick={() => onView(t)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
-                        title="Xem chi tiết đầu kéo"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onView(t)}
+                          className="p-1.5 text-muted-foreground hover:text-blue-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xem chi tiết đầu kéo"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEdit(t)}
+                          className="p-1.5 text-muted-foreground hover:text-amber-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Chỉnh sửa đầu kéo"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(t)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xóa đầu kéo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

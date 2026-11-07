@@ -18,6 +18,7 @@ import {
   Check,
   Tag,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -31,6 +32,7 @@ import {
 interface FleetDetailDrawerProps {
   item: SelectedFleetItem;
   onClose: () => void;
+  onEdit?: (item: NonNullable<SelectedFleetItem>) => void;
 }
 
 function formatDate(dateStr?: string) {
@@ -48,7 +50,11 @@ function formatDate(dateStr?: string) {
   }
 }
 
-export function FleetDetailDrawer({ item, onClose }: FleetDetailDrawerProps) {
+export function FleetDetailDrawer({
+  item,
+  onClose,
+  onEdit,
+}: FleetDetailDrawerProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   if (!item) return null;
@@ -779,7 +785,22 @@ export function FleetDetailDrawer({ item, onClose }: FleetDetailDrawerProps) {
           </div>
 
           {/* Footer Drawer */}
-          <div className="p-4 border-t border-border bg-surface-hover flex items-center justify-end gap-2 shrink-0">
+          <div className="p-4 border-t border-border bg-surface-hover flex items-center justify-between gap-2 shrink-0">
+            {onEdit ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onEdit(item);
+                  onClose();
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                <span>Chỉnh sửa hồ sơ</span>
+              </Button>
+            ) : <div />}
+
             <Button variant="secondary" size="sm" onClick={onClose}>
               Đóng
             </Button>

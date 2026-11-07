@@ -2,9 +2,25 @@ import {
   TractorFleetItem,
   TrailerFleetItem,
   DriverFleetItem,
+  SaveTractorInput,
+  SaveTrailerInput,
+  SaveDriverInput,
 } from "@/features/master-data/actions";
 
-export type { TractorFleetItem, TrailerFleetItem, DriverFleetItem };
+export type {
+  TractorFleetItem,
+  TrailerFleetItem,
+  DriverFleetItem,
+  SaveTractorInput,
+  SaveTrailerInput,
+  SaveDriverInput,
+};
+
+export interface FleetVendorOption {
+  id: string;
+  name: string;
+  code?: string;
+}
 
 export type FleetActiveTab = "TRACTORS" | "TRAILERS" | "DRIVERS";
 

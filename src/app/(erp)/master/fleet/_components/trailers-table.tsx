@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Container, Eye, AlertTriangle } from "lucide-react";
+import { Container, Eye, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import {
   TrailerFleetItem,
   getOwnershipBadge,
@@ -21,6 +21,8 @@ interface TrailersTableProps {
   loadError: string | null;
   onRetry: () => void;
   onView: (trailer: TrailerFleetItem) => void;
+  onEdit: (trailer: TrailerFleetItem) => void;
+  onDelete: (trailer: TrailerFleetItem) => void;
   filterKey: string;
 }
 
@@ -30,6 +32,8 @@ export function TrailersTable({
   loadError,
   onRetry,
   onView,
+  onEdit,
+  onDelete,
   filterKey,
 }: TrailersTableProps) {
   const pagination = usePagination(trailers.length, filterKey);
@@ -184,14 +188,32 @@ export function TrailersTable({
                       className="py-2.5 px-3 text-center"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        onClick={() => onView(tr)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
-                        title="Xem chi tiết rơ-moóc"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onView(tr)}
+                          className="p-1.5 text-muted-foreground hover:text-blue-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xem chi tiết rơ-moóc"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEdit(tr)}
+                          className="p-1.5 text-muted-foreground hover:text-amber-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Chỉnh sửa rơ-moóc"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(tr)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
+                          title="Xóa rơ-moóc"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

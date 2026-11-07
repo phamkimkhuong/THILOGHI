@@ -24,10 +24,27 @@ import {
   type TractorFleetItem,
   type TrailerFleetItem,
   type DriverFleetItem,
+  saveTractorService,
+  deleteTractorService,
+  type SaveTractorInput,
+  saveTrailerService,
+  deleteTrailerService,
+  type SaveTrailerInput,
+  saveDriverService,
+  deleteDriverService,
+  type SaveDriverInput,
+  getFleetVendorsService,
   getMasterRegions,
 } from "@/server/modules/master-data/master-data.service";
 
-export type { TractorFleetItem, TrailerFleetItem, DriverFleetItem };
+export type {
+  TractorFleetItem,
+  TrailerFleetItem,
+  DriverFleetItem,
+  SaveTractorInput,
+  SaveTrailerInput,
+  SaveDriverInput,
+};
 
 export async function getRoadRatesAction(search?: string) {
   try {
@@ -238,6 +255,98 @@ export async function getFleetAction(limit?: number) {
       success: false,
       fleet: { tractors: [], trailers: [], drivers: [] },
       error: err instanceof Error ? err.message : "Lỗi khi tải danh mục đội xe",
+    };
+  }
+}
+
+export async function saveTractorAction(input: SaveTractorInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveTractorService(input, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu đầu kéo",
+    };
+  }
+}
+
+export async function deleteTractorAction(tractorNo: string) {
+  try {
+    const actor = await requireAuth();
+    const res = await deleteTractorService(tractorNo, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa đầu kéo",
+    };
+  }
+}
+
+export async function saveTrailerAction(input: SaveTrailerInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveTrailerService(input, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu rơ-moóc",
+    };
+  }
+}
+
+export async function deleteTrailerAction(trailerNo: string) {
+  try {
+    const actor = await requireAuth();
+    const res = await deleteTrailerService(trailerNo, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa rơ-moóc",
+    };
+  }
+}
+
+export async function saveDriverAction(input: SaveDriverInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveDriverService(input, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu tài xế",
+    };
+  }
+}
+
+export async function deleteDriverAction(driverId: string) {
+  try {
+    const actor = await requireAuth();
+    const res = await deleteDriverService(driverId, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa tài xế",
+    };
+  }
+}
+
+export async function getFleetVendorsAction() {
+  try {
+    await requireAuth();
+    const vendors = await getFleetVendorsService();
+    return { success: true, vendors };
+  } catch (err) {
+    return {
+      success: false,
+      vendors: [],
+      error: err instanceof Error ? err.message : "Lỗi khi tải danh sách nhà xe",
     };
   }
 }
