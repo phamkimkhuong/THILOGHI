@@ -22,6 +22,19 @@ export async function requireAuth(): Promise<CurrentActor> {
   return dbUser;
 }
 
+const REGION_ID_TO_SCOPE_MAP: Record<string, string> = {
+  REG_QNM: "QUANG_NAM_NEIGHBORS",
+  REG_LAO: "SOUTH_LAOS",
+  REG_CAM: "NORTH_CAMBODIA_CENTRAL_HIGHLANDS",
+  REG_MB: "NORTHERN_REGION",
+  REG_MN: "SOUTHERN_REGION_SNUOL",
+  QUANG_NAM_NEIGHBORS: "REG_QNM",
+  SOUTH_LAOS: "REG_LAO",
+  NORTH_CAMBODIA_CENTRAL_HIGHLANDS: "REG_CAM",
+  NORTHERN_REGION: "REG_MB",
+  SOUTHERN_REGION_SNUOL: "REG_MN",
+};
+
 /**
  * Kiểm tra và ràng buộc phân quyền theo Phân vùng (Region Scope Guard)
  * Nguyên tắc P0.2: Không cho phép Sales/Pricing thao tác trên phân vùng ngoài phạm vi được giao
@@ -32,7 +45,12 @@ export function requireRegionScope(actor: CurrentActor, targetRegionId: string):
     return;
   }
 
-  if (!actor.regionScopes.includes(targetRegionId)) {
+  const mappedScope = REGION_ID_TO_SCOPE_MAP[targetRegionId];
+  const hasScope =
+    actor.regionScopes.includes(targetRegionId) ||
+    (mappedScope && actor.regionScopes.includes(mappedScope));
+
+  if (!hasScope) {
     throw new AuthorizationError(
       `Từ chối truy cập (403 Forbidden): Người dùng [${actor.fullName}] không có quyền thao tác trên Phân vùng [${targetRegionId}]. Phạm vi cho phép của bạn: [${actor.regionScopes.join(", ")}].`
     );

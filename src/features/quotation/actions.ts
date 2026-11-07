@@ -31,7 +31,15 @@ export async function getQuotationRegionsAction() {
   try {
     const actor = await requireAuth();
     const regions = await getMasterRegions();
-    return { success: true, data: regions.filter(region => actor.regionScopes.includes("*") || actor.regionScopes.includes(region.id)) };
+    return {
+      success: true,
+      data: regions.filter(
+        (region) =>
+          actor.regionScopes.includes("*") ||
+          actor.regionScopes.includes(region.id) ||
+          (region.code && actor.regionScopes.includes(region.code))
+      ),
+    };
   } catch {
     return { success: false, data: [] };
   }
@@ -51,7 +59,12 @@ export async function getQuotationMasterDataAction() {
       success: true,
       actor,
       customers,
-      regions: regions.filter((region) => actor.regionScopes.includes("*") || actor.regionScopes.includes(region.id)),
+      regions: regions.filter(
+        (region) =>
+          actor.regionScopes.includes("*") ||
+          actor.regionScopes.includes(region.id) ||
+          (region.code && actor.regionScopes.includes(region.code))
+      ),
       locations,
       commodities,
       equipmentTypes: EQUIPMENT_TYPES,

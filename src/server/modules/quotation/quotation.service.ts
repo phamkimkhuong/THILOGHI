@@ -929,7 +929,7 @@ export async function getQuotationsList(actor: CurrentActor, filters?: {
   const params: unknown[] = [];
   if (!actor.regionScopes.includes("*")) {
     params.push(actor.regionScopes);
-    query += ' AND q.region_id = ANY($1::varchar[])';
+    query += ' AND (q.region_id = ANY($1::varchar[]) OR r.scope::text = ANY($1::varchar[]))';
   }
   if (filters?.regionId && filters.regionId !== "ALL") requireRegionScope(actor, filters.regionId);
 
