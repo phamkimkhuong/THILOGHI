@@ -11,6 +11,11 @@ export interface PartnerDirectoryItem {
   address?: string;
   phone?: string;
   email?: string;
+  representedBy?: string;
+  gpsCoordinates?: string;
+  bankAccount?: string;
+  bankName?: string;
+  note?: string;
   status: "ACTIVE" | "INACTIVE";
   sourcePartnerType?: string;
   // Customer Role info
@@ -59,6 +64,11 @@ export async function getPartnersDirectory(filters?: {
       p.address,
       p.phone,
       p.email,
+      p.represented_by as "representedBy",
+      p.gps_coordinates as "gpsCoordinates",
+      p.bank_account as "bankAccount",
+      p.bank_name as "bankName",
+      p.note,
       p.status,
       p.source_partner_type as "sourcePartnerType",
       p.created_at as "createdAt",
@@ -113,6 +123,11 @@ export async function getPartnersDirectory(filters?: {
     address: r.address || undefined,
     phone: r.phone || undefined,
     email: r.email || undefined,
+    representedBy: r.representedBy || undefined,
+    gpsCoordinates: r.gpsCoordinates || undefined,
+    bankAccount: r.bankAccount || undefined,
+    bankName: r.bankName || undefined,
+    note: r.note || undefined,
     status: r.status,
     sourcePartnerType: r.sourcePartnerType || undefined,
     isCustomer: Boolean(r.isCustomer),
@@ -462,4 +477,157 @@ export async function getPartnerRoleAuditHistory(partnerId: string): Promise<Par
     ...r,
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
   }));
+}
+
+export interface SavePartnerInput {
+  partnerId: string;
+  partnerName: string;
+  shortName?: string;
+  sourcePartnerType: string;
+  country?: string;
+  address?: string;
+  taxCode?: string;
+  phone?: string;
+  email?: string;
+  representedBy?: string;
+  bankAccount?: string;
+  bankName?: string;
+  gpsCoordinates?: string;
+  note?: string;
+  status?: "ACTIVE" | "INACTIVE";
+  isCustomer?: boolean;
+  paymentTermsDays?: number;
+  creditLimitVnd?: number | null;
+}
+
+/**
+ * Thêm mới hoặc cập nhật hồ sơ pháp nhân Đối tác
+ * Quyền yêu cầu: ADMIN, DIRECTOR, PRICING_MANAGER
+ */
+export async function savePartner(input: SavePartnerInput, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+
+  const partnerId = input.partnerId.trim().toUpperCase();
+  const partnerName = input.partnerName.trim();
+  const shortName = input.shortName?.trim() || null;
+  const sourcePartnerType = input.sourcePartnerType?.trim() || "Clients";
+  const country = input.country?.trim() || "Việt Nam";
+  const address = input.address?.trim() || null;
+  const taxCode = input.taxCode?.trim() || null;
+  const phone = input.phone?.trim() || null;
+  const email = input.email?.trim() || null;
+  const representedBy = input.representedBy?.trim() || null;
+  const bankAccount = input.bankAccount?.trim() || null;
+  const bankName = input.bankName?.trim() || null;
+  const gpsCoordinates = input.gpsCoordinates?.trim() || null;
+  const note = input.note?.trim() || null;
+  const status = input.status || "ACTIVE";
+
+  if (!partnerId) throw new Error("Mã đối tác (ID) không được để trống.");
+  if (!partnerName) throw new Error("Tên pháp nhân đối tác không được để trống.");
+  if (!sourcePartnerType) throw new Error("Vui lòng chọn phân loại đối tác.");
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const existingRes = await client.query(
+      "SELECT * FROM partners WHERE partner_id = $1 FOR UPDATE",
+      [partnerId]
+    );
+
+    const isUpdate = existingRes.rows.length > 0;
+
+    if (isUpdate) {
+      await client.query(
+        `UPDATE partners
+         SET partner_name = $1, short_name = $2, source_partner_type = $3,
+             country = $4, address = $5, tax_code = $6, phone = $7, email = $8,
+             represented_by = $9, bank_account = $10, bank_name = $11,
+             gps_coordinates = $12, note = $13, status = $14, updated_at = NOW()
+         WHERE partner_id = $15`,
+        [
+          partnerName, shortName, sourcePartnerType, country, address,
+          taxCode, phone, email, representedBy, bankAccount, bankName,
+          gpsCoordinates, note, status, partnerId,
+        ]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO partners (
+           partner_id, partner_name, short_name, source_partner_type,
+           country, address, tax_code, phone, email, represented_by,
+           bank_account, bank_name, gps_coordinates, note, status,
+           created_at, updated_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+         )`,
+        [
+          partnerId, partnerName, shortName, sourcePartnerType, country, address,
+          taxCode, phone, email, representedBy, bankAccount, bankName,
+          gpsCoordinates, note, status,
+        ]
+      );
+    }
+
+    // Xử lý Customer Role nếu có cấu hình
+    if (input.isCustomer !== undefined) {
+      const custRes = await client.query(
+        "SELECT * FROM customers WHERE customer_id = $1 FOR UPDATE",
+        [partnerId]
+      );
+      const termsDays = input.paymentTermsDays ?? 30;
+      const creditLimit = input.creditLimitVnd ?? null;
+
+      if (custRes.rows.length > 0) {
+        if (input.isCustomer) {
+          await client.query(
+            `UPDATE customers
+             SET payment_terms_days = $1, credit_limit_vnd = $2, updated_at = NOW()
+             WHERE customer_id = $3`,
+            [termsDays, creditLimit, partnerId]
+          );
+        }
+      } else if (input.isCustomer) {
+        await client.query(
+          `INSERT INTO customers (
+             customer_id, role_status, payment_terms_days, credit_limit_vnd,
+             activated_by, activated_at, created_at, updated_at
+           ) VALUES (
+             $1, 'ACTIVE', $2, $3, $4, NOW(), NOW(), NOW()
+           )`,
+          [partnerId, termsDays, creditLimit, actor.userId]
+        );
+      }
+    }
+
+    // Ghi audit log
+    await client.query(
+      `INSERT INTO partner_role_audit_log (
+         partner_id, role_type, action, actor_id, actor_name,
+         details, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [
+        partnerId,
+        "CUSTOMER",
+        isUpdate ? "UPDATE_PARTNER" : "CREATE_PARTNER",
+        actor.userId,
+        actor.fullName,
+        JSON.stringify({ partnerName, sourcePartnerType, status }),
+      ]
+    );
+
+    await client.query("COMMIT");
+    return {
+      success: true,
+      message: isUpdate
+        ? `Đã cập nhật thông tin đối tác [${partnerName}].`
+        : `Đã thêm mới đối tác [${partnerName}] (${partnerId}).`,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

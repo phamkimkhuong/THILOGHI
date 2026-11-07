@@ -184,6 +184,8 @@ import {
   requestCustomerRoleActivation,
   updateCustomerRoleTerms,
   getPartnerRoleAuditHistory,
+  savePartner,
+  type SavePartnerInput,
 } from "@/server/modules/master-data/partner-lifecycle.service";
 import { requireAuth, requireRole } from "@/server/auth/authorize";
 
@@ -280,6 +282,19 @@ export async function getPartnerRoleAuditHistoryAction(partnerId: string) {
       success: false,
       data: [],
       error: err instanceof Error ? err.message : "Lỗi khi tải lịch sử audit vai trò",
+    };
+  }
+}
+
+export async function savePartnerAction(input: SavePartnerInput) {
+  try {
+    const actor = await requireAuth();
+    const result = await savePartner(input, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu thông tin đối tác",
     };
   }
 }
