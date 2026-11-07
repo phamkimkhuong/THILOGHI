@@ -1,4 +1,6 @@
 import { pool } from "@/server/db";
+import { requireRole, requireRegionScope } from "@/server/auth/authorize";
+import type { CurrentActor } from "@/server/auth/types";
 
 export interface MasterOption {
   id: string;
@@ -202,8 +204,19 @@ export async function getLocationsDetailedList(filters?: { search?: string; regi
       l.location_type as "locationType",
       l.region_id as "regionId",
       r.name as "regionName",
+      l.country_code as "countryCode",
+      l.province,
       l.address,
-      l.is_active as "isActive"
+      l.gps_coordinates as "gpsCoordinates",
+      l.company,
+      l.contact,
+      l.note,
+      l.commodities,
+      l.created_by as "createdBy",
+      l.updated_by as "updatedBy",
+      l.status,
+      l.is_active as "isActive",
+      l.created_at as "createdAt"
     FROM locations l
     LEFT JOIN regions r ON l.region_id = r.region_id
     WHERE 1=1
@@ -215,11 +228,221 @@ export async function getLocationsDetailedList(filters?: { search?: string; regi
   }
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (l.name ILIKE $${params.length} OR l.code ILIKE $${params.length} OR l.address ILIKE $${params.length})`;
+    query += ` AND (l.name ILIKE $${params.length} OR l.code ILIKE $${params.length} OR l.address ILIKE $${params.length} OR l.province ILIKE $${params.length} OR l.company ILIKE $${params.length} OR l.contact ILIKE $${params.length} OR l.note ILIKE $${params.length} OR l.commodities ILIKE $${params.length})`;
   }
-  query += ` ORDER BY l.name ASC LIMIT 250`;
+  query += ` ORDER BY l.name ASC LIMIT 500`;
   const { rows } = await pool.query(query, params);
   return rows;
+}
+
+export interface SaveLocationInput {
+  locationId?: string;
+  code: string;
+  name: string;
+  locationType: string;
+  regionId: string;
+  countryCode?: string;
+  province?: string;
+  address?: string;
+  gpsCoordinates?: string;
+  company?: string;
+  contact?: string;
+  note?: string;
+  commodities?: string;
+  isActive?: boolean;
+}
+
+export async function saveLocationService(input: SaveLocationInput, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER", "PRICING_SPECIALIST"]);
+  if (input.regionId) {
+    requireRegionScope(actor, input.regionId);
+  }
+
+  const code = input.code.trim().toUpperCase();
+  const name = input.name.trim();
+  const locationType = input.locationType.trim();
+  const regionId = input.regionId.trim();
+  const countryCode = (input.countryCode || "").trim().toUpperCase() || null;
+  const province = (input.province || "").trim() || null;
+  const address = (input.address || "").trim() || null;
+  const gpsCoordinates = (input.gpsCoordinates || "").trim() || null;
+  const company = (input.company || "").trim() || null;
+  const contact = (input.contact || "").trim() || null;
+  const note = (input.note || "").trim() || null;
+  const commodities = (input.commodities || "").trim() || null;
+  const isActive = input.isActive !== false;
+  const status = isActive ? "Active" : "Inactive";
+
+  if (!code) throw new Error("Mã địa điểm không được để trống.");
+  if (!name) throw new Error("Tên địa điểm không được để trống.");
+  if (!locationType) throw new Error("Vui lòng chọn loại hình địa điểm.");
+  if (!regionId) throw new Error("Vui lòng chọn phân vùng.");
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (input.locationId) {
+      const oldRes = await client.query("SELECT * FROM locations WHERE location_id = $1 FOR UPDATE", [input.locationId]);
+      if (!oldRes.rows.length) {
+        throw new Error(`Địa điểm [${input.locationId}] không tồn tại.`);
+      }
+      const old = oldRes.rows[0];
+
+      const dupCheck = await client.query("SELECT location_id FROM locations WHERE code = $1 AND location_id != $2", [code, input.locationId]);
+      if (dupCheck.rows.length) {
+        throw new Error(`Mã địa điểm [${code}] đã được sử dụng bởi địa điểm khác.`);
+      }
+
+      const updateQuery = `
+        UPDATE locations
+        SET code = $1, name = $2, location_type = $3, region_id = $4, country_code = $5,
+            province = $6, address = $7, gps_coordinates = $8, company = $9, contact = $10,
+            note = $11, commodities = $12, updated_by = $13, updated_at = NOW(), is_active = $14, status = $15
+        WHERE location_id = $16
+        RETURNING *;
+      `;
+      const res = await client.query(updateQuery, [
+        code, name, locationType, regionId, countryCode,
+        province, address, gpsCoordinates, company, contact,
+        note, commodities, actor.fullName, isActive, status, input.locationId
+      ]);
+
+      await client.query(
+        "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        ["locations", input.locationId, "UPDATE", actor.userId, actor.fullName, JSON.stringify(old), JSON.stringify(res.rows[0]), "Cập nhật thông tin địa điểm"]
+      );
+
+      await client.query("COMMIT");
+      return { success: true, message: `Đã cập nhật địa điểm [${name}].`, data: res.rows[0] };
+    } else {
+      const dupCheck = await client.query("SELECT location_id FROM locations WHERE code = $1", [code]);
+      if (dupCheck.rows.length) {
+        throw new Error(`Mã địa điểm [${code}] đã tồn tại trong hệ thống.`);
+      }
+
+      const newId = code;
+      const insertQuery = `
+        INSERT INTO locations (
+          location_id, code, name, location_type, region_id, country_code,
+          province, address, gps_coordinates, company, contact, note, commodities,
+          created_by, status, is_active, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+        RETURNING *;
+      `;
+      const res = await client.query(insertQuery, [
+        newId, code, name, locationType, regionId, countryCode,
+        province, address, gpsCoordinates, company, contact, note, commodities,
+        actor.fullName, status, isActive
+      ]);
+
+      await client.query(
+        "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        ["locations", newId, "CREATE", actor.userId, actor.fullName, null, JSON.stringify(res.rows[0]), "Thêm mới địa điểm"]
+      );
+
+      await client.query("COMMIT");
+      return { success: true, message: `Đã thêm mới địa điểm [${name}].`, data: res.rows[0] };
+    }
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function toggleLocationStatusService(locationId: string, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const locRes = await client.query("SELECT * FROM locations WHERE location_id = $1 FOR UPDATE", [locationId]);
+    if (!locRes.rows.length) {
+      throw new Error(`Địa điểm [${locationId}] không tồn tại.`);
+    }
+    const loc = locRes.rows[0];
+    if (loc.region_id) {
+      requireRegionScope(actor, loc.region_id);
+    }
+
+    const nextActive = !loc.is_active;
+    const nextStatus = nextActive ? "Active" : "Inactive";
+    const updateRes = await client.query(
+      "UPDATE locations SET is_active = $1, status = $2 WHERE location_id = $3 RETURNING *",
+      [nextActive, nextStatus, locationId]
+    );
+
+    await client.query(
+      "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      ["locations", locationId, "TOGGLE_STATUS", actor.userId, actor.fullName, JSON.stringify(loc), JSON.stringify(updateRes.rows[0]), `Chuyển trạng thái sang ${nextStatus}`]
+    );
+
+    await client.query("COMMIT");
+    return {
+      success: true,
+      isActive: nextActive,
+      message: `Đã ${nextActive ? "kích hoạt" : "tạm dừng"} địa điểm [${loc.name}].`,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteLocationService(locationId: string, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const locRes = await client.query("SELECT * FROM locations WHERE location_id = $1 FOR UPDATE", [locationId]);
+    if (!locRes.rows.length) {
+      throw new Error(`Địa điểm [${locationId}] không tồn tại.`);
+    }
+    const loc = locRes.rows[0];
+    if (loc.region_id) {
+      requireRegionScope(actor, loc.region_id);
+    }
+
+    const [rateCheck, quoteCheck, orderCheck, shippingCheck, oceanCheck] = await Promise.all([
+      client.query("SELECT rate_id FROM road_rates WHERE pickup_location_id = $1 OR delivery_location_id = $1 LIMIT 1", [locationId]),
+      client.query("SELECT item_id FROM quotation_service_items WHERE origin_location_id = $1 OR destination_location_id = $1 LIMIT 1", [locationId]),
+      client.query("SELECT item_id FROM order_service_items WHERE origin_location_id = $1 OR destination_location_id = $1 LIMIT 1", [locationId]),
+      client.query("SELECT order_id FROM shipping_orders WHERE pickup_location_id = $1 OR delivery_location_id = $1 LIMIT 1", [locationId]),
+      client.query("SELECT request_id FROM ocean_work_requests WHERE pod_location_id = $1 OR pol_location_id = $1 LIMIT 1", [locationId]),
+    ]);
+
+    const isReferenced =
+      rateCheck.rows.length > 0 ||
+      quoteCheck.rows.length > 0 ||
+      orderCheck.rows.length > 0 ||
+      shippingCheck.rows.length > 0 ||
+      oceanCheck.rows.length > 0;
+
+    if (isReferenced) {
+      throw new Error(
+        `Địa điểm [${loc.name}] đang được liên kết trong Bảng giá hoặc Đơn hàng vận chuyển. Để đảm bảo tính toàn vẹn dữ liệu, vui lòng chuyển trạng thái sang "Tạm dừng hoạt động" thay vì xóa vĩnh viễn.`
+      );
+    }
+
+    await client.query("DELETE FROM locations WHERE location_id = $1", [locationId]);
+
+    await client.query(
+      "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      ["locations", locationId, "DELETE", actor.userId, actor.fullName, JSON.stringify(loc), null, `Xóa địa điểm [${loc.name}]`]
+    );
+
+    await client.query("COMMIT");
+    return { success: true, message: `Đã xóa vĩnh viễn địa điểm [${loc.name}].` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -234,34 +457,221 @@ export async function getCommoditiesDetailedList(filters?: { search?: string }) 
       english_name as "englishName",
       category,
       specifications,
+      components,
       origin,
       purpose,
+      image_url as "imageUrl",
+      attachment_url as "attachmentUrl",
+      note,
       status,
-      created_at as "createdAt"
+      created_by as "createdBy",
+      updated_by as "updatedBy",
+      created_at as "createdAt",
+      updated_at as "updatedAt"
     FROM commodities
     WHERE 1=1
   `;
   const params: unknown[] = [];
   if (filters?.search) {
     params.push(`%${filters.search}%`);
-    query += ` AND (name ILIKE $1 OR english_name ILIKE $1 OR category ILIKE $1)`;
+    query += ` AND (name ILIKE $1 OR english_name ILIKE $1 OR category ILIKE $1 OR origin ILIKE $1 OR specifications ILIKE $1 OR purpose ILIKE $1 OR note ILIKE $1)`;
   }
-  query += ` ORDER BY name ASC LIMIT 100`;
+  query += ` ORDER BY name ASC LIMIT 200`;
   const { rows } = await pool.query(query, params);
   return rows.map((r) => ({
     commodityId: r.commodityId,
     name: r.name,
-    englishName: r.englishName,
+    englishName: r.englishName || "",
     category: r.category || "",
+    specifications: r.specifications || "",
+    components: r.components || "",
+    origin: r.origin || "",
+    purpose: r.purpose || "",
+    imageUrl: r.imageUrl || null,
+    attachmentUrl: r.attachmentUrl || null,
+    note: r.note || "",
     specialRequirements: r.specifications || r.purpose || (r.origin ? `Xuất xứ: ${r.origin}` : ""),
     notes: [
       r.origin ? `Xuất xứ: ${r.origin}` : null,
       r.specifications ? `Quy cách: ${r.specifications}` : null,
       r.purpose ? `Mục đích: ${r.purpose}` : null,
+      r.note ? `Ghi chú: ${r.note}` : null,
     ].filter(Boolean).join(" | "),
-    status: r.status,
+    status: r.status || "Đã duyệt",
+    createdBy: r.createdBy || null,
+    updatedBy: r.updatedBy || null,
     createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   }));
+}
+
+export interface SaveCommodityInput {
+  commodityId?: string;
+  name: string;
+  englishName?: string;
+  category: string;
+  specifications?: string;
+  components?: string;
+  origin?: string;
+  purpose?: string;
+  imageUrl?: string;
+  note?: string;
+  status?: string;
+}
+
+export async function saveCommodityService(input: SaveCommodityInput, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER", "PRICING_SPECIALIST"]);
+
+  const name = input.name.trim();
+  const category = (input.category || "").trim();
+  const englishName = (input.englishName || "").trim() || null;
+  const specifications = (input.specifications || "").trim() || null;
+  const components = (input.components || "").trim() || null;
+  const origin = (input.origin || "").trim() || null;
+  const purpose = (input.purpose || "").trim() || null;
+  const imageUrl = (input.imageUrl || "").trim() || null;
+  const note = (input.note || "").trim() || null;
+  const status = (input.status || "Đã duyệt").trim();
+
+  if (!name) throw new Error("Tên hàng hóa không được để trống.");
+  if (!category) throw new Error("Vui lòng chọn nhóm phân loại hàng hóa.");
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (input.commodityId) {
+      const oldRes = await client.query("SELECT * FROM commodities WHERE commodity_id = $1 FOR UPDATE", [input.commodityId]);
+      if (!oldRes.rows.length) {
+        throw new Error(`Mặt hàng [${input.commodityId}] không tồn tại.`);
+      }
+      const old = oldRes.rows[0];
+
+      const updateQuery = `
+        UPDATE commodities
+        SET name = $1, english_name = $2, category = $3, specifications = $4,
+            components = $5, origin = $6, purpose = $7, image_url = $8,
+            note = $9, status = $10, updated_by = $11, updated_at = NOW()
+        WHERE commodity_id = $12
+        RETURNING *;
+      `;
+      const res = await client.query(updateQuery, [
+        name, englishName, category, specifications,
+        components, origin, purpose, imageUrl,
+        note, status, actor.fullName, input.commodityId
+      ]);
+
+      await client.query(
+        "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        ["commodities", input.commodityId, "UPDATE", actor.userId, actor.fullName, JSON.stringify(old), JSON.stringify(res.rows[0]), "Cập nhật thông tin hàng hóa"]
+      );
+
+      await client.query("COMMIT");
+      return { success: true, message: `Đã cập nhật mặt hàng [${name}].`, data: res.rows[0] };
+    } else {
+      const genId = "CMD" + Date.now().toString().slice(-8);
+      const newId = genId;
+
+      const insertQuery = `
+        INSERT INTO commodities (
+          commodity_id, name, english_name, category, specifications,
+          components, origin, purpose, image_url, note, status,
+          created_by, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+        RETURNING *;
+      `;
+      const res = await client.query(insertQuery, [
+        newId, name, englishName, category, specifications,
+        components, origin, purpose, imageUrl, note, status,
+        actor.fullName
+      ]);
+
+      await client.query(
+        "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        ["commodities", newId, "CREATE", actor.userId, actor.fullName, null, JSON.stringify(res.rows[0]), "Thêm mới hàng hóa"]
+      );
+
+      await client.query("COMMIT");
+      return { success: true, message: `Đã thêm mới mặt hàng [${name}].`, data: res.rows[0] };
+    }
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function toggleCommodityStatusService(commodityId: string, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const oldRes = await client.query("SELECT * FROM commodities WHERE commodity_id = $1 FOR UPDATE", [commodityId]);
+    if (!oldRes.rows.length) {
+      throw new Error(`Mặt hàng [${commodityId}] không tồn tại.`);
+    }
+    const old = oldRes.rows[0];
+    const nextStatus = old.status === "Đã duyệt" ? "Tạm ngưng" : "Đã duyệt";
+
+    const updateRes = await client.query(
+      "UPDATE commodities SET status = $1, updated_by = $2, updated_at = NOW() WHERE commodity_id = $3 RETURNING *",
+      [nextStatus, actor.fullName, commodityId]
+    );
+
+    await client.query(
+      "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      ["commodities", commodityId, "TOGGLE_STATUS", actor.userId, actor.fullName, JSON.stringify(old), JSON.stringify(updateRes.rows[0]), `Chuyển trạng thái sang ${nextStatus}`]
+    );
+
+    await client.query("COMMIT");
+    return { success: true, status: nextStatus, message: `Đã chuyển trạng thái mặt hàng [${old.name}] sang [${nextStatus}].` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteCommodityService(commodityId: string, actor: CurrentActor) {
+  requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const oldRes = await client.query("SELECT * FROM commodities WHERE commodity_id = $1 FOR UPDATE", [commodityId]);
+    if (!oldRes.rows.length) {
+      throw new Error(`Mặt hàng [${commodityId}] không tồn tại.`);
+    }
+    const old = oldRes.rows[0];
+
+    // Foreign Key check: customer_quotations
+    const quoteCheck = await client.query(
+      "SELECT quotation_id FROM customer_quotations WHERE commodity_id = $1 LIMIT 1",
+      [commodityId]
+    );
+    if (quoteCheck.rows.length > 0) {
+      throw new Error(
+        `Không thể xóa mặt hàng [${old.name}]. Mặt hàng này đang được sử dụng trong Báo giá [${quoteCheck.rows[0].quotation_id}]. Vui lòng chuyển trạng thái sang "Tạm ngưng" thay vì xóa.`
+      );
+    }
+
+    await client.query("DELETE FROM commodities WHERE commodity_id = $1", [commodityId]);
+
+    await client.query(
+      "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      ["commodities", commodityId, "DELETE", actor.userId, actor.fullName, JSON.stringify(old), null, `Xóa mặt hàng [${old.name}]`]
+    );
+
+    await client.query("COMMIT");
+    return { success: true, message: `Đã xóa mặt hàng [${old.name}].` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

@@ -5,7 +5,15 @@ import {
   getCustomersDetailedList,
   getVendorsDetailedList,
   getLocationsDetailedList,
+  saveLocationService,
+  toggleLocationStatusService,
+  deleteLocationService,
+  type SaveLocationInput,
   getCommoditiesDetailedList,
+  saveCommodityService,
+  toggleCommodityStatusService,
+  deleteCommodityService,
+  type SaveCommodityInput,
   getFleetDetailedList,
   getMasterRegions,
 } from "@/server/modules/master-data/master-data.service";
@@ -60,6 +68,45 @@ export async function getLocationsAction(search?: string, regionId?: string) {
   }
 }
 
+export async function saveLocationAction(input: SaveLocationInput) {
+  try {
+    const actor = await requireAuth();
+    const result = await saveLocationService(input, actor);
+    return { success: true, message: result.message, data: result.data };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu thông tin địa điểm",
+    };
+  }
+}
+
+export async function toggleLocationStatusAction(locationId: string) {
+  try {
+    const actor = await requireAuth();
+    const result = await toggleLocationStatusService(locationId, actor);
+    return { success: true, isActive: result.isActive, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi đổi trạng thái địa điểm",
+    };
+  }
+}
+
+export async function deleteLocationAction(locationId: string) {
+  try {
+    const actor = await requireAuth();
+    const result = await deleteLocationService(locationId, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa địa điểm",
+    };
+  }
+}
+
 export async function getCommoditiesAction(search?: string) {
   try {
     await requireAuth();
@@ -70,6 +117,45 @@ export async function getCommoditiesAction(search?: string) {
       success: false,
       data: [],
       error: err instanceof Error ? err.message : "Lỗi khi tải danh mục mặt hàng",
+    };
+  }
+}
+
+export async function saveCommodityAction(input: SaveCommodityInput) {
+  try {
+    const actor = await requireAuth();
+    const result = await saveCommodityService(input, actor);
+    return { success: true, message: result.message, data: result.data };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu mặt hàng",
+    };
+  }
+}
+
+export async function toggleCommodityStatusAction(commodityId: string) {
+  try {
+    const actor = await requireAuth();
+    const result = await toggleCommodityStatusService(commodityId, actor);
+    return { success: true, message: result.message, status: result.status };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi đổi trạng thái",
+    };
+  }
+}
+
+export async function deleteCommodityAction(commodityId: string) {
+  try {
+    const actor = await requireAuth();
+    const result = await deleteCommodityService(commodityId, actor);
+    return { success: true, message: result.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa mặt hàng",
     };
   }
 }
@@ -99,7 +185,7 @@ import {
   updateCustomerRoleTerms,
   getPartnerRoleAuditHistory,
 } from "@/server/modules/master-data/partner-lifecycle.service";
-import { requireAuth } from "@/server/auth/authorize";
+import { requireAuth, requireRole } from "@/server/auth/authorize";
 
 export async function getPartnersDirectoryAction(filters?: {
   search?: string;
@@ -194,6 +280,95 @@ export async function getPartnerRoleAuditHistoryAction(partnerId: string) {
       success: false,
       data: [],
       error: err instanceof Error ? err.message : "Lỗi khi tải lịch sử audit vai trò",
+    };
+  }
+}
+
+export async function bulkImportRoadRatesAction(rows: Array<{
+  vendorId: string;
+  pickupLocationId: string;
+  deliveryLocationId: string;
+  equipmentType: string;
+  buyRate: number;
+  currency: string;
+  validFrom: string;
+  validTo: string;
+  remarks?: string;
+}>) {
+  try {
+    const actor = await requireAuth();
+    requireRole(actor, ["PRICING_SPECIALIST", "PRICING_MANAGER", "ADMIN", "DIRECTOR"]);
+
+    if (!rows.length) {
+      return { success: false, error: "Danh sách bảng giá rỗng." };
+    }
+    if (rows.length > 500) {
+      return { success: false, error: "Số lượng dòng tối đa mỗi lần import là 500 bản ghi." };
+    }
+
+    const { pool } = await import("@/server/db");
+    const { randomUUID } = await import("node:crypto");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      let count = 0;
+
+      for (const row of rows) {
+        // Validate vendor is active
+        const vendorCheck = await client.query(
+          "SELECT v.vendor_id FROM vendors v JOIN partners p ON p.partner_id=v.vendor_id WHERE v.vendor_id=$1 AND v.role_status='ACTIVE' AND p.status='ACTIVE'",
+          [row.vendorId]
+        );
+        if (!vendorCheck.rows.length) {
+          throw new Error(`Nhà cung cấp [${row.vendorId}] chưa được kích hoạt hoặc không tồn tại.`);
+        }
+
+        // Validate locations
+        const locCheck = await client.query(
+          "SELECT location_id, is_active FROM locations WHERE location_id=ANY($1::varchar[])",
+          [[row.pickupLocationId, row.deliveryLocationId]]
+        );
+        if (locCheck.rows.length < 2 || !locCheck.rows.every((r: { is_active: boolean }) => r.is_active)) {
+          throw new Error(`Điểm đi [${row.pickupLocationId}] hoặc điểm đến [${row.deliveryLocationId}] không hợp lệ hoặc đang ngừng hoạt động.`);
+        }
+
+        const rateId = randomUUID();
+        const insertQuery = `
+          INSERT INTO road_rates (rate_id, vendor_id, pickup_location_id, delivery_location_id, equipment_type, buy_rate, currency, validity_range, status, remarks)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::daterange, 'DRAFT', $9)
+          RETURNING *;
+        `;
+        const res = await client.query(insertQuery, [
+          rateId,
+          row.vendorId,
+          row.pickupLocationId,
+          row.deliveryLocationId,
+          row.equipmentType,
+          row.buyRate,
+          row.currency,
+          `[${row.validFrom},${row.validTo})`,
+          row.remarks ?? null,
+        ]);
+
+        await client.query(
+          "INSERT INTO master_data_audit(entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES($1, $2, 'SAVE', $3, $4, null, $5, $6)",
+          ["rates", rateId, actor.userId, actor.fullName, JSON.stringify(res.rows[0]), "Import hàng loạt từ Excel"]
+        );
+        count++;
+      }
+
+      await client.query("COMMIT");
+      return { success: true, count, message: `Đã nhập thành công ${count} bảng giá mua (trạng thái DRAFT).` };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi khi import bảng giá",
     };
   }
 }

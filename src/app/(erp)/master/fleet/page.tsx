@@ -3,6 +3,7 @@
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
@@ -40,6 +41,7 @@ interface DriverRecord {
 }
 
 export default function MasterFleetPage() {
+  useDocumentTitle("Đội xe & Tài xế");
   const [activeTab, setActiveTab] = useState<"TRACTORS" | "TRAILERS" | "DRIVERS">("TRACTORS");
   const [tractors, setTractors] = useState<TractorRecord[]>([]);
   const [trailers, setTrailers] = useState<TrailerRecord[]>([]);

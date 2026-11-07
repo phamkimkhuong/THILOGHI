@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -65,6 +66,7 @@ interface VendorRecord {
 }
 
 export default function MasterCustomersPage() {
+  useDocumentTitle("Danh bạ Đối tác & Khách hàng");
   const [activeTab, setActiveTab] = useState<"CUSTOMERS" | "VENDORS" | "PARTNERS">("CUSTOMERS");
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [vendors, setVendors] = useState<VendorRecord[]>([]);

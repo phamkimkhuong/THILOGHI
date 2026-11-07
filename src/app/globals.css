@@ -109,23 +109,23 @@ button:disabled { cursor: not-allowed; opacity: .45; }
     font-weight: 500;
     transition: all 0.15s ease;
   }
-}
 
-.erp-shell :where(input:not([type="checkbox"]), select) {
-  min-height: 36px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
+  .erp-shell :where(input:not([type="checkbox"]), select) {
+    min-height: 36px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
 
-.erp-shell :where(input:not([type="checkbox"]), select):focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(38, 114, 223, 0.14);
+  .erp-shell :where(input:not([type="checkbox"]), select):focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(38, 114, 223, 0.14);
+  }
 }
 
 .erp-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }

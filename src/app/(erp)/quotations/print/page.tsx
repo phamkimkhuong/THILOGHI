@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { FileSpreadsheet, Printer, ArrowLeft } from "lucide-react";
 import { getCommercialSheetAction } from "@/features/quotation/phase4-actions";
 import { exportQuotationToExcel } from "@/shared/utils/excel";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 
 const money = (n: number) => new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(n);
 const inclusions: Record<string,string> = {INCLUDED:"Trong giá chào",SEPARATELY_BILLED:"Thu riêng",PASS_THROUGH_ACTUAL:"Thu theo thực tế · tạm tính"};
@@ -12,6 +13,7 @@ function PrintSheet() {
   const id = useSearchParams().get("id");
   const [result,setResult] = useState<Awaited<ReturnType<typeof getCommercialSheetAction>> | null>(null);
   const [retry,setRetry] = useState(0);
+  useDocumentTitle(result?.success ? `Bản in Báo giá ${result.sheet.quotationNo}` : "Bản in Báo giá");
   useEffect(()=>{
     let current=true;
     const timer=setTimeout(()=>{

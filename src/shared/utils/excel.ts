@@ -335,3 +335,188 @@ export async function exportRoadRatesToExcel(rates: RoadRateExportItem[]) {
   URL.revokeObjectURL(url);
 }
 
+export interface RoadRateImportRow {
+  vendorId: string;
+  pickupLocationId: string;
+  deliveryLocationId: string;
+  equipmentType: string;
+  buyRate: number;
+  currency: string;
+  validFrom: string; // YYYY-MM-DD
+  validTo: string;   // YYYY-MM-DD
+  remarks?: string;
+}
+
+/**
+ * Tải file biểu mẫu Excel mẫu để nhập bảng giá cước đường bộ hàng loạt
+ */
+export async function downloadRoadRatesImportTemplate() {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "THILOGI ERP System";
+  const worksheet = workbook.addWorksheet("Mau_Nhap_Gia_Mua");
+
+  // Hướng dẫn
+  worksheet.mergeCells("A1:I1");
+  const guide = worksheet.getCell("A1");
+  guide.value = "BIỂU MẪU NHẬP BẢNG GIÁ MUA ĐƯỜNG BỘ HÀNG LOẠT (TẬP ĐOÀN THILOGI)";
+  guide.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF102F63" } };
+
+  worksheet.mergeCells("A2:I2");
+  const subGuide = worksheet.getCell("A2");
+  subGuide.value = "Lưu ý: Không đổi tên cột; Ngày định dạng YYYY-MM-DD (Ví dụ: 2026-01-01); Giá là số nguyên dương.";
+  subGuide.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF64748B" } };
+
+  const headerRow = worksheet.getRow(4);
+  headerRow.values = [
+    "Mã NCC (*)",
+    "Mã Điểm Đi (*)",
+    "Mã Điểm Đến (*)",
+    "Thiết Bị (*)",
+    "Đơn Giá Mua (*)",
+    "Tiền Tệ (*)",
+    "Hiệu Lực Từ (*)",
+    "Hiệu Lực Đến (*)",
+    "Ghi Chú",
+  ];
+
+  headerRow.eachCell((cell) => {
+    cell.font = { name: "Calibri", bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF102F63" },
+    };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+  });
+  headerRow.height = 24;
+
+  // Dữ liệu mẫu (Sample rows)
+  worksheet.addRow(["VEND-001", "PORT-CHULAI", "DEPOT-DN", "40HC", 3500000, "VND", "2026-01-01", "2026-12-31", "Tuyến nội địa"]);
+  worksheet.addRow(["VEND-002", "PORT-CHULAI", "CK-BOY", "40HC", 8500000, "VND", "2026-01-01", "2026-12-31", "Tuyến biên giới Lào"]);
+
+  worksheet.columns.forEach((col) => {
+    col.width = 18;
+  });
+  worksheet.getColumn(1).width = 16;
+  worksheet.getColumn(2).width = 20;
+  worksheet.getColumn(3).width = 20;
+  worksheet.getColumn(5).width = 18;
+  worksheet.getColumn(9).width = 25;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "THILOGI_MauNhap_GiaMuaDuongBo.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Đọc và phân tích file Excel bảng giá mua đường bộ do người dùng upload
+ */
+export async function parseRoadRatesFromExcel(file: File): Promise<{
+  success: boolean;
+  validRows: RoadRateImportRow[];
+  errors: string[];
+}> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      return { success: false, validRows: [], errors: ["File Excel không có trang tính (worksheet) nào."] };
+    }
+
+    const validRows: RoadRateImportRow[] = [];
+    const errors: string[] = [];
+
+    // Tìm dòng header (chứa chữ "Mã NCC" hoặc bắt đầu từ dòng 4 hoặc dòng 1)
+    let headerRowIndex = 4;
+    worksheet.eachRow((row, rowNumber) => {
+      const firstCell = String(row.getCell(1).value ?? "");
+      if (firstCell.includes("Mã NCC") || firstCell.includes("vendor") || firstCell.includes("NCC")) {
+        headerRowIndex = rowNumber;
+      }
+    });
+
+    const validCurrencies = ["VND", "USD", "LAK", "KHR"];
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= headerRowIndex) return;
+
+      const vendorId = String(row.getCell(1).value ?? "").trim();
+      const pickupLocationId = String(row.getCell(2).value ?? "").trim();
+      const deliveryLocationId = String(row.getCell(3).value ?? "").trim();
+      const equipmentType = String(row.getCell(4).value ?? "").trim();
+      const rawBuyRate = row.getCell(5).value;
+      const currency = String(row.getCell(6).value ?? "VND").trim().toUpperCase();
+      let validFrom = String(row.getCell(7).value ?? "").trim();
+      let validTo = String(row.getCell(8).value ?? "").trim();
+      const remarks = String(row.getCell(9).value ?? "").trim();
+
+      // Bỏ qua dòng trống
+      if (!vendorId && !pickupLocationId && !deliveryLocationId) return;
+
+      // Xử lý giá trị Date nếu ExcelJS đọc ra Date Object
+      if (row.getCell(7).value instanceof Date) {
+        validFrom = (row.getCell(7).value as Date).toISOString().slice(0, 10);
+      }
+      if (row.getCell(8).value instanceof Date) {
+        validTo = (row.getCell(8).value as Date).toISOString().slice(0, 10);
+      }
+
+      const buyRate = Number(rawBuyRate);
+
+      // Validate từng trường
+      const rowErrors: string[] = [];
+      if (!vendorId) rowErrors.push("thiếu Mã NCC");
+      if (!pickupLocationId) rowErrors.push("thiếu Mã Điểm Đi");
+      if (!deliveryLocationId) rowErrors.push("thiếu Mã Điểm Đến");
+      if (pickupLocationId && deliveryLocationId && pickupLocationId === deliveryLocationId) {
+        rowErrors.push("Điểm đi và điểm đến trùng nhau");
+      }
+      if (!equipmentType) rowErrors.push("thiếu Thiết Bị");
+      if (isNaN(buyRate) || buyRate <= 0) rowErrors.push(`Đơn giá mua không hợp lệ (${rawBuyRate})`);
+      if (!validCurrencies.includes(currency)) rowErrors.push(`Tiền tệ không hợp lệ (${currency})`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(validFrom)) rowErrors.push(`Ngày bắt đầu không đúng định dạng YYYY-MM-DD (${validFrom})`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(validTo)) rowErrors.push(`Ngày kết thúc không đúng định dạng YYYY-MM-DD (${validTo})`);
+      if (validFrom && validTo && validFrom >= validTo) rowErrors.push("Ngày bắt đầu phải nhỏ hơn ngày kết thúc");
+
+      if (rowErrors.length > 0) {
+        errors.push(`Dòng ${rowNumber}: ${rowErrors.join(", ")}`);
+      } else {
+        validRows.push({
+          vendorId,
+          pickupLocationId,
+          deliveryLocationId,
+          equipmentType,
+          buyRate,
+          currency,
+          validFrom,
+          validTo,
+          remarks: remarks || undefined,
+        });
+      }
+    });
+
+    return {
+      success: errors.length === 0,
+      validRows,
+      errors,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      validRows: [],
+      errors: [err instanceof Error ? err.message : "Lỗi khi đọc file Excel"],
+    };
+  }
+}
+
+

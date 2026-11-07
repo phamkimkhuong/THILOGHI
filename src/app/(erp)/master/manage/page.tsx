@@ -9,6 +9,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { usePermission } from "@/components/auth/permission-guard";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Row = Record<string, unknown>;
 const control = "w-full rounded border border-border bg-surface p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -43,6 +45,7 @@ function Lookup({ kind, label, id, value, onChange }: {kind: string; label: stri
 }
 
 export default function MaintenancePage() {
+  useDocumentTitle("Quản lý Danh mục & Giá mua");
   const [kind, setKind] = useState<Catalog>("partners");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -177,7 +180,39 @@ export default function MaintenancePage() {
       <Dialog.Title className="text-xl font-semibold text-foreground">{selected ? "Chi tiết" : "Thêm mới"} · {c.title}</Dialog.Title><Dialog.Description className="mb-4 text-sm text-muted-foreground">{kind === "rates" ? "Lưu nháp trước khi gửi duyệt. Người duyệt phải khác người sửa giá gần nhất. Giá đã duyệt chỉ có thể ngừng sử dụng." : "Giữ đúng dữ liệu nguồn; để trống thông tin chưa biết. Mã định danh được giữ nguyên khi chỉnh sửa."}</Dialog.Description>
       <form onSubmit={e => { e.preventDefault(); void save("SAVE"); }} className="space-y-4"><fieldset disabled={busy || !editable} className="grid gap-4 sm:grid-cols-2">
         {!selected && ["customers", "vendors"].includes(kind) && <div className="sm:col-span-2"><p>Đối tác *</p><Lookup kind="partners" label="Đối tác" id="role-partner" value={partnerId} onChange={setPartnerId} /></div>}
-        {(c.fields as Field[]).map(f => <div key={f.key}><label htmlFor={`field-${f.key}`} className="mb-1 block text-sm font-medium">{f.label}{f.required ? " *" : ""}</label>{f.lookup ? <Lookup kind={f.lookup} label={f.label} id={`field-${f.key}`} value={fields[f.key] ?? ""} onChange={v => setFields(prev => ({...prev, [f.key]: v}))} /> : f.options ? <select id={`field-${f.key}`} className={control} required={f.required} value={fields[f.key] ?? ""} onChange={e => setFields(prev => ({...prev, [f.key]: e.target.value}))}><option value="">Chọn…</option>{f.options.map(o => <option key={o}>{o}</option>)}</select> : <input id={`field-${f.key}`} className={control} required={f.required} maxLength={f.max ?? 4000} type={f.type ?? "text"} step={f.key === "payment_terms_days" ? "1" : "0.01"} min={f.type === "number" ? "0" : undefined} value={fields[f.key] ?? ""} onChange={e => setFields(prev => ({...prev, [f.key]: e.target.value}))} />}</div>)}
+        {(c.fields as Field[]).map(f => (
+          <div key={f.key}>
+            <label htmlFor={`field-${f.key}`} className="mb-1 block text-sm font-medium">
+              {f.label}{f.required ? " *" : ""}
+            </label>
+            {f.lookup ? (
+              <Lookup kind={f.lookup} label={f.label} id={`field-${f.key}`} value={fields[f.key] ?? ""} onChange={v => setFields(prev => ({...prev, [f.key]: v}))} />
+            ) : f.options ? (
+              <select id={`field-${f.key}`} className={control} required={f.required} value={fields[f.key] ?? ""} onChange={e => setFields(prev => ({...prev, [f.key]: e.target.value}))}>
+                <option value="">Chọn…</option>
+                {f.options.map(o => <option key={o}>{o}</option>)}
+              </select>
+            ) : f.type === "date" ? (
+              <DatePicker
+                value={fields[f.key] ?? ""}
+                onChange={v => setFields(prev => ({...prev, [f.key]: v}))}
+                placeholder={`Chọn ${f.label.toLowerCase()}…`}
+              />
+            ) : (
+              <input
+                id={`field-${f.key}`}
+                className={control}
+                required={f.required}
+                maxLength={f.max ?? 4000}
+                type={f.type ?? "text"}
+                step={f.key === "payment_terms_days" ? "1" : "0.01"}
+                min={f.type === "number" ? "0" : undefined}
+                value={fields[f.key] ?? ""}
+                onChange={e => setFields(prev => ({...prev, [f.key]: e.target.value}))}
+              />
+            )}
+          </div>
+        ))}
       </fieldset><label className="block">Lý do / ghi chú thay đổi<textarea className={control} disabled={busy} maxLength={2000} value={comment} onChange={e => setComment(e.target.value)} /></label>
       {formError && <p role="alert" className="whitespace-pre-wrap text-red-600">{formError}</p>}
       <div className="flex flex-wrap gap-2">{editable && <button className="erp-button bg-blue-600 text-white" disabled={busy} type="submit">{busy ? "Đang lưu…" : kind === "rates" ? "Lưu nháp" : "Lưu thay đổi"}</button>}

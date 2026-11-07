@@ -103,9 +103,15 @@ export const locations = pgTable("locations", {
   address: text("address"),
   gpsCoordinates: varchar("gps_coordinates", { length: 100 }),
   company: varchar("company", { length: 100 }),
+  contact: text("contact"),
+  note: text("note"),
+  commodities: text("commodities"),
+  createdBy: varchar("created_by", { length: 100 }),
+  updatedBy: varchar("updated_by", { length: 100 }),
   status: varchar("status", { length: 50 }).default("Active"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const partners = pgTable("partners", {
@@ -179,10 +185,17 @@ export const commodities = pgTable("commodities", {
   englishName: varchar("english_name", { length: 255 }),
   category: varchar("category", { length: 100 }),
   specifications: varchar("specifications", { length: 255 }),
+  components: text("components"),
   origin: varchar("origin", { length: 100 }),
   purpose: varchar("purpose", { length: 255 }),
+  imageUrl: text("image_url"),
+  attachmentUrl: text("attachment_url"),
+  note: text("note"),
   status: varchar("status", { length: 50 }).default("Đã duyệt"),
+  createdBy: varchar("created_by", { length: 100 }),
+  updatedBy: varchar("updated_by", { length: 100 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // --------------------------------------------------------------------

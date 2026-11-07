@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 import {
   PlusCircle,
   Clock,
@@ -42,6 +43,7 @@ import {
 } from "@/server/modules/quotation/quotation.service";
 
 export default function QuotationListPage() {
+  useDocumentTitle("Quản lý Báo giá");
   const router = useRouter();
   const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");

@@ -3,9 +3,12 @@
 import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import * as Dialog from "@radix-ui/react-dialog";
+import { toast } from "sonner";
 import {
   Search,
   ArrowRight,
@@ -14,9 +17,19 @@ import {
   Building2,
   Navigation,
   FileSpreadsheet,
+  FileUp,
+  Download,
+  AlertCircle,
+  CheckCircle2,
+  X,
 } from "lucide-react";
-import { getRoadRatesAction } from "@/features/master-data/actions";
-import { exportRoadRatesToExcel } from "@/shared/utils/excel";
+import { getRoadRatesAction, bulkImportRoadRatesAction } from "@/features/master-data/actions";
+import {
+  exportRoadRatesToExcel,
+  downloadRoadRatesImportTemplate,
+  parseRoadRatesFromExcel,
+  type RoadRateImportRow,
+} from "@/shared/utils/excel";
 
 interface RoadRateItem {
   rateId: string;
@@ -38,6 +51,7 @@ interface RoadRateItem {
 }
 
 export default function RoadRatesLibraryPage() {
+  useDocumentTitle("Bảng giá cước Đường bộ");
   const [rates, setRates] = useState<RoadRateItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEquipment, setSelectedEquipment] = useState("ALL");
@@ -48,6 +62,14 @@ export default function RoadRatesLibraryPage() {
   const [matcherDest, setMatcherDest] = useState("ALL");
   const [matcherEquipment, setMatcherEquipment] = useState("ALL");
 
+
+  // Import Excel State
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [parsedImport, setParsedImport] = useState<{ validRows: RoadRateImportRow[]; errors: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { loading, error: loadError, runLoad } = useListFeedback("road_rates_list");
 
@@ -61,6 +83,39 @@ export default function RoadRatesLibraryPage() {
       }
     });
   }, [runLoad]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setParsing(true);
+    try {
+      const res = await parseRoadRatesFromExcel(file);
+      setParsedImport({ validRows: res.validRows, errors: res.errors });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không thể đọc file Excel");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!parsedImport?.validRows.length) return;
+    setImporting(true);
+    try {
+      const res = await bulkImportRoadRatesAction(parsedImport.validRows);
+      if (!res.success) throw new Error(res.error);
+      toast.success(res.message || `Đã nhập thành công ${res.count} bảng giá!`);
+      setImportOpen(false);
+      setImportFile(null);
+      setParsedImport(null);
+      loadRates();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi nhập bảng giá");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     loadRates();
@@ -149,6 +204,18 @@ export default function RoadRatesLibraryPage() {
             >
               <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
               Xuất Excel
+            </button>
+            <button
+              type="button"
+              className="erp-button border border-border bg-surface text-foreground hover:bg-surface-hover shadow-xs font-semibold inline-flex items-center gap-1.5"
+              onClick={() => {
+                setImportFile(null);
+                setParsedImport(null);
+                setImportOpen(true);
+              }}
+            >
+              <FileUp className="h-4 w-4 text-blue-600" />
+              Nhập Excel
             </button>
             <RefreshButton onClick={loadRates} loading={loading} />
             <Link href="/quotations/new" className="erp-button bg-primary text-white hover:bg-primary-hover font-bold inline-flex items-center gap-1.5 shadow-xs">
@@ -354,6 +421,138 @@ export default function RoadRatesLibraryPage() {
         </div>
         <Pagination pagination={pagination} loading={loading} error={!!loadError} loaded={rates.length} limit={250} />
       </div>
+
+      {/* DIALOG NHẬP BẢNG GIÁ EXCEL HÀNG LOẠT */}
+      <Dialog.Root open={importOpen} onOpenChange={(open) => { if (!importing) setImportOpen(open); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[95vw] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-surface border border-border p-6 text-foreground shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+                  <FileUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <Dialog.Title className="text-base font-bold text-foreground">
+                    Nhập bảng giá mua đường bộ từ Excel
+                  </Dialog.Title>
+                  <Dialog.Description className="text-xs text-muted-foreground">
+                    Tải file .xlsx theo đúng cấu trúc mẫu biểu cước của THILOGI
+                  </Dialog.Description>
+                </div>
+              </div>
+              <Dialog.Close disabled={importing} className="p-1 rounded-md text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </Dialog.Close>
+            </div>
+
+            {/* Bước 1: Tải template mẫu */}
+            <div className="p-3 rounded-xl bg-background border border-border flex items-center justify-between gap-3 text-xs">
+              <div className="space-y-0.5">
+                <span className="font-semibold text-foreground">Chưa có file mẫu?</span>
+                <p className="text-muted-foreground text-[11px]">Tải file Excel mẫu với các cột chuẩn hóa để điền dữ liệu</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void downloadRoadRatesImportTemplate()}
+                className="erp-button border border-border bg-surface hover:bg-surface-hover text-xs font-semibold inline-flex items-center gap-1.5 shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-600" /> Tải file mẫu
+              </button>
+            </div>
+
+            {/* Bước 2: Upload file */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-foreground">
+                Chọn file Excel (.xlsx) từ máy tính
+              </label>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer border-2 border-dashed border-border hover:border-blue-500 rounded-xl p-6 text-center bg-background/50 hover:bg-surface-hover transition-colors space-y-2"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 flex items-center justify-center mx-auto">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div className="text-xs font-medium text-foreground">
+                  {importFile ? (
+                    <span className="font-bold text-blue-600">{importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)</span>
+                  ) : (
+                    <>Click để chọn file hoặc kéo thả file Excel vào đây</>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Chỉ hỗ trợ file định dạng .xlsx, tối đa 500 dòng/lần</p>
+              </div>
+            </div>
+
+            {/* Bước 3: Phân tích & Kết quả validate */}
+            {parsing && (
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <span className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                Đang đọc và phân tích cấu trúc dữ liệu…
+              </p>
+            )}
+
+            {parsedImport && (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-foreground">Kết quả kiểm tra dữ liệu:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs">
+                      <CheckCircle2 className="w-3 h-3" /> {parsedImport.validRows.length} hợp lệ
+                    </span>
+                    {parsedImport.errors.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 font-bold text-xs">
+                        <AlertCircle className="w-3 h-3" /> {parsedImport.errors.length} lỗi
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {parsedImport.errors.length > 0 && (
+                  <div className="max-h-36 overflow-y-auto rounded-lg border border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/20 p-2.5 text-xs text-red-600 dark:text-red-400 space-y-1">
+                    <p className="font-bold">Các dòng không hợp lệ (sẽ bị bỏ qua khi nhập):</p>
+                    <ul className="list-disc pl-4 space-y-0.5 font-mono text-[11px]">
+                      {parsedImport.errors.slice(0, 10).map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                      {parsedImport.errors.length > 10 && (
+                        <li>… và {parsedImport.errors.length - 10} dòng khác.</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bước 4: Nút hành động */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                disabled={importing}
+                onClick={() => setImportOpen(false)}
+                className="erp-button border border-border bg-surface text-foreground hover:bg-surface-hover text-xs"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={importing || !parsedImport?.validRows.length}
+                onClick={handleConfirmImport}
+                className="erp-button bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 disabled:opacity-50"
+              >
+                {importing ? "Đang nhập…" : `Xác nhận nhập (${parsedImport?.validRows.length ?? 0} dòng)`}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

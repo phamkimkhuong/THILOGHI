@@ -1,33 +1,52 @@
 "use client";
 
-import { PageHeader, RefreshButton, TableFeedback, Pagination, usePagination, useListFeedback } from "@/components/ui/list-page";
-import { EmptyState } from "@/components/ui/empty-state";
-
 import { useEffect, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader, RefreshButton, useListFeedback } from "@/components/ui/list-page";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 import {
-  Search,
-  Package,
-  PlusCircle,
-  Filter,
-} from "lucide-react";
-import { getCommoditiesAction } from "@/features/master-data/actions";
+  getCommoditiesAction,
+  toggleCommodityStatusAction,
+  deleteCommodityAction,
+} from "@/features/master-data/actions";
 
-interface CommodityRecord {
-  commodityId: string;
-  name: string;
-  category: string;
-  specialRequirements?: string;
-  notes?: string;
-}
+import { CommodityFilterBar } from "./_components/commodity-filter-bar";
+import { CommodityTable } from "./_components/commodity-table";
+import { CommodityDetailDrawer } from "./_components/commodity-detail-drawer";
+import { CommodityFormDialog } from "./_components/commodity-form-dialog";
+import {
+  removeVietnameseTones,
+  type CommodityRecord,
+} from "./_components/types";
 
 export default function MasterCommoditiesPage() {
+  useDocumentTitle("Danh mục Hàng hóa");
+
+  // Server State
   const [commodities, setCommodities] = useState<CommodityRecord[]>([]);
+
+  // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [selectedStatus, setSelectedStatus] = useState("ALL");
+
+  // UI Modal / Drawer States
+  const [selectedCommodity, setSelectedCommodity] = useState<CommodityRecord | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCommodity, setEditingCommodity] = useState<CommodityRecord | null>(null);
+
+  // Confirm Dialog States
+  const [deleteTarget, setDeleteTarget] = useState<CommodityRecord | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toggleTarget, setToggleTarget] = useState<CommodityRecord | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
 
   const { loading, error: loadError, runLoad } = useListFeedback("commodities_list");
 
+  // Nạp dữ liệu từ Server Action
   const loadData = useCallback(() => {
     void runLoad(async (isCurrent) => {
       const res = await getCommoditiesAction();
@@ -43,147 +62,211 @@ export default function MasterCommoditiesPage() {
     loadData();
   }, [loadData]);
 
-  // Categories list
-  const categories = useMemo(() => {
-    const set = new Set<string>();
+  // Danh sách các nhóm & thống kê số lượng
+  const { categories, categoryCounts } = useMemo(() => {
+    const counts: Record<string, number> = {};
     commodities.forEach((c) => {
-      if (c.category) set.add(c.category);
+      if (c.category) {
+        counts[c.category] = (counts[c.category] || 0) + 1;
+      }
     });
-    return Array.from(set);
+    return {
+      categories: Object.keys(counts).sort((a, b) => a.localeCompare(b, "vi")),
+      categoryCounts: counts,
+    };
   }, [commodities]);
 
-  // Instant Client-side Search & Filter
+  // Bộ lọc thông minh tức thì (Tìm kiếm tiếng Việt không dấu & Tên tiếng Anh)
   const filteredCommodities = useMemo(() => {
     let list = [...commodities];
 
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
-      list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.category.toLowerCase().includes(q) ||
-          c.commodityId.toLowerCase().includes(q) ||
-          (c.specialRequirements && c.specialRequirements.toLowerCase().includes(q))
-      );
+      const qNorm = removeVietnameseTones(q);
+
+      list = list.filter((c) => {
+        const fields = [
+          c.name,
+          c.englishName,
+          c.commodityId,
+          c.category,
+          c.specifications,
+          c.origin,
+          c.purpose,
+          c.note,
+        ].filter(Boolean) as string[];
+
+        return fields.some((f) => {
+          const lower = f.toLowerCase();
+          return lower.includes(q) || removeVietnameseTones(lower).includes(qNorm);
+        });
+      });
     }
 
     if (selectedCategory !== "ALL") {
       list = list.filter((c) => c.category === selectedCategory);
     }
 
-    return list;
-  }, [commodities, searchTerm, selectedCategory]);
+    if (selectedStatus !== "ALL") {
+      list = list.filter((c) => c.status === selectedStatus);
+    }
 
-  const pagination = usePagination(filteredCommodities.length, JSON.stringify([searchTerm, selectedCategory]));
+    return list;
+  }, [commodities, searchTerm, selectedCategory, selectedStatus]);
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setSelectedCategory("ALL");
+    setSelectedStatus("ALL");
+  };
+
+  // Mở modal Thêm mới / Sửa
+  const handleOpenCreate = () => {
+    setEditingCommodity(null);
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEdit = (comm: CommodityRecord) => {
+    setEditingCommodity(comm);
+    setIsFormOpen(true);
+  };
+
+  // Xóa hàng hóa (kèm FK Guard)
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await deleteCommodityAction(deleteTarget.commodityId);
+      if (!res.success) throw new Error(res.error || "Không thể xóa mặt hàng.");
+      toast.success(res.message || `Đã xóa mặt hàng [${deleteTarget.name}].`);
+      if (selectedCommodity?.commodityId === deleteTarget.commodityId) {
+        setSelectedCommodity(null);
+      }
+      setDeleteTarget(null);
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi xóa mặt hàng.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Đổi trạng thái phê duyệt
+  const handleConfirmToggle = async () => {
+    if (!toggleTarget) return;
+    setToggleLoading(true);
+    try {
+      const res = await toggleCommodityStatusAction(toggleTarget.commodityId);
+      if (!res.success) throw new Error(res.error || "Không thể đổi trạng thái.");
+      toast.success(res.message || "Đã cập nhật trạng thái thành công!");
+      if (selectedCommodity?.commodityId === toggleTarget.commodityId) {
+        setSelectedCommodity({
+          ...selectedCommodity,
+          status: res.status || (selectedCommodity.status === "Đã duyệt" ? "Tạm ngưng" : "Đã duyệt"),
+        });
+      }
+      setToggleTarget(null);
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi cập nhật trạng thái.");
+    } finally {
+      setToggleLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-4 font-sans text-foreground">
-      <PageHeader title="Hàng hóa" actions={<><Link href="/master/manage" className="erp-button">Quản lý dữ liệu</Link><RefreshButton onClick={loadData} loading={loading} /></>} />
-
-      {/* Multi-Filter Bar */}
-      <div className="p-2.5 rounded-xl bg-surface border border-border flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 shadow-xs">
-        {/* Instant Search Box */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Tìm theo tên mặt hàng, mã hàng, yêu cầu..." aria-label="Tìm theo tên mặt hàng, mã hàng, yêu cầu..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Category Chips */}
-        <div className="flex items-center gap-1 overflow-x-auto text-xs scrollbar-none">
-          <span className="text-xs text-muted-foreground flex items-center gap-1 mr-1">
-            <Filter className="w-3 h-3" /> Nhóm:
-          </span>
-          <button
-            onClick={() => setSelectedCategory("ALL")}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-              selectedCategory === "ALL"
-                ? "bg-blue-600 text-white font-bold"
-                : "bg-background text-muted-foreground hover:text-foreground border border-border"
-            }`}
-          >
-            Tất cả ({commodities.length})
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat
-                  ? "bg-blue-600 text-white font-bold"
-                  : "bg-background text-muted-foreground hover:text-foreground border border-border"
-              }`}
+      {/* 1. Header Trang & Thao tác Quản trị */}
+      <PageHeader
+        title="Danh mục Hàng hóa"
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenCreate}
+              className="flex items-center gap-1.5 shadow-xs"
             >
-              {cat}
-            </button>
-          ))}
-        </div>
+              <Plus className="w-4 h-4" /> Thêm mặt hàng
+            </Button>
+            <RefreshButton onClick={loadData} loading={loading} />
+          </div>
+        }
+      />
 
-      </div>
+      {/* 2. Thanh Lọc Đa Chiều Thông Minh */}
+      <CommodityFilterBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+        categories={categories}
+        categoryCounts={categoryCounts}
+        selectedStatus={selectedStatus}
+        onStatusChange={setSelectedStatus}
+        totalCount={commodities.length}
+        filteredCount={filteredCommodities.length}
+        onResetFilters={resetFilters}
+      />
 
-      {/* Main Table */}
-      <div className="rounded-xl border border-border bg-surface overflow-hidden shadow-xs">
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Bảng dữ liệu">
-          <table className="erp-table w-full text-left text-xs text-foreground">
-            <thead className="bg-surface-hover border-b border-border text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="py-2.5 px-3">Mã hàng</th>
-                <th className="py-2.5 px-3">Tên hàng hóa</th>
-                <th className="py-2.5 px-3">Nhóm / Phân loại</th>
-                <th className="py-2.5 px-3">Quy cách / Ghi chú</th>
-                <th className="py-2.5 px-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60 font-sans">
-              {loading || loadError ? <TableFeedback columns={5} loading={loading} error={loadError} onRetry={loadData} /> : filteredCommodities.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-8">
-                    <EmptyState
-                      icon={Package}
-                      title="Không tìm thấy mặt hàng phù hợp"
-                      description="Hãy thử thay đổi từ khóa tìm kiếm hoặc lọc lại theo nhóm phân loại hàng hóa."
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filteredCommodities.slice(pagination.start, pagination.end).map((m) => (
-                  <tr key={m.commodityId} className="hover:bg-surface-hover transition-colors">
-                    <td className="py-2.5 px-3 font-mono font-bold text-foreground text-xs whitespace-nowrap">
-                      {m.commodityId}
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-foreground flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span>{m.name}</span>
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-surface border border-border font-mono text-blue-700 dark:text-cyan-400">
-                        {m.category}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-muted-foreground text-xs max-w-[220px] truncate" title={m.specialRequirements || m.notes}>
-                      {m.specialRequirements || m.notes || "-"}
-                    </td>
-                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                      <Link
-                        href={`/quotations/new?commodityId=${m.commodityId}`}
-                        className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-600/15 dark:hover:bg-blue-600/25 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 text-xs font-medium inline-flex items-center gap-1 transition-colors"
-                      >
-                        <PlusCircle className="w-3 h-3" /> Lập báo giá
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination pagination={pagination} loading={loading} error={!!loadError} loaded={commodities.length} limit={100} />
-      </div>
+      {/* 3. Bảng Dữ Liệu Hàng Hóa Chuẩn SalesFlow */}
+      <CommodityTable
+        commodities={filteredCommodities}
+        loading={loading}
+        loadError={loadError}
+        onRetry={loadData}
+        onView={setSelectedCommodity}
+        onEdit={handleOpenEdit}
+        onToggle={setToggleTarget}
+        onDelete={setDeleteTarget}
+        filterKey={JSON.stringify([searchTerm, selectedCategory, selectedStatus])}
+        totalOriginal={commodities.length}
+        onResetFilters={resetFilters}
+      />
+
+      {/* 4. Slide-over Drawer Xem Chi Tiết */}
+      <CommodityDetailDrawer
+        commodity={selectedCommodity}
+        onClose={() => setSelectedCommodity(null)}
+        onEdit={handleOpenEdit}
+        onToggle={setToggleTarget}
+        onDelete={setDeleteTarget}
+      />
+
+      {/* 5. Modal Form Thêm / Sửa Hàng Hóa */}
+      <CommodityFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        initialData={editingCommodity}
+        categories={categories}
+        onSuccess={loadData}
+      />
+
+      {/* 6. Hộp thoại Xác nhận Xóa (Foreign Key Guard) */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Xác nhận xóa mặt hàng"
+        description={`Bạn có chắc chắn muốn xóa mặt hàng [${deleteTarget?.name}] (${deleteTarget?.commodityId}) khỏi danh mục không? Thao tác này sẽ bị chặn nếu mặt hàng đã phát sinh báo giá.`}
+        confirmLabel="Xác nhận xóa"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* 7. Hộp thoại Xác nhận Đổi trạng thái */}
+      <ConfirmDialog
+        open={!!toggleTarget}
+        onOpenChange={(open) => !open && setToggleTarget(null)}
+        title="Đổi trạng thái áp dụng"
+        description={`Bạn có muốn chuyển trạng thái mặt hàng [${toggleTarget?.name}] sang [${
+          toggleTarget?.status === "Đã duyệt" ? "Tạm ngưng" : "Đã duyệt"
+        }] không?`}
+        confirmLabel="Đồng ý"
+        variant="primary"
+        loading={toggleLoading}
+        onConfirm={handleConfirmToggle}
+      />
     </div>
   );
 }
