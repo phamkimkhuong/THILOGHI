@@ -147,3 +147,4 @@ export async function getVendorsDetailedList(filters?: { search?: string }) {
   const { rows } = await pool.query(query, params);
   return rows;
 }
+

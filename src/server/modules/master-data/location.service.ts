@@ -254,3 +254,4 @@ export async function deleteLocationService(locationId: string, actor: CurrentAc
     client.release();
   }
 }
+

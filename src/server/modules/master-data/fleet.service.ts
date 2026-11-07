@@ -605,3 +605,4 @@ export async function getFleetVendorsService() {
   `);
   return res.rows as { id: string; name: string; code?: string }[];
 }
+

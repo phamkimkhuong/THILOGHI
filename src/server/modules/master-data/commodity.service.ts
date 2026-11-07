@@ -230,3 +230,4 @@ export async function deleteCommodityService(commodityId: string, actor: Current
     client.release();
   }
 }
+
