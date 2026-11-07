@@ -25,7 +25,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   SelectedFleetItem,
-  getOwnershipBadge,
   getTransitRouteBadge,
 } from "./types";
 

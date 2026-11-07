@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,6 @@ import {
   FileCheck,
   CreditCard,
   Phone,
-  MapPin,
-  Tag,
-  Compass,
 } from "lucide-react";
 import {
   TractorFleetItem,
@@ -67,20 +64,34 @@ const COMMON_TRANSIT_ROUTES = [
   "Việt-Cam",
 ];
 
-export function FleetFormDialog({
-  open,
-  onOpenChange,
-  target,
-  vendors,
-  onSuccess,
-}: FleetFormDialogProps) {
-  const [submitting, setSubmitting] = useState(false);
-
-  // Form state cho Tractor
-  const [tractorForm, setTractorForm] = useState<SaveTractorInput>({
+function getInitialTractorForm(data?: TractorFleetItem): SaveTractorInput {
+  if (data) {
+    return {
+      tractorNo: data.tractorNo,
+      originalTractorNo: data.tractorNo,
+      vendorId: data.vendorId || "VTDB",
+      modelType: data.modelType || "",
+      transitRoute: data.transitRoute || "Nội địa",
+      transitLicenseDate: data.transitLicenseDate
+        ? data.transitLicenseDate.split("T")[0]
+        : "",
+      productionYear: data.productionYear || null,
+      chassisNo: data.chassisNo || "",
+      engineNo: data.engineNo || "",
+      selfWeightTons: data.selfWeightTons || null,
+      loadCapacityTons: data.loadCapacityTons || null,
+      color: data.color || "",
+      inspectionExpirationDate: data.inspectionExpirationDate
+        ? data.inspectionExpirationDate.split("T")[0]
+        : "",
+      notes: data.notes || "",
+      status: data.status || "Đang hoạt động",
+    };
+  }
+  return {
     tractorNo: "",
     vendorId: "VTDB",
-    modelType: "",
+    modelType: "FV400",
     transitRoute: "Nội địa",
     transitLicenseDate: "",
     productionYear: new Date().getFullYear(),
@@ -92,10 +103,34 @@ export function FleetFormDialog({
     inspectionExpirationDate: "",
     notes: "",
     status: "Đang hoạt động",
-  });
+  };
+}
 
-  // Form state cho Trailer
-  const [trailerForm, setTrailerForm] = useState<SaveTrailerInput>({
+function getInitialTrailerForm(data?: TrailerFleetItem): SaveTrailerInput {
+  if (data) {
+    return {
+      trailerNo: data.trailerNo,
+      originalTrailerNo: data.trailerNo,
+      vendorId: data.vendorId || "VTDB",
+      modelType: data.modelType || "RMX 3T",
+      transitRoute: data.transitRoute || "Nội địa",
+      transitLicenseDate: data.transitLicenseDate
+        ? data.transitLicenseDate.split("T")[0]
+        : "",
+      manufacturer: data.manufacturer || "THACO",
+      productionYear: data.productionYear || null,
+      chassisNo: data.chassisNo || "",
+      curbWeightTons: data.curbWeightTons || null,
+      payloadCapacityTons: data.payloadCapacityTons || null,
+      paintColor: data.paintColor || "",
+      inspectionExpirationDate: data.inspectionExpirationDate
+        ? data.inspectionExpirationDate.split("T")[0]
+        : "",
+      notes: data.notes || "",
+      status: data.status || "Đang hoạt động",
+    };
+  }
+  return {
     trailerNo: "",
     vendorId: "VTDB",
     modelType: "RMX 3T",
@@ -110,10 +145,38 @@ export function FleetFormDialog({
     inspectionExpirationDate: "",
     notes: "",
     status: "Đang hoạt động",
-  });
+  };
+}
 
-  // Form state cho Driver
-  const [driverForm, setDriverForm] = useState<SaveDriverInput>({
+function getInitialDriverForm(data?: DriverFleetItem): SaveDriverInput {
+  if (data) {
+    return {
+      driverId: data.driverId,
+      originalDriverId: data.driverId,
+      vendorId: data.vendorId || "VTDB",
+      fullName: data.fullName,
+      gender: data.gender || "Nam",
+      birthday: data.birthday ? data.birthday.split("T")[0] : "",
+      licenseNo: data.licenseNo || "",
+      citizenId: data.citizenId || "",
+      citizenIssueDate: data.citizenIssueDate
+        ? data.citizenIssueDate.split("T")[0]
+        : "",
+      passportNo: data.passportNo || "",
+      passportIssueDate: data.passportIssueDate
+        ? data.passportIssueDate.split("T")[0]
+        : "",
+      phone: data.phone || "",
+      nationality: data.nationality || "Việt Nam",
+      hometown: data.hometown || "",
+      gpsCoordinates: data.gpsCoordinates || "",
+      address: data.address || "",
+      notes: data.notes || "",
+      status: data.status || "Đang hoạt động",
+      isActive: data.isActive ?? true,
+    };
+  }
+  return {
     driverId: "",
     vendorId: "VTDB",
     fullName: "",
@@ -132,147 +195,69 @@ export function FleetFormDialog({
     notes: "",
     status: "Đang hoạt động",
     isActive: true,
-  });
+  };
+}
 
-  // Đồng bộ dữ liệu khi mở modal Create hoặc Edit
-  useEffect(() => {
-    if (!open || !target) return;
+export function FleetFormDialog({
+  open,
+  onOpenChange,
+  target,
+  vendors,
+  onSuccess,
+}: FleetFormDialogProps) {
+  if (!open || !target) return null;
 
-    if (target.type === "TRACTOR") {
-      if (target.data) {
-        setTractorForm({
-          tractorNo: target.data.tractorNo,
-          originalTractorNo: target.data.tractorNo,
-          vendorId: target.data.vendorId || "VTDB",
-          modelType: target.data.modelType || "",
-          transitRoute: target.data.transitRoute || "Nội địa",
-          transitLicenseDate: target.data.transitLicenseDate
-            ? target.data.transitLicenseDate.split("T")[0]
-            : "",
-          productionYear: target.data.productionYear || null,
-          chassisNo: target.data.chassisNo || "",
-          engineNo: target.data.engineNo || "",
-          selfWeightTons: target.data.selfWeightTons || null,
-          loadCapacityTons: target.data.loadCapacityTons || null,
-          color: target.data.color || "",
-          inspectionExpirationDate: target.data.inspectionExpirationDate
-            ? target.data.inspectionExpirationDate.split("T")[0]
-            : "",
-          notes: target.data.notes || "",
-          status: target.data.status || "Đang hoạt động",
-        });
-      } else {
-        setTractorForm({
-          tractorNo: "",
-          vendorId: "VTDB",
-          modelType: "FV400",
-          transitRoute: "Nội địa",
-          transitLicenseDate: "",
-          productionYear: new Date().getFullYear(),
-          chassisNo: "",
-          engineNo: "",
-          selfWeightTons: 9.3,
-          loadCapacityTons: 38.5,
-          color: "Trắng xanh",
-          inspectionExpirationDate: "",
-          notes: "",
-          status: "Đang hoạt động",
-        });
-      }
-    } else if (target.type === "TRAILER") {
-      if (target.data) {
-        setTrailerForm({
-          trailerNo: target.data.trailerNo,
-          originalTrailerNo: target.data.trailerNo,
-          vendorId: target.data.vendorId || "VTDB",
-          modelType: target.data.modelType || "RMX 3T",
-          transitRoute: target.data.transitRoute || "Nội địa",
-          transitLicenseDate: target.data.transitLicenseDate
-            ? target.data.transitLicenseDate.split("T")[0]
-            : "",
-          manufacturer: target.data.manufacturer || "THACO",
-          productionYear: target.data.productionYear || null,
-          chassisNo: target.data.chassisNo || "",
-          curbWeightTons: target.data.curbWeightTons || null,
-          payloadCapacityTons: target.data.payloadCapacityTons || null,
-          paintColor: target.data.paintColor || "",
-          inspectionExpirationDate: target.data.inspectionExpirationDate
-            ? target.data.inspectionExpirationDate.split("T")[0]
-            : "",
-          notes: target.data.notes || "",
-          status: target.data.status || "Đang hoạt động",
-        });
-      } else {
-        setTrailerForm({
-          trailerNo: "",
-          vendorId: "VTDB",
-          modelType: "RMX 3T",
-          transitRoute: "Nội địa",
-          transitLicenseDate: "",
-          manufacturer: "THACO",
-          productionYear: new Date().getFullYear(),
-          chassisNo: "",
-          curbWeightTons: 6.2,
-          payloadCapacityTons: 30.2,
-          paintColor: "Trắng xanh",
-          inspectionExpirationDate: "",
-          notes: "",
-          status: "Đang hoạt động",
-        });
-      }
-    } else if (target.type === "DRIVER") {
-      if (target.data) {
-        setDriverForm({
-          driverId: target.data.driverId,
-          originalDriverId: target.data.driverId,
-          vendorId: target.data.vendorId || "VTDB",
-          fullName: target.data.fullName,
-          gender: target.data.gender || "Nam",
-          birthday: target.data.birthday ? target.data.birthday.split("T")[0] : "",
-          licenseNo: target.data.licenseNo || "",
-          citizenId: target.data.citizenId || "",
-          citizenIssueDate: target.data.citizenIssueDate
-            ? target.data.citizenIssueDate.split("T")[0]
-            : "",
-          passportNo: target.data.passportNo || "",
-          passportIssueDate: target.data.passportIssueDate
-            ? target.data.passportIssueDate.split("T")[0]
-            : "",
-          phone: target.data.phone || "",
-          nationality: target.data.nationality || "Việt Nam",
-          hometown: target.data.hometown || "",
-          gpsCoordinates: target.data.gpsCoordinates || "",
-          address: target.data.address || "",
-          notes: target.data.notes || "",
-          status: target.data.status || "Đang hoạt động",
-          isActive: target.data.isActive ?? true,
-        });
-      } else {
-        setDriverForm({
-          driverId: "",
-          vendorId: "VTDB",
-          fullName: "",
-          gender: "Nam",
-          birthday: "",
-          licenseNo: "",
-          citizenId: "",
-          citizenIssueDate: "",
-          passportNo: "",
-          passportIssueDate: "",
-          phone: "",
-          nationality: "Việt Nam",
-          hometown: "",
-          gpsCoordinates: "",
-          address: "",
-          notes: "",
-          status: "Đang hoạt động",
-          isActive: true,
-        });
-      }
-    }
-  }, [open, target]);
+  const instanceKey = `${target.type}-${
+    target.data
+      ? "tractorNo" in target.data
+        ? target.data.tractorNo
+        : "trailerNo" in target.data
+        ? target.data.trailerNo
+        : target.data.driverId
+      : "new"
+  }`;
 
-  if (!target) return null;
+  return (
+    <FleetFormDialogContent
+      key={instanceKey}
+      open={open}
+      onOpenChange={onOpenChange}
+      target={target}
+      vendors={vendors}
+      onSuccess={onSuccess}
+    />
+  );
+}
+
+function FleetFormDialogContent({
+  open,
+  onOpenChange,
+  target,
+  vendors,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  target: NonNullable<FleetFormTarget>;
+  vendors: FleetVendorOption[];
+  onSuccess: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state cho Tractor
+  const [tractorForm, setTractorForm] = useState<SaveTractorInput>(() =>
+    getInitialTractorForm(target.type === "TRACTOR" ? target.data : undefined)
+  );
+
+  // Form state cho Trailer
+  const [trailerForm, setTrailerForm] = useState<SaveTrailerInput>(() =>
+    getInitialTrailerForm(target.type === "TRAILER" ? target.data : undefined)
+  );
+
+  // Form state cho Driver
+  const [driverForm, setDriverForm] = useState<SaveDriverInput>(() =>
+    getInitialDriverForm(target.type === "DRIVER" ? target.data : undefined)
+  );
 
   // Tiêu đề & phụ đề hộp thoại
   const isEdit = Boolean(target.data);
