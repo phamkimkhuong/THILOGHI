@@ -88,7 +88,7 @@ export function RatesImportDialog({
     <Dialog.Root open={open} onOpenChange={handleClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[95vw] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-surface border border-border p-4 sm:p-6 text-foreground shadow-2xl space-y-4 focus:outline-none font-sans animate-in zoom-in-95 duration-150">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-surface border border-border p-4 sm:p-6 text-foreground shadow-2xl space-y-4 focus:outline-none font-sans animate-in zoom-in-95 duration-150 scrollbar-thin">
           {/* Header Dialog */}
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <div className="flex items-center gap-2.5">

@@ -1,25 +1,35 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
-import { FileSpreadsheet, FileUp } from "lucide-react";
+import { FileSpreadsheet, FileUp, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, RefreshButton, useListFeedback } from "@/components/ui/list-page";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDocumentTitle } from "@/shared/hooks/use-document-title";
-import { getRoadRatesAction } from "@/features/master-data/actions";
+import {
+  getRoadRatesAction,
+  getRoadRateOptionsAction,
+  toggleRoadRateStatusAction,
+  deleteRoadRateAction,
+} from "@/features/master-data/actions";
 import { exportRoadRatesToExcel } from "@/shared/utils/excel";
 
 import { RatesRouteMatcher } from "./_components/rates-route-matcher";
 import { RatesFilterBar } from "./_components/rates-filter-bar";
 import { RatesTable } from "./_components/rates-table";
 import { RatesImportDialog } from "./_components/rates-import-dialog";
-import type { RoadRateItem, RoadRateSortOption } from "./_components/types";
+import { RatesDetailDrawer } from "./_components/rates-detail-drawer";
+import { RatesFormDialog } from "./_components/rates-form-dialog";
+import type { RoadRateItem, RoadRateSortOption, OptionItem } from "./_components/types";
 
 export default function RoadRatesLibraryPage() {
   useDocumentTitle("Giá mua đường bộ");
 
   // Server State
   const [rates, setRates] = useState<RoadRateItem[]>([]);
+  const [vendors, setVendors] = useState<OptionItem[]>([]);
+  const [locations, setLocations] = useState<OptionItem[]>([]);
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,19 +41,35 @@ export default function RoadRatesLibraryPage() {
   const [matcherDest, setMatcherDest] = useState("ALL");
   const [matcherEquipment, setMatcherEquipment] = useState("ALL");
 
-  // Import Dialog State
+  // Dialog & Drawer States
   const [importOpen, setImportOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingRate, setEditingRate] = useState<RoadRateItem | null>(null);
+  const [selectedDetailRate, setSelectedDetailRate] = useState<RoadRateItem | null>(null);
+
+  // Confirm Actions States
+  const [toggleTarget, setToggleTarget] = useState<RoadRateItem | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RoadRateItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { loading, error: loadError, runLoad } = useListFeedback("road_rates_list");
 
-  // Nạp dữ liệu từ Server Action
+  // Nạp dữ liệu bảng giá & danh mục hỗ trợ từ Server Actions
   const loadRates = useCallback(() => {
     void runLoad(async (isCurrent) => {
-      const res = await getRoadRatesAction();
+      const [res, optRes] = await Promise.all([
+        getRoadRatesAction(),
+        getRoadRateOptionsAction(),
+      ]);
       if (!res.success) throw new Error("Load failed");
       if (!isCurrent()) return;
       if (res.success && res.data) {
         setRates(res.data as RoadRateItem[]);
+      }
+      if (optRes.success && optRes.vendors && optRes.locations) {
+        setVendors(optRes.vendors);
+        setLocations(optRes.locations);
       }
     });
   }, [runLoad]);
@@ -51,6 +77,74 @@ export default function RoadRatesLibraryPage() {
   useEffect(() => {
     loadRates();
   }, [loadRates]);
+
+  // Thao tác xem chi tiết
+  const handleView = (rate: RoadRateItem) => {
+    setSelectedDetailRate(rate);
+  };
+
+  // Thao tác mở form tạo mới
+  const handleCreate = () => {
+    setEditingRate(null);
+    setIsFormOpen(true);
+  };
+
+  // Thao tác mở form chỉnh sửa
+  const handleEdit = (rate: RoadRateItem) => {
+    setEditingRate(rate);
+    setIsFormOpen(true);
+    setSelectedDetailRate(null);
+  };
+
+  // Thao tác mở dialog đổi trạng thái
+  const handleToggle = (rate: RoadRateItem) => {
+    setToggleTarget(rate);
+  };
+
+  // Thực hiện đổi trạng thái (ACTIVE <-> RETIRED)
+  const handleConfirmToggle = async () => {
+    if (!toggleTarget) return;
+    setIsToggling(true);
+    try {
+      const res = await toggleRoadRateStatusAction(toggleTarget.rateId);
+      if (!res.success) throw new Error(res.error || "Không thể cập nhật trạng thái");
+      toast.success(res.message || "Đã cập nhật trạng thái biểu cước!");
+      setToggleTarget(null);
+      loadRates();
+      if (selectedDetailRate?.rateId === toggleTarget.rateId) {
+        setSelectedDetailRate(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi cập nhật trạng thái");
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  // Thao tác mở dialog xóa
+  const handleDelete = (rate: RoadRateItem) => {
+    setDeleteTarget(rate);
+  };
+
+  // Thực hiện xóa biểu cước
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteRoadRateAction(deleteTarget.rateId);
+      if (!res.success) throw new Error(res.error || "Không thể xóa biểu cước");
+      toast.success(res.message || "Đã xóa biểu cước thành công!");
+      setDeleteTarget(null);
+      loadRates();
+      if (selectedDetailRate?.rateId === deleteTarget.rateId) {
+        setSelectedDetailRate(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Lỗi khi xóa biểu cước");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Danh sách các điểm xếp, điểm dỡ, thiết bị duy nhất
   const uniqueOrigins = useMemo(() => {
@@ -132,6 +226,16 @@ export default function RoadRatesLibraryPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleCreate}
+              className="flex items-center gap-1.5 shadow-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" /> Thêm biểu cước
+            </Button>
+
+            <Button
+              type="button"
               variant="outline"
               size="sm"
               onClick={() => void exportRoadRatesToExcel(filteredRates)}
@@ -197,13 +301,100 @@ export default function RoadRatesLibraryPage() {
           sortBy,
         ])}
         totalOriginal={rates.length}
+        onView={handleView}
+        onEdit={handleEdit}
+        onToggle={handleToggle}
+        onDelete={handleDelete}
       />
 
-      {/* 5. Modal Nhập Biểu Cước Excel Hàng Loạt */}
+      {/* 5. Ngăn Kéo Slide-over Chi Tiết Biểu Cước */}
+      <RatesDetailDrawer
+        rate={selectedDetailRate}
+        onClose={() => setSelectedDetailRate(null)}
+        onEdit={handleEdit}
+        onToggle={handleToggle}
+        onDelete={handleDelete}
+      />
+
+      {/* 6. Modal Form Thêm Mới / Sửa Biểu Cước */}
+      <RatesFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        initialData={editingRate}
+        vendors={vendors}
+        locations={locations}
+        onSuccess={() => {
+          loadRates();
+        }}
+      />
+
+      {/* 7. Modal Nhập Biểu Cước Excel Hàng Loạt */}
       <RatesImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
         onSuccess={loadRates}
+      />
+
+      {/* 8. Hộp thoại Xác nhận Đổi Trạng Thái Biểu Cước */}
+      <ConfirmDialog
+        open={!!toggleTarget}
+        onOpenChange={(open) => !open && setToggleTarget(null)}
+        title={
+          toggleTarget?.status === "APPROVED" || toggleTarget?.status === "Active"
+            ? "Ngừng áp dụng biểu cước?"
+            : "Kích hoạt lại biểu cước?"
+        }
+        description={
+          toggleTarget ? (
+            <span>
+              Bạn có chắc muốn chuyển trạng thái biểu cước tuyến{" "}
+              <strong>
+                {toggleTarget.pickupName} &rarr; {toggleTarget.deliveryName}
+              </strong>{" "}
+              ({toggleTarget.equipmentType}) của nhà xe <strong>{toggleTarget.vendorName}</strong> thành{" "}
+              <strong>
+                {toggleTarget.status === "APPROVED" || toggleTarget.status === "Active"
+                  ? "RETIRED (Ngừng áp dụng)"
+                  : "APPROVED (Áp dụng)"}
+              </strong>
+              ?
+            </span>
+          ) : ""
+        }
+        confirmLabel={
+          toggleTarget?.status === "APPROVED" || toggleTarget?.status === "Active"
+            ? "Ngừng áp dụng"
+            : "Kích hoạt"
+        }
+        variant={
+          toggleTarget?.status === "APPROVED" || toggleTarget?.status === "Active"
+            ? "destructive"
+            : "primary"
+        }
+        loading={isToggling}
+        onConfirm={handleConfirmToggle}
+      />
+
+      {/* 9. Hộp thoại Xác nhận Xóa Biểu Cước */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Xác nhận xóa biểu cước mua đường bộ"
+        description={
+          deleteTarget ? (
+            <span>
+              Hành động này sẽ xóa hoàn toàn biểu cước tuyến{" "}
+              <strong>
+                {deleteTarget.pickupName} &rarr; {deleteTarget.deliveryName}
+              </strong>{" "}
+              ({deleteTarget.equipmentType}) của nhà xe <strong>{deleteTarget.vendorName}</strong>. Biểu cước đã phát sinh trong các hồ sơ báo giá sẽ được bảo vệ toàn vẹn không thể xóa.
+            </span>
+          ) : ""
+        }
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

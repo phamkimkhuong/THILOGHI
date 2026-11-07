@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Layers, MapPin } from "lucide-react";
+import { Building2, Eye, Layers, MapPin, Pencil, Power, PowerOff, Trash2 } from "lucide-react";
 import { TableContainer, TableFeedback, Pagination, usePagination } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,6 +13,10 @@ interface RatesTableProps {
   onRetry: () => void;
   filterKey: string;
   totalOriginal: number;
+  onView?: (rate: RoadRateItem) => void;
+  onEdit?: (rate: RoadRateItem) => void;
+  onToggle?: (rate: RoadRateItem) => void;
+  onDelete?: (rate: RoadRateItem) => void;
 }
 
 export function RatesTable({
@@ -22,6 +26,10 @@ export function RatesTable({
   onRetry,
   filterKey,
   totalOriginal,
+  onView,
+  onEdit,
+  onToggle,
+  onDelete,
 }: RatesTableProps) {
   const pagination = usePagination(rates.length, filterKey);
 
@@ -39,14 +47,15 @@ export function RatesTable({
               <th className="py-2.5 px-3 text-right whitespace-nowrap">Đơn giá mua</th>
               <th className="py-2.5 px-3 text-center whitespace-nowrap">Thời hạn hiệu lực</th>
               <th className="py-2.5 px-3 text-center whitespace-nowrap">Trạng thái</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60 font-sans">
             {loading || loadError ? (
-              <TableFeedback columns={8} loading={loading} error={loadError} onRetry={onRetry} />
+              <TableFeedback columns={9} loading={loading} error={loadError} onRetry={onRetry} />
             ) : rates.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8">
+                <td colSpan={9} className="p-8">
                   <EmptyState
                     icon={Layers}
                     title="Không tìm thấy bảng giá cước phù hợp"
@@ -118,6 +127,64 @@ export function RatesTable({
                   {/* Cột 8: Trạng thái */}
                   <td className="py-2.5 px-3 text-center whitespace-nowrap">
                     <StatusBadge status={r.status} />
+                  </td>
+
+                  {/* Cột 9: Thao tác */}
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      {onView && (
+                        <button
+                          type="button"
+                          onClick={() => onView(r)}
+                          className="p-1.5 rounded-lg border border-border bg-surface hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                          title="Xem chi tiết biểu cước"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(r)}
+                          className="p-1.5 rounded-lg border border-border bg-surface hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 dark:hover:bg-blue-950/40 text-muted-foreground transition-colors cursor-pointer"
+                          title="Chỉnh sửa biểu cước"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {onToggle && (
+                        <button
+                          type="button"
+                          onClick={() => onToggle(r)}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            r.status === "APPROVED" || r.status === "Active"
+                              ? "border-amber-200 bg-amber-50/50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+                              : "border-emerald-200 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300"
+                          }`}
+                          title={
+                            r.status === "APPROVED" || r.status === "Active"
+                              ? "Ngừng áp dụng biểu cước này"
+                              : "Kích hoạt áp dụng biểu cước này"
+                          }
+                        >
+                          {r.status === "APPROVED" || r.status === "Active" ? (
+                            <PowerOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Power className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(r)}
+                          className="p-1.5 rounded-lg border border-border bg-surface hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 text-muted-foreground transition-colors cursor-pointer"
+                          title="Xóa biểu cước"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

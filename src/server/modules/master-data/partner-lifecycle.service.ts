@@ -15,6 +15,10 @@ export interface PartnerDirectoryItem {
   gpsCoordinates?: string;
   bankAccount?: string;
   bankName?: string;
+  description?: string;
+  regionId?: string;
+  regionName?: string;
+  logoUrl?: string;
   note?: string;
   status: "ACTIVE" | "INACTIVE";
   sourcePartnerType?: string;
@@ -68,6 +72,10 @@ export async function getPartnersDirectory(filters?: {
       p.gps_coordinates as "gpsCoordinates",
       p.bank_account as "bankAccount",
       p.bank_name as "bankName",
+      p.description as "description",
+      p.region_id as "regionId",
+      reg.name as "regionName",
+      p.logo_url as "logoUrl",
       p.note,
       p.status,
       p.source_partner_type as "sourcePartnerType",
@@ -84,6 +92,7 @@ export async function getPartnersDirectory(filters?: {
       COALESCE(v.role_status, 'NONE') as "vendorRoleStatus",
       v.vendor_type as "vendorType"
     FROM partners p
+    LEFT JOIN regions reg ON p.region_id = reg.region_id
     LEFT JOIN customers c ON p.partner_id = c.customer_id
     LEFT JOIN vendors v ON p.partner_id = v.vendor_id
     WHERE 1=1
@@ -495,9 +504,6 @@ export interface SavePartnerInput {
   gpsCoordinates?: string;
   note?: string;
   status?: "ACTIVE" | "INACTIVE";
-  isCustomer?: boolean;
-  paymentTermsDays?: number;
-  creditLimitVnd?: number | null;
 }
 
 /**
@@ -570,35 +576,25 @@ export async function savePartner(input: SavePartnerInput, actor: CurrentActor) 
       );
     }
 
-    // Xử lý Customer Role nếu có cấu hình
-    if (input.isCustomer !== undefined) {
-      const custRes = await client.query(
-        "SELECT * FROM customers WHERE customer_id = $1 FOR UPDATE",
+    // Tự động duy trì liên kết với các phân hệ Báo giá (Khách hàng) và Đội xe (Nhà xe)
+    const isClientGroup = ["Clients", "Consignee", "Shipper"].includes(sourcePartnerType);
+    const isVendorGroup = ["Vendors", "Suppliers", "Line"].includes(sourcePartnerType);
+
+    if (isClientGroup) {
+      await client.query(
+        `INSERT INTO customers (customer_id, role_status, payment_terms_days, credit_limit_vnd, updated_at)
+         VALUES ($1, 'ACTIVE', 30, NULL, NOW())
+         ON CONFLICT (customer_id) DO UPDATE SET role_status = 'ACTIVE', updated_at = NOW()`,
         [partnerId]
       );
-      const termsDays = input.paymentTermsDays ?? 30;
-      const creditLimit = input.creditLimitVnd ?? null;
-
-      if (custRes.rows.length > 0) {
-        if (input.isCustomer) {
-          await client.query(
-            `UPDATE customers
-             SET payment_terms_days = $1, credit_limit_vnd = $2, updated_at = NOW()
-             WHERE customer_id = $3`,
-            [termsDays, creditLimit, partnerId]
-          );
-        }
-      } else if (input.isCustomer) {
-        await client.query(
-          `INSERT INTO customers (
-             customer_id, role_status, payment_terms_days, credit_limit_vnd,
-             activated_by, activated_at, created_at, updated_at
-           ) VALUES (
-             $1, 'ACTIVE', $2, $3, $4, NOW(), NOW(), NOW()
-           )`,
-          [partnerId, termsDays, creditLimit, actor.userId]
-        );
-      }
+    }
+    if (isVendorGroup) {
+      await client.query(
+        `INSERT INTO vendors (vendor_id, vendor_type, role_status, updated_at)
+         VALUES ($1, 'ROAD', 'ACTIVE', NOW())
+         ON CONFLICT (vendor_id) DO UPDATE SET role_status = 'ACTIVE', updated_at = NOW()`,
+        [partnerId]
+      );
     }
 
     // Ghi audit log

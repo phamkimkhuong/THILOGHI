@@ -126,6 +126,20 @@ button:disabled { cursor: not-allowed; opacity: .45; }
     outline: none;
     box-shadow: 0 0 0 3px rgba(38, 114, 223, 0.14);
   }
+
+  /* Khung Modal Form Tạo mới / Chỉnh sửa ERP rộng rãi chuẩn hóa */
+  .erp-modal-content {
+    width: 95vw;
+    max-width: 1024px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
+    color: var(--foreground);
+    padding: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
 }
 
 .erp-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }

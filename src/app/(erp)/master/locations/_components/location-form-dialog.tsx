@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ModalDialog } from "@/components/ui/modal-dialog";
 import { saveLocationAction } from "@/features/master-data/actions";
 import {
   DEFAULT_FORM_DATA,
@@ -104,35 +104,20 @@ export function LocationFormDialog({
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-foreground shadow-2xl animate-in zoom-in-95 duration-150 focus:outline-none">
-          <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
-            <div>
-              <Dialog.Title className="text-lg font-bold text-foreground">
-                {formData.locationId ? "Chỉnh sửa địa điểm" : "Thêm mới địa điểm"}
-              </Dialog.Title>
-              <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
-                Điền các thông số cơ sở logistics để cập nhật vào hệ thống.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-hover cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </Dialog.Close>
+    <ModalDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={MapPin}
+      title={formData.locationId ? "Chỉnh sửa địa điểm logistics" : "Thêm mới địa điểm logistics"}
+      description="Điền các thông số cơ sở logistics, kho bãi, cảng biển, depot để cập nhật vào hệ thống."
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 text-xs font-sans">
+        {formError && (
+          <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
+            {formError}
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            {formError && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
-                {formError}
-              </div>
-            )}
+        )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Mã địa điểm */}
@@ -347,18 +332,20 @@ export function LocationFormDialog({
 
             {/* Footer nút hành động modal */}
             <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-              <Dialog.Close asChild>
-                <Button variant="outline" size="sm" type="button" disabled={formSubmitting}>
-                  Hủy
-                </Button>
-              </Dialog.Close>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => onOpenChange(false)}
+                disabled={formSubmitting}
+              >
+                Hủy
+              </Button>
               <Button variant="primary" size="sm" type="submit" loading={formSubmitting}>
                 {formData.locationId ? "Lưu thay đổi" : "Tạo địa điểm"}
               </Button>
             </div>
           </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    </ModalDialog>
   );
 }

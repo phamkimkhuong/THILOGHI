@@ -43,9 +43,8 @@ export interface PartnerFormData {
   gpsCoordinates: string;
   note: string;
   status: "ACTIVE" | "INACTIVE";
-  // Customer role options
-  isCustomer: boolean;
-  paymentTermsDays: number;
+  isCustomer?: boolean;
+  paymentTermsDays?: number;
   creditLimitVnd?: number | null;
 }
 
@@ -65,7 +64,7 @@ export const DEFAULT_PARTNER_FORM: PartnerFormData = {
   gpsCoordinates: "",
   note: "",
   status: "ACTIVE",
-  isCustomer: true,
+  isCustomer: false,
   paymentTermsDays: 30,
   creditLimitVnd: null,
 };

@@ -2,6 +2,12 @@
 
 import {
   getRoadRatesDetailedList,
+  saveRoadRateService,
+  toggleRoadRateStatusService,
+  deleteRoadRateService,
+  type SaveRoadRateInput,
+  getMasterLocations,
+  getMasterVendors,
   getCustomersDetailedList,
   getVendorsDetailedList,
   getLocationsDetailedList,
@@ -28,6 +34,63 @@ export async function getRoadRatesAction(search?: string) {
       success: false,
       data: [],
       error: err instanceof Error ? err.message : "Lỗi khi tải bảng giá cước",
+    };
+  }
+}
+
+export async function getRoadRateOptionsAction() {
+  try {
+    await requireAuth();
+    const [locations, vendors] = await Promise.all([
+      getMasterLocations(),
+      getMasterVendors(),
+    ]);
+    return { success: true, locations, vendors };
+  } catch (err) {
+    return {
+      success: false,
+      locations: [],
+      vendors: [],
+      error: err instanceof Error ? err.message : "Lỗi khi tải danh mục phụ trợ",
+    };
+  }
+}
+
+export async function saveRoadRateAction(input: SaveRoadRateInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveRoadRateService(input, actor);
+    return { success: true as const, data: res.data, message: res.message };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Lỗi khi lưu biểu cước",
+    };
+  }
+}
+
+export async function toggleRoadRateStatusAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    const res = await toggleRoadRateStatusService(rateId, actor);
+    return { success: true as const, status: res.status, message: res.message };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Lỗi khi đổi trạng thái biểu cước",
+    };
+  }
+}
+
+export async function deleteRoadRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    const res = await deleteRoadRateService(rateId, actor);
+    return { success: true as const, message: res.message };
+  } catch (err) {
+    return {
+      success: false as const,
+      error: err instanceof Error ? err.message : "Lỗi khi xóa biểu cước",
     };
   }
 }

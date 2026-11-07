@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { X, Package, AlertCircle, Calendar, UserCheck } from "lucide-react";
+import { Package, AlertCircle, Calendar, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ModalDialog } from "@/components/ui/modal-dialog";
 import { saveCommodityAction } from "@/features/master-data/actions";
 import {
   DEFAULT_COMMODITY_FORM,
@@ -149,30 +149,15 @@ export function CommodityFormDialog({
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-4 sm:p-6 text-foreground shadow-2xl animate-in zoom-in-95 duration-150 focus:outline-none font-sans">
-          {/* Header Dialog */}
-          <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
-            <div>
-              <Dialog.Title className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Package className="w-5 h-5 text-blue-600" />
-                <span>{formData.commodityId ? "Chỉnh sửa mặt hàng" : "Thêm mới mặt hàng"}</span>
-              </Dialog.Title>
-              <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
-                Thiết lập thông số danh mục mặt hàng chuẩn hóa phục vụ vận tải đường bộ và vận chuyển quốc tế.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-hover cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </Dialog.Close>
-          </div>
+    <ModalDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Package}
+      title={formData.commodityId ? "Chỉnh sửa mặt hàng" : "Thêm mới mặt hàng"}
+      description="Thiết lập thông số danh mục mặt hàng chuẩn hóa phục vụ vận tải đường bộ và vận chuyển quốc tế."
+    >
+
 
           {formError && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300">
@@ -362,18 +347,20 @@ export function CommodityFormDialog({
 
             {/* Footer nút hành động */}
             <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-              <Dialog.Close asChild>
-                <Button variant="outline" size="sm" type="button" disabled={formSubmitting}>
-                  Hủy
-                </Button>
-              </Dialog.Close>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => onOpenChange(false)}
+                disabled={formSubmitting}
+              >
+                Hủy
+              </Button>
               <Button variant="primary" size="sm" type="submit" loading={formSubmitting}>
                 {formData.commodityId ? "Lưu thay đổi" : "Tạo mặt hàng"}
               </Button>
             </div>
           </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    </ModalDialog>
   );
 }

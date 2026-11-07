@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, CheckCircle2, RotateCcw, Briefcase } from "lucide-react";
+import { Globe, CheckCircle2, RotateCcw } from "lucide-react";
 import { FilterBarContainer, SearchInput } from "@/components/ui/list-page";
 import { PARTNER_TYPE_CHIPS, COUNTRY_FILTER_OPTIONS } from "./types";
 
@@ -15,32 +15,30 @@ interface PartnerFilterBarProps {
   countryCounts: Record<string, number>;
   selectedStatus: string;
   onStatusChange: (status: string) => void;
-  selectedRole: string;
-  onRoleChange: (role: string) => void;
+  selectedRole?: string;
+  onRoleChange?: (role: string) => void;
   onResetFilters: () => void;
 }
 
-export function PartnerFilterBar({
-  searchTerm,
-  onSearchChange,
-  selectedPartnerType,
-  onPartnerTypeChange,
-  typeCounts,
-  selectedCountry,
-  onCountryChange,
-  countryCounts,
-  selectedStatus,
-  onStatusChange,
-  selectedRole,
-  onRoleChange,
-  onResetFilters,
-}: PartnerFilterBarProps) {
+export function PartnerFilterBar(props: PartnerFilterBarProps) {
+  const {
+    searchTerm,
+    onSearchChange,
+    selectedPartnerType,
+    onPartnerTypeChange,
+    typeCounts,
+    selectedCountry,
+    onCountryChange,
+    countryCounts,
+    selectedStatus,
+    onStatusChange,
+    onResetFilters,
+  } = props;
   const isFiltered = Boolean(
     searchTerm.trim() ||
     selectedPartnerType !== "ALL" ||
     selectedCountry !== "ALL" ||
-    selectedStatus !== "ALL" ||
-    selectedRole !== "ALL"
+    selectedStatus !== "ALL"
   );
 
   return (
@@ -121,24 +119,6 @@ export function PartnerFilterBar({
                 <option value="ALL">Tất cả trạng thái</option>
                 <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
                 <option value="INACTIVE">Tạm ngưng (INACTIVE)</option>
-              </select>
-            </div>
-
-            {/* Lọc theo Vai trò Thương mại */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground font-medium flex items-center gap-1 shrink-0">
-                <Briefcase className="w-3.5 h-3.5 text-purple-600" /> Vai trò:
-              </span>
-              <select
-                aria-label="Lọc theo vai trò thương mại"
-                value={selectedRole}
-                onChange={(e) => onRoleChange(e.target.value)}
-                className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-xs"
-              >
-                <option value="ALL">Tất cả vai trò</option>
-                <option value="CUSTOMER">Khách hàng (SELL)</option>
-                <option value="VENDOR">Nhà xe & NCC (BUY)</option>
-                <option value="NO_ROLE">Chưa gán vai trò</option>
               </select>
             </div>
 

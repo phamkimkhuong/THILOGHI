@@ -5,10 +5,7 @@ import { Plus } from "lucide-react";
 import { PageHeader, RefreshButton, useListFeedback } from "@/components/ui/list-page";
 import { Button } from "@/components/ui/button";
 import { useDocumentTitle } from "@/shared/hooks/use-document-title";
-import {
-  getPartnersDirectoryAction,
-  getPartnerRoleAuditHistoryAction,
-} from "@/features/master-data/actions";
+import { getPartnersDirectoryAction } from "@/features/master-data/actions";
 
 import { PartnerFilterBar } from "./_components/partner-filter-bar";
 import { PartnerTable } from "./_components/partner-table";
@@ -17,7 +14,6 @@ import { PartnerFormDialog } from "./_components/partner-form-dialog";
 import {
   removeVietnameseTones,
   type PartnerDirectoryItem,
-  type PartnerRoleAuditItem,
 } from "./_components/types";
 
 export default function MasterCustomersPage() {
@@ -30,17 +26,12 @@ export default function MasterCustomersPage() {
   const [selectedPartnerType, setSelectedPartnerType] = useState("ALL");
   const [selectedCountry, setSelectedCountry] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
-  const [selectedRole, setSelectedRole] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
   // Drawer & Form States
   const [selectedDrawerPartner, setSelectedDrawerPartner] = useState<PartnerDirectoryItem | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPartner, setEditingPartner] = useState<PartnerDirectoryItem | null>(null);
-
-  // Audit Logs State
-  const [auditLogs, setAuditLogs] = useState<PartnerRoleAuditItem[]>([]);
-  const { loading: isLoadingAudit, error: auditError, runLoad: runAudit } = useListFeedback();
 
   const { loading, error: loadError, runLoad } = useListFeedback("customers_directory_cache");
 
@@ -58,20 +49,6 @@ export default function MasterCustomersPage() {
     loadData();
   }, [loadData]);
 
-  // Nạp lịch sử Audit khi xem Drawer
-  const loadAuditHistory = useCallback(
-    async (partnerId: string) => {
-      if (!partnerId) return;
-      await runAudit(async (isCurrent) => {
-        setAuditLogs([]);
-        const res = await getPartnerRoleAuditHistoryAction(partnerId);
-        if (!res.success) throw new Error("Load failed");
-        if (isCurrent()) setAuditLogs(res.data || []);
-      });
-    },
-    [runAudit]
-  );
-
   // Mở Form Thêm Mới
   const handleOpenCreate = () => {
     setEditingPartner(null);
@@ -87,7 +64,6 @@ export default function MasterCustomersPage() {
   // Mở Drawer Xem Chi Tiết
   const handleOpenDrawer = (item: PartnerDirectoryItem) => {
     setSelectedDrawerPartner(item);
-    void loadAuditHistory(item.partnerId);
   };
 
   // Reset toàn bộ bộ lọc
@@ -95,7 +71,6 @@ export default function MasterCustomersPage() {
     setSelectedPartnerType("ALL");
     setSelectedCountry("ALL");
     setSelectedStatus("ALL");
-    setSelectedRole("ALL");
     setSearchTerm("");
   };
 
@@ -179,18 +154,7 @@ export default function MasterCustomersPage() {
       list = list.filter((p) => (p.status || "ACTIVE") === selectedStatus);
     }
 
-    // 4. Vai trò thương mại
-    if (selectedRole !== "ALL") {
-      if (selectedRole === "CUSTOMER") {
-        list = list.filter((p) => p.isCustomer);
-      } else if (selectedRole === "VENDOR") {
-        list = list.filter((p) => p.isVendor);
-      } else if (selectedRole === "NO_ROLE") {
-        list = list.filter((p) => !p.isCustomer && !p.isVendor);
-      }
-    }
-
-    // 5. Tìm kiếm (hỗ trợ tiếng Việt không dấu)
+    // 4. Tìm kiếm (hỗ trợ tiếng Việt không dấu)
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       const qNorm = removeVietnameseTones(q);
@@ -213,7 +177,7 @@ export default function MasterCustomersPage() {
     }
 
     return list;
-  }, [partners, selectedPartnerType, selectedCountry, selectedStatus, selectedRole, searchTerm]);
+  }, [partners, selectedPartnerType, selectedCountry, selectedStatus, searchTerm]);
 
   return (
     <div className="space-y-4 font-sans text-foreground">
@@ -243,8 +207,6 @@ export default function MasterCustomersPage() {
         countryCounts={countryCounts}
         selectedStatus={selectedStatus}
         onStatusChange={setSelectedStatus}
-        selectedRole={selectedRole}
-        onRoleChange={setSelectedRole}
         onResetFilters={handleResetFilters}
       />
 
@@ -260,21 +222,15 @@ export default function MasterCustomersPage() {
           selectedPartnerType,
           selectedCountry,
           selectedStatus,
-          selectedRole,
           searchTerm,
         ])}
       />
 
-      {/* 4. Slide-out Drawer Chi Tiết & Vòng Đời Role */}
+      {/* 4. Slide-out Drawer Chi Tiết Hồ Sơ Đối Tác */}
       <PartnerDetailDrawer
         partner={selectedDrawerPartner}
         onClose={() => setSelectedDrawerPartner(null)}
         onEdit={handleOpenEdit}
-        auditLogs={auditLogs}
-        isLoadingAudit={isLoadingAudit}
-        auditError={auditError}
-        onRefreshAudit={loadAuditHistory}
-        onSuccessRefresh={loadData}
       />
 
       {/* 5. Modal Form Thêm Mới / Chỉnh Sửa Đối Tác */}

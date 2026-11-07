@@ -1,17 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { X, Building2, AlertCircle } from "lucide-react";
+import { Building2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CurrencyInput } from "@/components/ui/currency-input";
+import { ModalDialog } from "@/components/ui/modal-dialog";
 import { savePartnerAction } from "@/features/master-data/actions";
 import {
   DEFAULT_PARTNER_FORM,
   COMMON_PARTNER_TYPES,
   COMMON_COUNTRIES,
-  PAYMENT_TERMS_OPTIONS,
   type PartnerFormData,
   type PartnerDirectoryItem,
 } from "./types";
@@ -58,9 +56,6 @@ export function PartnerFormDialog({
           gpsCoordinates: initialData.gpsCoordinates || "",
           note: initialData.note || "",
           status: initialData.status || "ACTIVE",
-          isCustomer: initialData.isCustomer || initialData.customerRoleStatus === "ACTIVE",
-          paymentTermsDays: initialData.paymentTermsDays ?? 30,
-          creditLimitVnd: initialData.creditLimitVnd ?? null,
         });
       } else {
         setFormData(DEFAULT_PARTNER_FORM);
@@ -104,9 +99,6 @@ export function PartnerFormDialog({
         gpsCoordinates: formData.gpsCoordinates.trim() || undefined,
         note: formData.note.trim() || undefined,
         status: formData.status,
-        isCustomer: formData.isCustomer,
-        paymentTermsDays: formData.paymentTermsDays,
-        creditLimitVnd: formData.creditLimitVnd,
       });
 
       if (!res.success) {
@@ -128,41 +120,26 @@ export function PartnerFormDialog({
   const isEditing = Boolean(initialData?.partnerId);
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[95vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-foreground shadow-2xl animate-in zoom-in-95 duration-150 focus:outline-none font-sans">
-          {/* Header Dialog */}
-          <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
-            <div>
-              <Dialog.Title className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <span>{isEditing ? "Chỉnh sửa hồ sơ đối tác" : "Thêm mới đối tác"}</span>
-              </Dialog.Title>
-              <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
-                Cập nhật thông tin pháp nhân đối tác, phân loại dịch vụ và cấu hình hạn mức tín dụng thương mại.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-hover cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </Dialog.Close>
-          </div>
+    <ModalDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Building2}
+      title={isEditing ? "Chỉnh sửa hồ sơ đối tác" : "Thêm mới đối tác"}
+      description="Cập nhật thông tin danh bạ khách hàng, nhà xe, cảng biển, bãi depot toàn hệ thống THILOGI."
+    >
+      {/* Form Thông Báo Lỗi */}
+      {formError && (
+        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{formError}</span>
+        </div>
+      )}
 
-          {formError && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {/* Form Fields */}
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs font-sans">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* 1. Mã đối tác */}
+              {/* 1. Mã đối tác ID */}
               <div>
                 <label htmlFor="pt-id" className="block font-medium text-foreground mb-1">
                   Mã đối tác (ID) <span className="text-red-500">*</span>
@@ -170,15 +147,17 @@ export function PartnerFormDialog({
                 <input
                   id="pt-id"
                   type="text"
-                  placeholder="VD: PEPSI-BNI, HOANG_PHUC, THACO_AUTO"
-                  disabled={isEditing}
+                  placeholder="VD: THILOGI, MAERSK, CAMBODIA_AGRI"
                   value={formData.partnerId}
-                  onChange={(e) => setFormData({ ...formData, partnerId: e.target.value.toUpperCase() })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono uppercase font-bold disabled:opacity-60 disabled:bg-muted"
+                  disabled={isEditing}
+                  onChange={(e) =>
+                    setFormData({ ...formData, partnerId: e.target.value.toUpperCase() })
+                  }
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {/* 2. Tên viết tắt */}
+              {/* 2. Tên ngắn viết tắt */}
               <div>
                 <label htmlFor="pt-short" className="block font-medium text-foreground mb-1">
                   Tên viết tắt (Short Name)
@@ -186,22 +165,22 @@ export function PartnerFormDialog({
                 <input
                   id="pt-short"
                   type="text"
-                  placeholder="VD: PEPSICO, THACO AUTO, HOÀNG PHÚC"
+                  placeholder="VD: THILOGI, THACO AGRI, MAERSK"
                   value={formData.shortName}
                   onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
               {/* 3. Tên pháp nhân đầy đủ */}
               <div className="sm:col-span-2">
                 <label htmlFor="pt-name" className="block font-medium text-foreground mb-1">
-                  Tên pháp nhân công ty <span className="text-red-500">*</span>
+                  Tên pháp nhân đầy đủ <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="pt-name"
                   type="text"
-                  placeholder="VD: CÔNG TY TNHH NƯỚC GIẢI KHÁT SUNTORY PEPSICO VIỆT NAM"
+                  placeholder="VD: CÔNG TY TNHH GIAO NHẬN VẬN CHUYỂN QUỐC TẾ TRƯỜNG HẢI"
                   value={formData.partnerName}
                   onChange={(e) => setFormData({ ...formData, partnerName: e.target.value })}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
@@ -249,7 +228,7 @@ export function PartnerFormDialog({
               {/* 6. Mã số thuế */}
               <div>
                 <label htmlFor="pt-tax" className="block font-medium text-foreground mb-1">
-                  Mã số thuế
+                  Mã số thuế (MST)
                 </label>
                 <input
                   id="pt-tax"
@@ -279,7 +258,7 @@ export function PartnerFormDialog({
               {/* 8. Địa chỉ trụ sở / kho bãi */}
               <div className="sm:col-span-2">
                 <label htmlFor="pt-address" className="block font-medium text-foreground mb-1">
-                  Địa chỉ trụ sở / Nhà máy
+                  Địa chỉ trụ sở / Kho bãi / Cảng
                 </label>
                 <input
                   id="pt-address"
@@ -291,10 +270,25 @@ export function PartnerFormDialog({
                 />
               </div>
 
-              {/* 9. Điện thoại */}
+              {/* 9. Tọa độ GPS */}
+              <div className="sm:col-span-2">
+                <label htmlFor="pt-gps" className="block font-medium text-foreground mb-1">
+                  Tọa độ GPS (Google Maps Coordinates)
+                </label>
+                <input
+                  id="pt-gps"
+                  type="text"
+                  placeholder="VD: 15.485123, 108.683456"
+                  value={formData.gpsCoordinates}
+                  onChange={(e) => setFormData({ ...formData, gpsCoordinates: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                />
+              </div>
+
+              {/* 10. Điện thoại */}
               <div>
                 <label htmlFor="pt-phone" className="block font-medium text-foreground mb-1">
-                  Số điện thoại
+                  Số điện thoại liên hệ
                 </label>
                 <input
                   id="pt-phone"
@@ -306,10 +300,10 @@ export function PartnerFormDialog({
                 />
               </div>
 
-              {/* 10. Email */}
+              {/* 11. Email */}
               <div>
                 <label htmlFor="pt-email" className="block font-medium text-foreground mb-1">
-                  Email liên hệ / Nhận hóa đơn
+                  Email liên hệ / Hóa đơn
                 </label>
                 <input
                   id="pt-email"
@@ -321,95 +315,93 @@ export function PartnerFormDialog({
                 />
               </div>
 
-              {/* 11. Cấu hình vai trò Khách hàng (Customer Role) */}
-              <div className="sm:col-span-2 p-3.5 rounded-xl bg-background border border-border space-y-3">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isCustomer}
-                    onChange={(e) => setFormData({ ...formData, isCustomer: e.target.checked })}
-                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-border cursor-pointer"
-                  />
-                  <div>
-                    <span className="font-semibold text-foreground text-xs block">
-                      Kích hoạt vai trò Khách hàng (Customer Role: Active)
-                    </span>
-                    <span className="text-[11px] text-muted-foreground block mt-0.5">
-                      Đối tác được cấp quyền mua dịch vụ vận tải và phát sinh giao dịch thương mại.
-                    </span>
-                  </div>
+              {/* 12. Tài khoản ngân hàng */}
+              <div>
+                <label htmlFor="pt-bank-acc" className="block font-medium text-foreground mb-1">
+                  Số tài khoản ngân hàng
                 </label>
-
-                {formData.isCustomer && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
-                    <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">
-                        Hạn nợ thương mại:
-                      </label>
-                      <select
-                        value={formData.paymentTermsDays}
-                        onChange={(e) => setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })}
-                        className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        {PAYMENT_TERMS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">
-                        Hạn mức tín dụng tối đa (VND):
-                      </label>
-                      <CurrencyInput
-                        value={formData.creditLimitVnd === null || formData.creditLimitVnd === undefined ? undefined : Number(formData.creditLimitVnd)}
-                        onValueChange={(val) => setFormData({ ...formData, creditLimitVnd: val !== undefined ? val : null })}
-                        placeholder="Để trống: Không áp dụng"
-                        className="w-full text-xs font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
+                <input
+                  id="pt-bank-acc"
+                  type="text"
+                  placeholder="VD: 19028374829101"
+                  value={formData.bankAccount}
+                  onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                />
               </div>
 
-              {/* 12. Trạng thái hoạt động pháp nhân */}
+              {/* 13. Tên ngân hàng */}
+              <div>
+                <label htmlFor="pt-bank-name" className="block font-medium text-foreground mb-1">
+                  Ngân hàng mở tài khoản
+                </label>
+                <input
+                  id="pt-bank-name"
+                  type="text"
+                  placeholder="VD: Vietcombank - CN Chu Lai"
+                  value={formData.bankName}
+                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 14. Ghi chú nội bộ */}
+              <div className="sm:col-span-2">
+                <label htmlFor="pt-note" className="block font-medium text-foreground mb-1">
+                  Ghi chú nội bộ
+                </label>
+                <textarea
+                  id="pt-note"
+                  rows={2}
+                  placeholder="Ghi chú về đầu mối liên hệ, lưu ý vận chuyển đặc thù..."
+                  value={formData.note}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 15. Trạng thái hoạt động pháp nhân */}
               <div className="sm:col-span-2">
                 <label className="flex items-center gap-2.5 cursor-pointer p-3 rounded-xl bg-background border border-border">
                   <input
                     type="checkbox"
                     checked={formData.status === "ACTIVE"}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.checked ? "ACTIVE" : "INACTIVE" })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.checked ? "ACTIVE" : "INACTIVE",
+                      })
+                    }
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-border cursor-pointer"
                   />
                   <div>
                     <span className="font-semibold text-foreground text-xs block">
-                      Kích hoạt hoạt động pháp nhân này (Active)
+                      Đang hoạt động (ACTIVE)
                     </span>
-                    <span className="text-[11px] text-muted-foreground block">
-                      Khi tắt, đối tác sẽ ở trạng thái ngừng hoạt động và không thể sử dụng trên các phân hệ.
+                    <span className="text-[11px] text-muted-foreground block mt-0.5">
+                      Bỏ chọn để tạm dừng giao dịch và ẩn đối tác khỏi danh sách điều vận nhanh.
                     </span>
                   </div>
                 </label>
               </div>
             </div>
 
-            {/* Footer Buttons */}
-            <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-              <Dialog.Close asChild>
-                <Button variant="outline" size="sm" type="button" disabled={formSubmitting}>
-                  Hủy
-                </Button>
-              </Dialog.Close>
-              <Button variant="primary" size="sm" type="submit" loading={formSubmitting}>
+            {/* Actions Footer */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                disabled={formSubmitting}
+              >
+                Hủy bỏ
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={formSubmitting}>
                 {isEditing ? "Lưu thay đổi" : "Tạo đối tác"}
               </Button>
             </div>
           </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    </ModalDialog>
   );
 }
-
