@@ -21,8 +21,13 @@ import {
   deleteCommodityService,
   type SaveCommodityInput,
   getFleetDetailedList,
+  type TractorFleetItem,
+  type TrailerFleetItem,
+  type DriverFleetItem,
   getMasterRegions,
 } from "@/server/modules/master-data/master-data.service";
+
+export type { TractorFleetItem, TrailerFleetItem, DriverFleetItem };
 
 export async function getRoadRatesAction(search?: string) {
   try {

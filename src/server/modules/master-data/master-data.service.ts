@@ -675,35 +675,231 @@ export async function deleteCommodityService(commodityId: string, actor: Current
   }
 }
 
+export interface TractorFleetItem {
+  tractorNo: string;
+  vendorId: string;
+  vendorName: string;
+  vendorShortName?: string;
+  modelType?: string;
+  transitRoute?: string;
+  transitLicenseDate?: string;
+  productionYear?: number;
+  chassisNo?: string;
+  engineNo?: string;
+  selfWeightTons?: number;
+  loadCapacityTons?: number;
+  color?: string;
+  inspectionExpirationDate?: string;
+  attachmentUrl?: string;
+  notes?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface TrailerFleetItem {
+  trailerNo: string;
+  vendorId: string;
+  vendorName: string;
+  vendorShortName?: string;
+  modelType?: string;
+  transitRoute?: string;
+  transitLicenseDate?: string;
+  manufacturer?: string;
+  productionYear?: number;
+  chassisNo?: string;
+  curbWeightTons?: number;
+  payloadCapacityTons?: number;
+  paintColor?: string;
+  inspectionExpirationDate?: string;
+  attachmentUrl?: string;
+  notes?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface DriverFleetItem {
+  driverId: string;
+  vendorId: string;
+  vendorName: string;
+  vendorShortName?: string;
+  fullName: string;
+  gender?: string;
+  birthday?: string;
+  licenseNo?: string;
+  citizenId?: string;
+  citizenIssueDate?: string;
+  passportNo?: string;
+  passportIssueDate?: string;
+  phone?: string;
+  nationality?: string;
+  hometown?: string;
+  gpsCoordinates?: string;
+  address?: string;
+  avatarUrl?: string;
+  notes?: string;
+  status: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 /**
- * Lấy danh sách đội xe (752 đầu kéo, 873 rơ-moóc)
+ * Lấy danh sách đội xe (752 đầu kéo, 873 rơ-moóc, 669 tài xế)
  */
-export async function getFleetDetailedList(limit = 1000) {
+export async function getFleetDetailedList(limit = 1000): Promise<{
+  tractors: TractorFleetItem[];
+  trailers: TrailerFleetItem[];
+  drivers: DriverFleetItem[];
+}> {
   const [tractorsRes, trailersRes, driversRes] = await Promise.all([
     pool.query(
-      `SELECT tractor_id as "tractorId", plate_number as "plateNumber", model, status, ownership 
-       FROM tractors 
-       ORDER BY plate_number ASC LIMIT $1`,
+      `SELECT 
+        t.tractor_no as "tractorNo",
+        t.vendor_id as "vendorId",
+        COALESCE(p.short_name, p.partner_name, t.vendor_id) as "vendorName",
+        p.short_name as "vendorShortName",
+        t.model_type as "modelType",
+        t.transit_route as "transitRoute",
+        t.transit_license_date as "transitLicenseDate",
+        t.production_year as "productionYear",
+        t.chassis_no as "chassisNo",
+        t.engine_no as "engineNo",
+        t.self_weight_tons as "selfWeightTons",
+        t.load_capacity_tons as "loadCapacityTons",
+        t.color,
+        t.inspection_expiration_date as "inspectionExpirationDate",
+        t.attachment_url as "attachmentUrl",
+        t.notes,
+        t.status,
+        t.created_at as "createdAt"
+      FROM tractors t
+      LEFT JOIN partners p ON t.vendor_id = p.partner_id
+      ORDER BY t.tractor_no ASC 
+      LIMIT $1`,
       [limit]
     ),
     pool.query(
-      `SELECT trailer_id as "trailerId", plate_number as "plateNumber", trailer_type as "trailerType", payload_capacity_kg as "payloadCapacityKg", status 
-       FROM trailers 
-       ORDER BY plate_number ASC LIMIT $1`,
+      `SELECT 
+        tr.trailer_no as "trailerNo",
+        tr.vendor_id as "vendorId",
+        COALESCE(p.short_name, p.partner_name, tr.vendor_id) as "vendorName",
+        p.short_name as "vendorShortName",
+        tr.model_type as "modelType",
+        tr.transit_route as "transitRoute",
+        tr.transit_license_date as "transitLicenseDate",
+        tr.manufacturer,
+        tr.production_year as "productionYear",
+        tr.chassis_no as "chassisNo",
+        tr.curb_weight_tons as "curbWeightTons",
+        tr.payload_capacity_tons as "payloadCapacityTons",
+        tr.paint_color as "paintColor",
+        tr.inspection_expiration_date as "inspectionExpirationDate",
+        tr.attachment_url as "attachmentUrl",
+        tr.notes,
+        tr.status,
+        tr.created_at as "createdAt"
+      FROM trailers tr
+      LEFT JOIN partners p ON tr.vendor_id = p.partner_id
+      ORDER BY tr.trailer_no ASC 
+      LIMIT $1`,
       [limit]
     ),
     pool.query(
-      `SELECT driver_id as "driverId", full_name as "fullName", phone, license_number as "licenseNumber", status 
-       FROM drivers 
-       ORDER BY full_name ASC LIMIT $1`,
+      `SELECT 
+        d.driver_id as "driverId",
+        d.vendor_id as "vendorId",
+        COALESCE(p.short_name, p.partner_name, d.vendor_id) as "vendorName",
+        p.short_name as "vendorShortName",
+        d.full_name as "fullName",
+        d.gender,
+        d.birthday,
+        d.license_no as "licenseNo",
+        d.citizen_id as "citizenId",
+        d.citizen_issue_date as "citizenIssueDate",
+        d.passport_no as "passportNo",
+        d.passport_issue_date as "passportIssueDate",
+        d.phone,
+        d.nationality,
+        d.hometown,
+        d.gps_coordinates as "gpsCoordinates",
+        d.address,
+        d.avatar_url as "avatarUrl",
+        d.notes,
+        d.status,
+        d.is_active as "isActive",
+        d.created_at as "createdAt"
+      FROM drivers d
+      LEFT JOIN partners p ON d.vendor_id = p.partner_id
+      ORDER BY d.driver_id ASC 
+      LIMIT $1`,
       [limit]
     ),
   ]);
 
   return {
-    tractors: tractorsRes.rows,
-    trailers: trailersRes.rows,
-    drivers: driversRes.rows,
+    tractors: tractorsRes.rows.map((r) => ({
+      tractorNo: r.tractorNo,
+      vendorId: r.vendorId,
+      vendorName: r.vendorName,
+      vendorShortName: r.vendorShortName || undefined,
+      modelType: r.modelType || undefined,
+      transitRoute: r.transitRoute || undefined,
+      transitLicenseDate: r.transitLicenseDate ? new Date(r.transitLicenseDate).toISOString() : undefined,
+      productionYear: r.productionYear != null ? Number(r.productionYear) : undefined,
+      chassisNo: r.chassisNo || undefined,
+      engineNo: r.engineNo || undefined,
+      selfWeightTons: r.selfWeightTons != null ? Number(r.selfWeightTons) : undefined,
+      loadCapacityTons: r.loadCapacityTons != null ? Number(r.loadCapacityTons) : undefined,
+      color: r.color || undefined,
+      inspectionExpirationDate: r.inspectionExpirationDate ? new Date(r.inspectionExpirationDate).toISOString() : undefined,
+      attachmentUrl: r.attachmentUrl || undefined,
+      notes: r.notes || undefined,
+      status: r.status || "Đang hoạt động",
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+    })),
+    trailers: trailersRes.rows.map((r) => ({
+      trailerNo: r.trailerNo,
+      vendorId: r.vendorId,
+      vendorName: r.vendorName,
+      vendorShortName: r.vendorShortName || undefined,
+      modelType: r.modelType || undefined,
+      transitRoute: r.transitRoute || undefined,
+      transitLicenseDate: r.transitLicenseDate ? new Date(r.transitLicenseDate).toISOString() : undefined,
+      manufacturer: r.manufacturer || undefined,
+      productionYear: r.productionYear != null ? Number(r.productionYear) : undefined,
+      chassisNo: r.chassisNo || undefined,
+      curbWeightTons: r.curbWeightTons != null ? Number(r.curbWeightTons) : undefined,
+      payloadCapacityTons: r.payloadCapacityTons != null ? Number(r.payloadCapacityTons) : undefined,
+      paintColor: r.paintColor || undefined,
+      inspectionExpirationDate: r.inspectionExpirationDate ? new Date(r.inspectionExpirationDate).toISOString() : undefined,
+      attachmentUrl: r.attachmentUrl || undefined,
+      notes: r.notes || undefined,
+      status: r.status || "Đang hoạt động",
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+    })),
+    drivers: driversRes.rows.map((r) => ({
+      driverId: r.driverId,
+      vendorId: r.vendorId,
+      vendorName: r.vendorName,
+      vendorShortName: r.vendorShortName || undefined,
+      fullName: r.fullName,
+      gender: r.gender || "Nam",
+      birthday: r.birthday ? new Date(r.birthday).toISOString() : undefined,
+      licenseNo: r.licenseNo || undefined,
+      citizenId: r.citizenId || undefined,
+      citizenIssueDate: r.citizenIssueDate ? new Date(r.citizenIssueDate).toISOString() : undefined,
+      passportNo: r.passportNo || undefined,
+      passportIssueDate: r.passportIssueDate ? new Date(r.passportIssueDate).toISOString() : undefined,
+      phone: r.phone || undefined,
+      nationality: r.nationality || "Việt Nam",
+      hometown: r.hometown || undefined,
+      gpsCoordinates: r.gpsCoordinates || undefined,
+      address: r.address || undefined,
+      avatarUrl: r.avatarUrl || undefined,
+      notes: r.notes || undefined,
+      status: r.status || "Đang hoạt động",
+      isActive: Boolean(r.isActive),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+    })),
   };
 }
 
