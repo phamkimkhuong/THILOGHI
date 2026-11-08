@@ -32,7 +32,7 @@ export const DEFAULT_SERVICES_SEED: MasterServicePackage[] = [
     serviceName: "Vận tải đường bộ",
     serviceCategory: "CORE_TRANSPORT",
     categoryName: "Vận tải chính",
-    description: "Di chuyển hàng bằng phương tiện đường bộ (xe đầu kéo, xe tải thùng, xe chuyên dụng). Phạm vi D2D, D2P, P2D nội địa & liên vận quốc tế.",
+    description: "Di chuyển hàng bằng phương tiện đường bộ (xe đầu kéo, xe tải thùng, xe chuyên dụng) từ điểm nhận hàng đến điểm giao hàng nội địa & liên vận quốc tế.",
     defaultUnit: "TRIP",
     pricingType: "ROUTE_BASED",
     isCoreTransport: true,

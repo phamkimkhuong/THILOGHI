@@ -1053,7 +1053,7 @@ export async function approveQuotation(
     await client.query("BEGIN");
 
     const quoteCheck = await client.query(
-      `SELECT quotation_id, quotation_no, version, customer_id, region_id, status, immutable_locked, estimated_margin_percent, created_by, created_by_user_id, pricing_date
+      `SELECT quotation_id, quotation_no, version, customer_id, region_id, status, immutable_locked, estimated_margin_percent, created_by, created_by_user_id, pricing_date::text as pricing_date
        FROM customer_quotations 
        WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]

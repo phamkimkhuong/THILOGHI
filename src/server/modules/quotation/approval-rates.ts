@@ -6,9 +6,16 @@ import { getBusinessDate, getFxRateToVnd } from "@/shared/utils/pricing";
 export async function validateApprovalRates(
   client: PoolClient,
   quotationId: string,
-  pricingDateOverride?: string
+  pricingDateOverride?: string | Date
 ) {
-  let pricingDate: string = pricingDateOverride || "";
+  let pricingDate: string = "";
+  if (pricingDateOverride) {
+    if (pricingDateOverride instanceof Date) {
+      pricingDate = pricingDateOverride.toISOString().slice(0, 10);
+    } else {
+      pricingDate = String(pricingDateOverride).slice(0, 10);
+    }
+  }
   if (!pricingDate) {
     try {
       const qRes = await client.query(

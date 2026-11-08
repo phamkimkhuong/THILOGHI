@@ -33,7 +33,7 @@ export const quotationServiceItemSchema = z.object({
   unit: z.string().trim().min(1).max(20).default("TRIP"),
 
   // BUY Side (Snapshot từ Rate Lookup)
-  selectedBuyRateId: z.string().uuid().optional(),
+  selectedBuyRateId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, "Mã bảng giá không hợp lệ").nullable().optional(),
   selectedVendorId: z.string().optional(),
   selectedVendorName: z.string().optional(),
   unitBuyPrice: z.number().default(0),
@@ -58,7 +58,7 @@ export const quotationServiceItemSchema = z.object({
 });
 
 export const createQuotationSchema = z.object({
-  quotationId: z.string().uuid().optional(),
+  quotationId: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, "Mã báo giá không hợp lệ").nullable().optional(),
   expectedUpdatedAt: z.string().min(1).max(100).optional(),
   customerId: identifier,
   regionId: identifier,

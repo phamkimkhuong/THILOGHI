@@ -460,6 +460,14 @@ export function QuotationServiceLinesSection({
                 ? "Tra cứu biểu phí Cửa khẩu"
                 : item.servicePackage === "OCEAN"
                 ? "Tra cứu cước Vận tải biển"
+                : item.servicePackage === "CUSTOMS"
+                ? "Tra cứu biểu phí Hải quan"
+                : item.servicePackage === "WAREHOUSING"
+                ? "Tra cứu biểu phí Kho bãi"
+                : item.servicePackage === "INSURANCE"
+                ? "Tra cứu biểu phí Bảo hiểm"
+                : item.servicePackage === "OTHER"
+                ? "Tra cứu biểu phí Dịch vụ khác"
                 : "Tra và so sánh giá mua NCC"}
             </Button>
           </div>
@@ -478,6 +486,14 @@ export function QuotationServiceLinesSection({
                 ? "Biểu phí cửa khẩu đã chọn: "
                 : item.servicePackage === "OCEAN"
                 ? "Cước hãng tàu đã chọn: "
+                : item.servicePackage === "CUSTOMS"
+                ? "Biểu phí hải quan đã chọn: "
+                : item.servicePackage === "WAREHOUSING"
+                ? "Biểu phí kho bãi đã chọn: "
+                : item.servicePackage === "INSURANCE"
+                ? "Biểu phí bảo hiểm đã chọn: "
+                : item.servicePackage === "OTHER"
+                ? "Biểu phí dịch vụ khác đã chọn: "
                 : "Nhà cung cấp đã chọn: "}
               <strong className="text-emerald-900 dark:text-emerald-200">
                 {item.selectedCandidate.vendorName}
@@ -508,6 +524,14 @@ export function QuotationServiceLinesSection({
                 ? "Danh sách biểu phí Cửa khẩu khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
                 : item.servicePackage === "OCEAN"
                 ? "Danh sách biểu cước hãng tàu khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "CUSTOMS"
+                ? "Danh sách biểu phí dịch vụ Hải quan khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "WAREHOUSING"
+                ? "Danh sách biểu phí Kho bãi khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "INSURANCE"
+                ? "Danh sách biểu phí Bảo hiểm hàng hóa khả dụng. Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "OTHER"
+                ? "Danh sách biểu phí Dịch vụ khác khả dụng. Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
                 : "So sánh các nhà cung cấp khả dụng (quy đổi VND). Bấm \"Chọn NCC\" để áp giá vào báo giá."}
             </span>
           </p>
@@ -522,6 +546,14 @@ export function QuotationServiceLinesSection({
                       ? "Cặp cửa khẩu & Mặt hàng"
                       : item.servicePackage === "OCEAN"
                       ? "Hãng tàu & Tuyến cảng"
+                      : item.servicePackage === "CUSTOMS"
+                      ? "Chi cục & Thủ tục Hải quan"
+                      : item.servicePackage === "WAREHOUSING"
+                      ? "Kho bãi & Dịch vụ lưu kho"
+                      : item.servicePackage === "INSURANCE"
+                      ? "Công ty bảo hiểm & Phạm vi bảo hiểm"
+                      : item.servicePackage === "OTHER"
+                      ? "Đơn vị cung cấp & Dịch vụ"
                       : "Nhà cung cấp"}
                   </th>
                   <th className="text-right">Đơn giá gốc</th>
