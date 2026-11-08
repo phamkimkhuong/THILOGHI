@@ -41,6 +41,22 @@ import {
   type MasterServicePackage,
   type SaveServicePackageInput,
 } from "@/server/modules/master-data/master-data.service";
+import {
+  getPortRatesDetailedList,
+  savePortRateService,
+  togglePortRateStatusService,
+  deletePortRateService,
+  lookupPortRates,
+  type PortRateItem,
+  type SavePortRateInput,
+  type PortRateLookupQuery,
+} from "@/server/modules/supplier-pricing/port-rates.service";
+
+export type {
+  PortRateItem,
+  SavePortRateInput,
+  PortRateLookupQuery,
+};
 
 export type {
   MasterServicePackage,
@@ -618,6 +634,89 @@ export async function toggleServiceStatusAction(serviceId: string, isActive: boo
     return {
       success: false,
       error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái gói dịch vụ",
+    };
+  }
+}
+
+export async function getPortRatesAction(filters?: {
+  search?: string;
+  chargeCode?: string;
+  containerType?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getPortRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải biểu phí cảng",
+    };
+  }
+}
+
+export async function savePortRateAction(input: SavePortRateInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await savePortRateService(input, actor);
+    return {
+      success: true,
+      data: res,
+      message: `Đã lưu biểu phí [${res.chargeCode} - ${res.containerType}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí cảng",
+    };
+  }
+}
+
+export async function togglePortRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await togglePortRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã đổi trạng thái sang [${status}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí cảng",
+    };
+  }
+}
+
+export async function deletePortRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deletePortRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí cảng thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí cảng",
+    };
+  }
+}
+
+export async function lookupPortRatesAction(query: PortRateLookupQuery) {
+  try {
+    await requireAuth();
+    const res = await lookupPortRates(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí cảng",
+      candidates: [],
     };
   }
 }

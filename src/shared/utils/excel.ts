@@ -114,9 +114,20 @@ export async function exportQuotationToExcel(data: QuotationExportData) {
   });
   headerRow.height = 28;
 
+  const serviceNameMap: Record<string, string> = {
+    TRUCKING: "Vận tải đường bộ",
+    OCEAN: "Vận tải biển",
+    PORT: "Cảng & Depot",
+    CUSTOMS: "Hải quan & XNK",
+    BORDER_GATE: "Cửa khẩu & Bãi",
+    WAREHOUSING: "Kho bãi & Lưu trữ",
+    INSURANCE: "Bảo hiểm hàng hóa",
+    OTHER: "Dịch vụ khác",
+  };
+
   // Dữ liệu dòng
   data.items.forEach((item, index) => {
-    const serviceName = item.service === "TRUCKING" ? "Vận tải đường bộ" : item.service;
+    const serviceName = serviceNameMap[item.service] || item.service;
     const row = worksheet.addRow([
       index + 1,
       `${serviceName}: ${item.origin} → ${item.destination}`,

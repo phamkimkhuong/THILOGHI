@@ -319,7 +319,7 @@ function ServicesFormDialogContent({
             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <p className="text-[11px] text-muted-foreground mt-1">
-            Các mã phụ phí thường dùng trong phân hệ để bóc tách chi phí đầu vào BUY từ NCC.
+            Nhập các mã phụ phí nếu có (phân cách bằng dấu phẩy).
           </p>
         </div>
 

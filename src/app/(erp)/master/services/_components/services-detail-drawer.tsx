@@ -5,7 +5,6 @@ import {
   Layers,
   Pencil,
   Power,
-  ShieldCheck,
   Tag,
   Calculator,
   FileText,
@@ -154,22 +153,8 @@ export function ServicesDetailDrawer({
                   </span>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground italic">
-                * Đây là các mã phí chi tiết thường được tham chiếu từ kho giá BUY (Supplier Input Pricing).
-              </p>
             </div>
           )}
-
-          {/* Nguyên tắc kế thừa Quotation → Order */}
-          <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900 text-[11px] text-blue-900 dark:text-blue-200 space-y-1">
-            <div className="font-bold flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-              <span>Nguyên tắc P&amp;L THILOGI Logistics OS:</span>
-            </div>
-            <p>
-              Khách hàng mua gói dịch vụ $\rightarrow$ Quotation chốt SELL $\rightarrow$ Order kế thừa $\rightarrow$ Vận hành thực thi ghi nhận Actual BUY $\rightarrow$ Bóc tách P&amp;L chuẩn xác theo từng phân hệ.
-            </p>
-          </div>
         </div>
 
         {/* Footer Actions */}

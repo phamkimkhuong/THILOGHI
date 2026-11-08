@@ -366,7 +366,7 @@ export function QuotationServiceLinesSection({
             </div>
           </div>
 
-          {/* Nút Tra và so sánh giá NCC */}
+          {/* Nút Tra và so sánh giá NCC / Biểu phí Cảng */}
           <div className="pt-2">
             <Button
               type="button"
@@ -376,7 +376,10 @@ export function QuotationServiceLinesSection({
               onClick={onLookup}
               className="flex items-center gap-1.5 font-semibold shadow-xs"
             >
-              <Search className="w-3.5 h-3.5" /> Tra và so sánh giá mua NCC
+              <Search className="w-3.5 h-3.5" />
+              {item.servicePackage === "PORT"
+                ? "Tra cứu biểu phí Cảng Chu Lai"
+                : "Tra và so sánh giá mua NCC"}
             </Button>
           </div>
         </fieldset>
@@ -407,20 +410,22 @@ export function QuotationServiceLinesSection({
         </div>
       )}
 
-      {/* Bảng so sánh các nhà xe khả dụng */}
+      {/* Bảng so sánh các nhà xe / biểu phí cảng khả dụng */}
       {!!item?.lookupResult?.candidates.length && (
         <div className="space-y-2 pt-2">
           <p className="text-xs text-muted-foreground flex items-center justify-between">
             <span>
-              So sánh các nhà cung cấp khả dụng (quy đổi VND). Bấm &quot;Chọn NCC&quot; để áp giá vào báo giá.
+              {item.servicePackage === "PORT"
+                ? "Danh sách biểu phí Cảng Chu Lai khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : "So sánh các nhà cung cấp khả dụng (quy đổi VND). Bấm \"Chọn NCC\" để áp giá vào báo giá."}
             </span>
           </p>
-          <TableContainer ariaLabel="Bảng so sánh nhà cung cấp">
+          <TableContainer ariaLabel="Bảng so sánh nhà cung cấp và biểu phí">
             <table className="erp-table w-full text-xs">
               <thead>
                 <tr>
-                  <th>Nhà cung cấp</th>
-                  <th className="text-right">Giá gốc NCC</th>
+                  <th>{item.servicePackage === "PORT" ? "Tác nghiệp & Cảng" : "Nhà cung cấp"}</th>
+                  <th className="text-right">Đơn giá gốc</th>
                   <th className="text-center">Tỷ giá</th>
                   <th className="text-right">Quy đổi VND</th>
                   <th className="text-center">Thời hạn hiệu lực</th>
@@ -466,7 +471,7 @@ export function QuotationServiceLinesSection({
                           }
                           className="h-7 text-xs px-2.5"
                         >
-                          {isChosen ? "Đã chọn" : "Chọn NCC"}
+                          {isChosen ? "Đã chọn" : item.servicePackage === "PORT" ? "Áp dụng" : "Chọn NCC"}
                         </Button>
                       </td>
                     </tr>

@@ -10,6 +10,16 @@ import { PrintSkeleton } from "@/components/ui/print-skeleton";
 
 const money = (n: number) => new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(n);
 const inclusions: Record<string,string> = {INCLUDED:"Trong giá chào",SEPARATELY_BILLED:"Thu riêng",PASS_THROUGH_ACTUAL:"Thu theo thực tế · tạm tính"};
+const serviceLabels: Record<string,string> = {
+  TRUCKING: "Vận tải đường bộ",
+  OCEAN: "Vận tải biển",
+  PORT: "Cảng & Depot",
+  CUSTOMS: "Hải quan & XNK",
+  BORDER_GATE: "Cửa khẩu & Bãi",
+  WAREHOUSING: "Kho bãi & Lưu trữ",
+  INSURANCE: "Bảo hiểm hàng hóa",
+  OTHER: "Dịch vụ khác",
+};
 function PrintSheet() {
   const id = useSearchParams().get("id");
   const [result,setResult] = useState<Awaited<ReturnType<typeof getCommercialSheetAction>> | null>(null);
@@ -66,7 +76,7 @@ function PrintSheet() {
       <header className="flex flex-wrap justify-between gap-3 border-b pb-4"><div><h1 className="text-2xl font-bold">THILOGI · BÁO GIÁ DỊCH VỤ</h1><p>{sheet.quotationNo} · Phiên bản {sheet.version}</p></div><p>Ngày duyệt: {result.approvedAt ? new Date(result.approvedAt).toLocaleDateString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"}) : "—"}</p></header>
       {result.superseded && <p className="border-2 border-red-700 p-3 font-bold text-red-800">BẢN LƯU TRỮ — ĐÃ ĐƯỢC THAY THẾ BỞI PHIÊN BẢN MỚI</p>}
       <section><h2 className="font-bold">Kính gửi: {sheet.customerName}</h2>{sheet.taxCode && <p>Mã số thuế: {sheet.taxCode}</p>}{sheet.address && <p>Địa chỉ: {sheet.address}</p>}{sheet.commodity && <p>Hàng hóa: {sheet.commodity}</p>}<p>Hạn thanh toán: {sheet.paymentTermsDays} ngày</p></section>
-      <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead><tr>{["STT","Dịch vụ / tuyến","Thiết bị","Số lượng","Đơn vị","Đơn giá","Thành tiền","Cách thu"].map(h=><th key={h} className="border border-slate-400 p-2 text-left">{h}</th>)}</tr></thead><tbody>{sheet.items.map((i,n)=><tr key={n}><td className="border border-slate-400 p-2">{n+1}</td><td className="border border-slate-400 p-2">{i.service === "TRUCKING" ? "Vận tải đường bộ" : i.service}<br />{i.origin} → {i.destination}</td><td className="border border-slate-400 p-2">{i.equipment}</td><td className="border border-slate-400 p-2">{i.quantity}</td><td className="border border-slate-400 p-2">{i.unit}</td><td className="border border-slate-400 p-2 text-right">{money(i.unitPrice)}</td><td className="border border-slate-400 p-2 text-right">{money(i.amount)}</td><td className="border border-slate-400 p-2">{inclusions[i.inclusion] ?? i.inclusion}</td></tr>)}</tbody><tfoot><tr><th colSpan={6} className="border border-slate-400 p-2 text-right">Tổng giá trị chào / tạm tính ({sheet.currency})</th><td colSpan={2} className="border border-slate-400 p-2 font-bold">{money(sheet.totalSellAmount)}</td></tr></tfoot></table></div>
+      <div className="overflow-x-auto"><table className="w-full border-collapse text-sm"><thead><tr>{["STT","Dịch vụ / tuyến","Thiết bị","Số lượng","Đơn vị","Đơn giá","Thành tiền","Cách thu"].map(h=><th key={h} className="border border-slate-400 p-2 text-left">{h}</th>)}</tr></thead><tbody>{sheet.items.map((i,n)=><tr key={n}><td className="border border-slate-400 p-2">{n+1}</td><td className="border border-slate-400 p-2">{serviceLabels[i.service] ?? i.service}<br />{i.origin} → {i.destination}</td><td className="border border-slate-400 p-2">{i.equipment}</td><td className="border border-slate-400 p-2">{i.quantity}</td><td className="border border-slate-400 p-2">{i.unit}</td><td className="border border-slate-400 p-2 text-right">{money(i.unitPrice)}</td><td className="border border-slate-400 p-2 text-right">{money(i.amount)}</td><td className="border border-slate-400 p-2">{inclusions[i.inclusion] ?? i.inclusion}</td></tr>)}</tbody><tfoot><tr><th colSpan={6} className="border border-slate-400 p-2 text-right">Tổng giá trị chào / tạm tính ({sheet.currency})</th><td colSpan={2} className="border border-slate-400 p-2 font-bold">{money(sheet.totalSellAmount)}</td></tr></tfoot></table></div>
       {sheet.items.some(i=>i.inclusion!=="INCLUDED") && <p className="text-sm">Các khoản thu riêng và thu theo thực tế được liệt kê ở từng dòng; khoản thu theo thực tế là giá trị tạm tính.</p>}
     </article>
   </div>;

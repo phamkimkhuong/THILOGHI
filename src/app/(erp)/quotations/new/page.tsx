@@ -14,6 +14,7 @@ import {
   rejectQuotationAction,
   returnQuotationToDraftAction,
 } from "@/features/quotation/actions";
+import { lookupPortRatesAction } from "@/features/master-data/actions";
 import { createQuotationVersionAction } from "@/features/quotation/phase4-actions";
 import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
 import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
@@ -265,9 +266,77 @@ function Workspace() {
     );
   }
 
-  // Tra cứu giá mua NCC cho tuyến đường
+  // Tra cứu giá mua NCC cho tuyến đường hoặc biểu phí cảng Chu Lai
   function lookup() {
     if (!item) return;
+
+    // Phân hệ Cảng & Depot (PORT)
+    if (item.servicePackage === "PORT") {
+      if (!item.equipmentType) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          items: {
+            ...prev.items,
+            [active]: { ...prev.items?.[active], equipmentType: "Vui lòng chọn loại container." },
+          },
+        }));
+        toast.error("Vui lòng chọn loại container để tra biểu phí cảng.");
+        return;
+      }
+
+      void perform(async () => {
+        const res = await lookupPortRatesAction({
+          portCode: "CHU_LAI",
+          containerType: item.equipmentType,
+          pricingDate: getBusinessDate(),
+        });
+
+        if (res.candidates && res.candidates.length > 0) {
+          const candidates = res.candidates.map((c) => ({
+            rateId: c.rateId,
+            vendorId: c.portCode || "CHU_LAI",
+            vendorName: `${c.portName} [${c.chargeCode}] - ${c.serviceCategory} (${c.containerType})`,
+            buyRate: c.unitPrice,
+            currency: c.currency,
+            fxRateToVnd: c.currency === "USD" ? 25700 : 1,
+            buyRateVnd: c.unitPriceVnd,
+            validityRange: `[${c.validFrom},${c.validTo})`,
+            validityStart: c.validFrom,
+            validityEnd: c.validTo,
+          }));
+
+          const worstCase = Math.max(...candidates.map((c) => c.buyRateVnd));
+          const bestCandidate = candidates[0];
+
+          setItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id
+                ? {
+                    ...x,
+                    lookupResult: {
+                      status: (candidates.length === 1 ? "APPLY" : "MULTIPLE_CANDIDATES") as "APPLY" | "MULTIPLE_CANDIDATES",
+                      candidates,
+                      worstCaseBuy: worstCase,
+                      message: `Tìm thấy ${candidates.length} biểu phí Cảng Chu Lai phù hợp.`,
+                    },
+                    selectedBuyRateId: candidates.length === 1 ? bestCandidate.rateId : undefined,
+                    selectedCandidate: candidates.length === 1 ? bestCandidate : undefined,
+                    unitBuyPrice: candidates.length === 1 ? bestCandidate.buyRateVnd : 0,
+                    worstCaseBuyPrice: worstCase,
+                  }
+                : x
+            )
+          );
+          toast.success(`Tìm thấy ${candidates.length} biểu phí Cảng Chu Lai.`);
+          setMessage("Chọn tác nghiệp cảng phù hợp từ bảng so sánh bên dưới.");
+        } else {
+          toast.error(res.message || "Không tìm thấy biểu phí cảng phù hợp.");
+        }
+      });
+      return;
+    }
+
+    // Với TRUCKING và các dịch vụ đường bộ
     const errors: {
       originLocationId?: string;
       destinationLocationId?: string;
