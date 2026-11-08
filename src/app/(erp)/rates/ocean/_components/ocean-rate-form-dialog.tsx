@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,11 @@ import {
   OceanRateItem,
   SaveOceanRateInput,
   CONTAINER_TYPE_OPTIONS,
-  STANDARD_COMMODITIES,
   formatCurrency,
   formatUsd,
   OCEAN_FX_RATE_USD_VND,
 } from "./types";
-import { saveOceanRateAction } from "@/features/master-data/actions";
+import { saveOceanRateAction, getCommoditiesAction } from "@/features/master-data/actions";
 
 interface OceanRateFormDialogProps {
   open: boolean;
@@ -24,6 +23,7 @@ interface OceanRateFormDialogProps {
   rate: OceanRateItem | null;
   carrierOptions: { carrierId: string; carrierName: string }[];
   portOptions: { portId: string; portName: string; countryCode: string }[];
+  commodityOptions?: string[];
   onSuccess: () => void;
 }
 
@@ -41,7 +41,7 @@ function getInitialForm(
       polName: rate.polName,
       podId: rate.podId,
       podName: rate.podName,
-      commodityName: rate.commodityName || "Quả chuối tươi",
+      commodityName: rate.commodityName || "",
       containerType: rate.containerType || "40HR",
       oceanFreightUsd: rate.oceanFreightUsd ?? 0,
       thcFee: rate.thcFee ?? 0,
@@ -59,33 +59,25 @@ function getInitialForm(
     };
   }
 
-  const defaultCarrier = carrierOptions[0] || { carrierId: "SITC", carrierName: "SITC Maritime Group" };
-  const defaultPol = portOptions.find((p) => p.portId === "VNTAP") || portOptions[0] || {
-    portId: "VNTAP",
-    portName: "CHU LAI PORT",
-    countryCode: "VN",
-  };
-  const defaultPod = portOptions.find((p) => p.portId === "CNDLC") || portOptions[1] || {
-    portId: "CNDLC",
-    portName: "DALIAN PORT",
-    countryCode: "CN",
-  };
+  const defaultCarrier = carrierOptions[0];
+  const defaultPol = portOptions.find((p) => p.countryCode === "VN") || portOptions[0];
+  const defaultPod = portOptions.find((p) => p.countryCode !== "VN") || portOptions[1] || portOptions[0];
 
   return {
-    carrierId: defaultCarrier.carrierId,
-    carrierName: defaultCarrier.carrierName,
-    polId: defaultPol.portId,
-    polName: defaultPol.portName,
-    podId: defaultPod.portId,
-    podName: defaultPod.portName,
-    commodityName: "Quả chuối tươi",
+    carrierId: defaultCarrier?.carrierId || "",
+    carrierName: defaultCarrier?.carrierName || "",
+    polId: defaultPol?.portId || "",
+    polName: defaultPol?.portName || "",
+    podId: defaultPod?.portId || "",
+    podName: defaultPod?.portName || "",
+    commodityName: "",
     containerType: "40HR",
-    oceanFreightUsd: 700,
+    oceanFreightUsd: 0,
     thcFee: 0,
-    docsFee: 950000,
-    sealFee: 190000,
-    afsFee: 665000,
-    telexFee: 570000,
+    docsFee: 0,
+    sealFee: 0,
+    afsFee: 0,
+    telexFee: 0,
     bafCafFee: 0,
     otherSurcharges: 0,
     currency: "USD",
@@ -102,6 +94,7 @@ export function OceanRateFormDialog({
   rate,
   carrierOptions,
   portOptions,
+  commodityOptions,
   onSuccess,
 }: OceanRateFormDialogProps) {
   if (!open) return null;
@@ -116,6 +109,7 @@ export function OceanRateFormDialog({
       rate={rate}
       carrierOptions={carrierOptions}
       portOptions={portOptions}
+      commodityOptions={commodityOptions}
       onSuccess={onSuccess}
     />
   );
@@ -127,12 +121,46 @@ function OceanRateFormDialogContent({
   rate,
   carrierOptions,
   portOptions,
+  commodityOptions,
   onSuccess,
 }: OceanRateFormDialogProps) {
   const [form, setForm] = useState<SaveOceanRateInput>(() =>
     getInitialForm(rate, carrierOptions, portOptions)
   );
   const isEditing = Boolean(rate);
+
+  const [commodityList, setCommodityList] = useState<string[]>(commodityOptions || []);
+  const initialCommodity = form.commodityName?.trim() || "";
+  const initialIsPreset = Boolean(initialCommodity && commodityList.includes(initialCommodity));
+  const [selectedMode, setSelectedMode] = useState<string>(
+    initialIsPreset ? initialCommodity : initialCommodity ? "CUSTOM" : ""
+  );
+  const [customCommodity, setCustomCommodity] = useState<string>(
+    !initialIsPreset && initialCommodity ? initialCommodity : ""
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    getCommoditiesAction().then((res) => {
+      if (isMounted && res.success && res.data) {
+        const names = res.data.map((c) => c.name).filter(Boolean);
+        setCommodityList(names);
+
+        // Đồng bộ mode nếu form đã có mặt hàng
+        if (form.commodityName) {
+          if (names.includes(form.commodityName)) {
+            setSelectedMode(form.commodityName);
+          } else {
+            setSelectedMode("CUSTOM");
+            setCustomCommodity(form.commodityName);
+          }
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [form.commodityName]);
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -408,34 +436,65 @@ function OceanRateFormDialogContent({
 
             {/* Mặt hàng */}
             <div>
-              <label htmlFor="commodity-input" className="block font-medium text-foreground mb-1">
+              <label htmlFor="commodity-select" className="block font-medium text-foreground mb-1">
                 Mặt hàng áp dụng *
               </label>
-              <input
-                id="commodity-input"
-                type="text"
-                list="commodities-list"
-                value={form.commodityName}
+              <select
+                id="commodity-select"
+                value={selectedMode}
                 onChange={(e) => {
-                  setForm((prev) => ({ ...prev, commodityName: e.target.value }));
-                  if (errors.commodityName) {
-                    setErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.commodityName;
-                      return next;
-                    });
+                  const val = e.target.value;
+                  setSelectedMode(val);
+                  if (val !== "CUSTOM") {
+                    setForm((prev) => ({ ...prev, commodityName: val }));
+                    if (errors.commodityName) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.commodityName;
+                        return next;
+                      });
+                    }
+                  } else {
+                    setForm((prev) => ({ ...prev, commodityName: customCommodity }));
                   }
                 }}
-                placeholder="VD: Quả chuối tươi, Thủy sản..."
                 className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                   errors.commodityName ? "border-red-500" : "border-border"
                 }`}
-              />
-              <datalist id="commodities-list">
-                {STANDARD_COMMODITIES.map((c) => (
-                  <option key={c} value={c} />
+              >
+                <option value="" disabled>-- Chọn mặt hàng từ danh mục --</option>
+                {commodityList.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
-              </datalist>
+                <option value="CUSTOM">+ Nhập mặt hàng khác ngoài danh mục...</option>
+              </select>
+
+              {selectedMode === "CUSTOM" && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={customCommodity}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomCommodity(val);
+                      setForm((prev) => ({ ...prev, commodityName: val }));
+                      if (errors.commodityName) {
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.commodityName;
+                          return next;
+                        });
+                      }
+                    }}
+                    placeholder="Nhập tên mặt hàng mới..."
+                    className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                      errors.commodityName ? "border-red-500" : "border-border"
+                    }`}
+                  />
+                </div>
+              )}
               {errors.commodityName && (
                 <p className="text-[11px] text-red-500 mt-0.5">{errors.commodityName}</p>
               )}

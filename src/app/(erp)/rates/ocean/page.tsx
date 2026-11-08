@@ -17,6 +17,7 @@ import {
   getOceanPortsAction,
   toggleOceanRateStatusAction,
   deleteOceanRateAction,
+  getCommoditiesAction,
 } from "@/features/master-data/actions";
 
 import {
@@ -36,6 +37,7 @@ export default function OceanRatesPage() {
   const [rates, setRates] = useState<OceanRateItem[]>([]);
   const [carrierOptions, setCarrierOptions] = useState<{ carrierId: string; carrierName: string }[]>([]);
   const [portOptions, setPortOptions] = useState<{ portId: string; portName: string; countryCode: string }[]>([]);
+  const [commodityOptions, setCommodityOptions] = useState<string[]>([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCarrier, setSelectedCarrier] = useState("ALL");
@@ -55,10 +57,11 @@ export default function OceanRatesPage() {
 
   const loadData = useCallback(async () => {
     runLoad(async (isCurrent) => {
-      const [ratesRes, carriersRes, portsRes] = await Promise.all([
+      const [ratesRes, carriersRes, portsRes, commoditiesRes] = await Promise.all([
         getOceanRatesAction(),
         getOceanCarriersAction(),
         getOceanPortsAction(),
+        getCommoditiesAction(),
       ]);
 
       if (!ratesRes.success) throw new Error(ratesRes.error);
@@ -70,6 +73,9 @@ export default function OceanRatesPage() {
         }
         if (portsRes.success && portsRes.data.length > 0) {
           setPortOptions(portsRes.data);
+        }
+        if (commoditiesRes.success && commoditiesRes.data) {
+          setCommodityOptions(commoditiesRes.data.map((c) => c.name).filter(Boolean));
         }
       }
     });
@@ -249,6 +255,7 @@ export default function OceanRatesPage() {
         rate={selectedEditItem}
         carrierOptions={carrierOptions}
         portOptions={portOptions}
+        commodityOptions={commodityOptions}
         onSuccess={loadData}
       />
 

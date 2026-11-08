@@ -24,15 +24,6 @@ export const STATUS_OPTIONS: { id: OceanRateStatusFilter; label: string }[] = [
   { id: "INACTIVE", label: "Hết hiệu lực" },
 ];
 
-export const STANDARD_COMMODITIES = [
-  "Quả chuối tươi",
-  "Thủy sản đông lạnh",
-  "Tinh bột sắn",
-  "Hàng tổng hợp",
-  "Nông sản chế biến",
-  "Ván lạng & Gỗ",
-];
-
 export function removeVietnameseTones(str: string): string {
   return str
     .normalize("NFD")

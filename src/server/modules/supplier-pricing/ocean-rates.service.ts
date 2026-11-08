@@ -172,7 +172,7 @@ export async function getOceanRatesDetailedList(filters?: {
     polName: r.polName,
     podId: r.podId,
     podName: r.podName,
-    commodityName: r.commodityName || "Quả chuối tươi",
+    commodityName: r.commodityName || "",
     containerType: r.containerType || "40HR",
     oceanFreightUsd: Number(r.oceanFreightUsd || 0),
     thcFee: Number(r.thcFee || 0),
@@ -254,7 +254,10 @@ export async function saveOceanRateService(
   const polName = input.polName.trim();
   const podId = input.podId.trim().toUpperCase();
   const podName = input.podName.trim();
-  const commodityName = input.commodityName?.trim() || "Quả chuối tươi";
+  const commodityName = input.commodityName?.trim();
+  if (!commodityName) {
+    throw new Error("Mặt hàng áp dụng là bắt buộc.");
+  }
   const containerType = input.containerType?.trim() || "40HR";
   const currency = input.currency || "USD";
   const validFrom = input.validFrom || "2026-01-01";
@@ -484,7 +487,7 @@ export async function lookupOceanRates(
     }
     if (
       query.commodityName &&
-      r.commodityName !== "Quả chuối tươi" &&
+      query.commodityName !== "ALL" &&
       !r.commodityName.toLowerCase().includes(query.commodityName.toLowerCase())
     ) {
       return false;
