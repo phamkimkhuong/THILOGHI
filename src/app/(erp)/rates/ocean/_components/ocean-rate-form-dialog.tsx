@@ -130,14 +130,6 @@ function OceanRateFormDialogContent({
   const isEditing = Boolean(rate);
 
   const [commodityList, setCommodityList] = useState<string[]>(commodityOptions || []);
-  const initialCommodity = form.commodityName?.trim() || "";
-  const initialIsPreset = Boolean(initialCommodity && commodityList.includes(initialCommodity));
-  const [selectedMode, setSelectedMode] = useState<string>(
-    initialIsPreset ? initialCommodity : initialCommodity ? "CUSTOM" : ""
-  );
-  const [customCommodity, setCustomCommodity] = useState<string>(
-    !initialIsPreset && initialCommodity ? initialCommodity : ""
-  );
 
   useEffect(() => {
     let isMounted = true;
@@ -145,22 +137,12 @@ function OceanRateFormDialogContent({
       if (isMounted && res.success && res.data) {
         const names = res.data.map((c) => c.name).filter(Boolean);
         setCommodityList(names);
-
-        // Đồng bộ mode nếu form đã có mặt hàng
-        if (form.commodityName) {
-          if (names.includes(form.commodityName)) {
-            setSelectedMode(form.commodityName);
-          } else {
-            setSelectedMode("CUSTOM");
-            setCustomCommodity(form.commodityName);
-          }
-        }
       }
     });
     return () => {
       isMounted = false;
     };
-  }, [form.commodityName]);
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -342,9 +324,8 @@ function OceanRateFormDialogContent({
                 id="carrier-select"
                 value={form.carrierId}
                 onChange={(e) => handleCarrierChange(e.target.value)}
-                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.carrierId ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.carrierId ? "border-red-500" : "border-border"
+                  }`}
               >
                 {carrierOptions.map((c) => (
                   <option key={c.carrierId} value={c.carrierId}>
@@ -364,9 +345,8 @@ function OceanRateFormDialogContent({
                 id="pol-select"
                 value={form.polId}
                 onChange={(e) => handlePolChange(e.target.value)}
-                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.polId ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.polId ? "border-red-500" : "border-border"
+                  }`}
               >
                 {portOptions.map((p) => (
                   <option key={p.portId} value={p.portId}>
@@ -386,9 +366,8 @@ function OceanRateFormDialogContent({
                 id="pod-select"
                 value={form.podId}
                 onChange={(e) => handlePodChange(e.target.value)}
-                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.podId ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.podId ? "border-red-500" : "border-border"
+                  }`}
               >
                 {portOptions.map((p) => (
                   <option key={p.portId} value={p.portId}>
@@ -441,60 +420,33 @@ function OceanRateFormDialogContent({
               </label>
               <select
                 id="commodity-select"
-                value={selectedMode}
+                value={form.commodityName || ""}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setSelectedMode(val);
-                  if (val !== "CUSTOM") {
-                    setForm((prev) => ({ ...prev, commodityName: val }));
-                    if (errors.commodityName) {
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.commodityName;
-                        return next;
-                      });
-                    }
-                  } else {
-                    setForm((prev) => ({ ...prev, commodityName: customCommodity }));
+                  setForm((prev) => ({ ...prev, commodityName: val }));
+                  if (errors.commodityName) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.commodityName;
+                      return next;
+                    });
                   }
                 }}
-                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.commodityName ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.commodityName ? "border-red-500" : "border-border"
+                  }`}
               >
-                <option value="" disabled>-- Chọn mặt hàng từ danh mục --</option>
+                <option value="">-- Chọn mặt hàng từ Danh mục Hàng hóa --</option>
+                {form.commodityName && !commodityList.includes(form.commodityName) && (
+                  <option value={form.commodityName}>
+                    {form.commodityName} (Hiện tại)
+                  </option>
+                )}
                 {commodityList.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
-                <option value="CUSTOM">+ Nhập mặt hàng khác ngoài danh mục...</option>
               </select>
-
-              {selectedMode === "CUSTOM" && (
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    value={customCommodity}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomCommodity(val);
-                      setForm((prev) => ({ ...prev, commodityName: val }));
-                      if (errors.commodityName) {
-                        setErrors((prev) => {
-                          const next = { ...prev };
-                          delete next.commodityName;
-                          return next;
-                        });
-                      }
-                    }}
-                    placeholder="Nhập tên mặt hàng mới..."
-                    className={`w-full bg-background border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                      errors.commodityName ? "border-red-500" : "border-border"
-                    }`}
-                  />
-                </div>
-              )}
               {errors.commodityName && (
                 <p className="text-[11px] text-red-500 mt-0.5">{errors.commodityName}</p>
               )}

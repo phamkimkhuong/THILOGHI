@@ -233,48 +233,28 @@ export async function getMasterServicesList(filters?: {
 
     const { rows } = await pool.query(query, params);
 
-    if (rows && rows.length > 0) {
-      return rows.map((r) => ({
-        serviceId: r.serviceId,
-        serviceName: r.serviceName,
-        serviceCategory: r.serviceCategory,
-        categoryName: CATEGORY_NAME_MAP[r.serviceCategory] || r.serviceCategory,
-        description: r.description || "",
-        defaultUnit: r.defaultUnit || "TRIP",
-        pricingType: r.pricingType || "ROUTE_BASED",
-        isCoreTransport: Boolean(r.isCoreTransport),
-        isActive: Boolean(r.isActive),
-        sortOrder: Number(r.sortOrder || 0),
-        typicalCharges: Array.isArray(r.typicalCharges)
-          ? r.typicalCharges
-          : typeof r.typicalCharges === "string"
-          ? JSON.parse(r.typicalCharges)
-          : [],
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
-    }
-  } catch {
-    // Fallback gracefully nếu mock db hoặc chưa kết nối
+    return (rows || []).map((r) => ({
+      serviceId: r.serviceId,
+      serviceName: r.serviceName,
+      serviceCategory: r.serviceCategory,
+      categoryName: CATEGORY_NAME_MAP[r.serviceCategory] || r.serviceCategory,
+      description: r.description || "",
+      defaultUnit: r.defaultUnit || "TRIP",
+      pricingType: r.pricingType || "ROUTE_BASED",
+      isCoreTransport: Boolean(r.isCoreTransport),
+      isActive: Boolean(r.isActive),
+      sortOrder: Number(r.sortOrder || 0),
+      typicalCharges: Array.isArray(r.typicalCharges)
+        ? r.typicalCharges
+        : typeof r.typicalCharges === "string"
+        ? JSON.parse(r.typicalCharges)
+        : [],
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : "Lỗi truy vấn cơ sở dữ liệu dịch vụ");
   }
-
-  // Fallback danh sách in-memory chuẩn
-  return DEFAULT_SERVICES_SEED.filter((s) => {
-    if (filters?.category && filters.category !== "ALL" && s.serviceCategory !== filters.category) {
-      return false;
-    }
-    if (filters?.status === "ACTIVE" && !s.isActive) return false;
-    if (filters?.status === "INACTIVE" && s.isActive) return false;
-    if (filters?.search) {
-      const q = filters.search.toLowerCase();
-      return (
-        s.serviceId.toLowerCase().includes(q) ||
-        s.serviceName.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
 }
 
 export interface SaveServicePackageInput {
@@ -349,18 +329,8 @@ export async function saveServicePackage(
     JSON.stringify(typicalCharges),
   ]);
 
-  const r = rows[0] || {
-    service_id: serviceId,
-    service_name: serviceName,
-    service_category: serviceCategory,
-    description,
-    default_unit: defaultUnit,
-    pricing_type: pricingType,
-    is_core_transport: isCoreTransport,
-    is_active: isActive,
-    sort_order: sortOrder,
-    typical_charges: typicalCharges,
-  };
+  const r = rows[0];
+  if (!r) throw new Error("Không thể lưu gói dịch vụ vào cơ sở dữ liệu.");
 
   return {
     serviceId: r.service_id,

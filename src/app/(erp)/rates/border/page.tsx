@@ -15,6 +15,7 @@ import {
   getBorderRatesAction,
   toggleBorderRateStatusAction,
   deleteBorderRateAction,
+  getCommoditiesAction,
 } from "@/features/master-data/actions";
 
 import {
@@ -32,6 +33,7 @@ export default function BorderRatesPage() {
   useDocumentTitle("Biểu phí Cửa khẩu & Bãi kiểm hóa");
 
   const [rates, setRates] = useState<BorderRateItem[]>([]);
+  const [commodityOptions, setCommodityOptions] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCountryPair, setSelectedCountryPair] = useState<CountryPairFilter>("ALL");
   const [selectedBorderPair, setSelectedBorderPair] = useState("ALL");
@@ -48,10 +50,16 @@ export default function BorderRatesPage() {
 
   const loadData = useCallback(async () => {
     runLoad(async (isCurrent) => {
-      const res = await getBorderRatesAction();
-      if (!res.success) throw new Error(res.error);
+      const [ratesRes, commRes] = await Promise.all([
+        getBorderRatesAction(),
+        getCommoditiesAction(),
+      ]);
+      if (!ratesRes.success) throw new Error(ratesRes.error);
       if (isCurrent()) {
-        setRates(res.data);
+        setRates(ratesRes.data);
+        if (commRes.success && commRes.data) {
+          setCommodityOptions(commRes.data.map((c) => c.name).filter(Boolean));
+        }
       }
     });
   }, [runLoad]);
@@ -251,6 +259,7 @@ export default function BorderRatesPage() {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         rate={selectedEditItem}
+        commodityOptions={commodityOptions}
         onSuccess={loadData}
       />
 

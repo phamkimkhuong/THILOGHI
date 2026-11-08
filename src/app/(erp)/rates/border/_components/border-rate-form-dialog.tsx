@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,13 @@ import {
   STANDARD_BORDER_PAIRS,
   formatCurrency,
 } from "./types";
-import { saveBorderRateAction } from "@/features/master-data/actions";
+import { saveBorderRateAction, getCommoditiesAction } from "@/features/master-data/actions";
 
 interface BorderRateFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rate: BorderRateItem | null;
+  commodityOptions?: string[];
   onSuccess: () => void;
 }
 
@@ -29,7 +30,7 @@ function getInitialForm(rate: BorderRateItem | null): SaveBorderRateInput {
       borderPairName: rate.borderPairName || "Bờ Y – Phu Kua",
       countryPair: rate.countryPair || "Việt - Lào",
       provinces: rate.provinces || "Kon Tum – Attapeu",
-      commodityName: rate.commodityName || "Quả chuối tươi",
+      commodityName: rate.commodityName || "Tất cả loại hàng",
       infrastructureFee: rate.infrastructureFee ?? 0,
       entryExitFee: rate.entryExitFee ?? 0,
       customsFee: rate.customsFee ?? 0,
@@ -47,9 +48,9 @@ function getInitialForm(rate: BorderRateItem | null): SaveBorderRateInput {
     countryPair: "Việt - Lào",
     provinces: "Kon Tum – Attapeu",
     commodityName: "Tất cả loại hàng",
-    infrastructureFee: 700000,
-    entryExitFee: 250000,
-    customsFee: 1200000,
+    infrastructureFee: 0,
+    entryExitFee: 0,
+    customsFee: 0,
     currency: "VND",
     validFrom: "2026-01-01",
     validTo: "2026-12-31",
@@ -62,6 +63,7 @@ export function BorderRateFormDialog({
   open,
   onOpenChange,
   rate,
+  commodityOptions,
   onSuccess,
 }: BorderRateFormDialogProps) {
   if (!open) return null;
@@ -74,6 +76,7 @@ export function BorderRateFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       rate={rate}
+      commodityOptions={commodityOptions}
       onSuccess={onSuccess}
     />
   );
@@ -83,10 +86,25 @@ function BorderRateFormDialogContent({
   open,
   onOpenChange,
   rate,
+  commodityOptions,
   onSuccess,
 }: BorderRateFormDialogProps) {
   const [form, setForm] = useState<SaveBorderRateInput>(() => getInitialForm(rate));
   const isEditing = Boolean(rate);
+
+  const [commodityList, setCommodityList] = useState<string[]>(commodityOptions || []);
+
+  useEffect(() => {
+    let isMounted = true;
+    getCommoditiesAction().then((res) => {
+      if (isMounted && res.success && res.data) {
+        setCommodityList(res.data.map((c) => c.name).filter(Boolean));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Kiểm tra xem cặp cửa khẩu có trong danh mục mẫu không
   const isStandardPair = STANDARD_BORDER_PAIRS.some((p) => p.id === form.borderPairId && p.id !== "CUSTOM");
@@ -239,9 +257,8 @@ function BorderRateFormDialogContent({
                   });
                 }}
                 placeholder="VD: BOY-PHU, LAB-DAN..."
-                className={`w-full bg-background border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.borderPairId ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.borderPairId ? "border-red-500" : "border-border"
+                  }`}
               />
               {errors.borderPairId && (
                 <span className="text-[11px] text-red-500 mt-0.5 block">{errors.borderPairId}</span>
@@ -266,9 +283,8 @@ function BorderRateFormDialogContent({
                   });
                 }}
                 placeholder="VD: Bờ Y – Phu Kua..."
-                className={`w-full bg-background border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  errors.borderPairName ? "border-red-500" : "border-border"
-                }`}
+                className={`w-full bg-background border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.borderPairName ? "border-red-500" : "border-border"
+                  }`}
               />
               {errors.borderPairName && (
                 <span className="text-[11px] text-red-500 mt-0.5 block">{errors.borderPairName}</span>
@@ -315,25 +331,41 @@ function BorderRateFormDialogContent({
 
           {/* Mặt hàng */}
           <div>
-            <label className="block text-xs font-semibold text-foreground mb-1">
+            <label htmlFor="border-commodity-select" className="block text-xs font-semibold text-foreground mb-1">
               Mặt hàng quy định áp dụng <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={form.commodityName}
+            <select
+              id="border-commodity-select"
+              value={form.commodityName || ""}
               onChange={(e) => {
-                setForm((prev) => ({ ...prev, commodityName: e.target.value }));
-                setErrors((prev) => {
-                  const next = { ...prev };
-                  delete next.commodityName;
-                  return next;
-                });
+                const val = e.target.value;
+                setForm((prev) => ({ ...prev, commodityName: val }));
+                if (errors.commodityName) {
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.commodityName;
+                    return next;
+                  });
+                }
               }}
-              placeholder="VD: Quả chuối tươi, Tinh bột sắn, Frozen Fish, Tất cả loại hàng..."
-              className={`w-full bg-background border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                errors.commodityName ? "border-red-500" : "border-border"
-              }`}
-            />
+              className={`w-full bg-background border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 ${errors.commodityName ? "border-red-500" : "border-border"
+                }`}
+            >
+              <option value="">-- Chọn mặt hàng từ Danh mục Hàng hóa --</option>
+              <option value="Tất cả loại hàng">Tất cả loại hàng (Định mức chung)</option>
+              {form.commodityName &&
+                form.commodityName !== "Tất cả loại hàng" &&
+                !commodityList.includes(form.commodityName) && (
+                  <option value={form.commodityName}>
+                    {form.commodityName} (Hiện tại)
+                  </option>
+                )}
+              {commodityList.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
             {errors.commodityName && (
               <span className="text-[11px] text-red-500 mt-0.5 block">{errors.commodityName}</span>
             )}
