@@ -353,6 +353,63 @@ export function QuotationsDetailDrawer({
               </div>
             </div>
 
+            {/* Phân đoạn 3.5: Cấu phần chi phí BUY cấu thành dịch vụ (Cost Components) */}
+            {detail.costComponents && detail.costComponents.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-primary" />
+                    Cấu phần chi phí giá vốn BUY ({detail.costComponents.length} khoản)
+                  </span>
+                  <span className="text-xs text-primary font-mono">
+                    COST_COMPONENTS
+                  </span>
+                </div>
+
+                <div className="border border-border rounded-xl overflow-hidden bg-surface shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-surface-hover text-muted-foreground text-xs uppercase border-b border-border">
+                        <tr>
+                          <th className="py-2 px-3">Khoản chi phí / NCC</th>
+                          <th className="py-2 px-2 text-center">Mã</th>
+                          <th className="py-2 px-3 text-right">Đơn giá gốc</th>
+                          <th className="py-2 px-2 text-center">Tỷ giá</th>
+                          <th className="py-2 px-3 text-right">Chi phí ước tính</th>
+                          <th className="py-2 px-3 text-right">Worst-Case</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border font-sans">
+                        {detail.costComponents.map((comp) => (
+                          <tr key={comp.componentId} className="hover:bg-surface-hover transition-colors">
+                            <td className="py-2 px-3">
+                              <div className="font-semibold text-foreground">{comp.costName}</div>
+                              <div className="text-[11px] text-muted-foreground">{comp.vendorName}</div>
+                            </td>
+                            <td className="py-2 px-2 text-center font-mono text-[11px] text-primary">
+                              {comp.costCode}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">
+                              {comp.originalRate.toLocaleString("vi-VN")} {comp.originalCurrency}
+                            </td>
+                            <td className="py-2 px-2 text-center font-mono text-muted-foreground">
+                              {comp.fxRateToVnd}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                              {formatVND(comp.estimatedCostVnd)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400">
+                              {formatVND(comp.worstCaseCostVnd)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Phân đoạn 4: BUY Snapshot (Thẩm định giá mua NCC nội bộ) */}
             {detail.snapshots.length > 0 && (
               <div className="space-y-2">

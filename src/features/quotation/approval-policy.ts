@@ -51,7 +51,7 @@ export function evaluateApprovalAuthority(
     };
   }
 
-  if (actorRole === "DIRECTOR") {
+  if (actorRole === "DIRECTOR" || actorRole === "ADMIN") {
     return {
       allowed: true,
       requiredRole: "DIRECTOR",

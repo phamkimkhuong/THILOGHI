@@ -288,7 +288,7 @@ export interface BorderRateLookupQuery {
 }
 
 export interface BorderRateLookupResult {
-  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE";
+  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE" | "MULTIPLE_CANDIDATES";
   message: string;
   rate?: BorderRateItem;
   candidates: BorderRateItem[];
@@ -336,9 +336,24 @@ export async function lookupBorderRates(
     };
   }
 
+  // Kiểm tra xung đột nếu cùng cặp cửa khẩu và mặt hàng có > 1 rate
+  const pairCounts = new Map<string, number>();
+  for (const m of matching) {
+    const key = `${m.borderPairId}-${m.commodityName}`;
+    pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
+    if ((pairCounts.get(key) || 0) > 1) {
+      return {
+        status: "CONFLICT_RATE",
+        message: `Phát hiện nhiều biểu phí trùng lặp cho cùng cặp cửa khẩu [${m.borderPairName}].`,
+        candidates: matching,
+      };
+    }
+  }
+
   return {
-    status: "CONFLICT_RATE",
-    message: "Tìm thấy nhiều biểu phí cửa khẩu khả dụng.",
+    status: "MULTIPLE_CANDIDATES",
+    message: `Tìm thấy ${matching.length} biểu phí cửa khẩu khả dụng.`,
+    rate: matching[0],
     candidates: matching,
   };
 }

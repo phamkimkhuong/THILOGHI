@@ -474,8 +474,8 @@ function Workspace() {
             vendorName: c.vendorName,
             buyRate: c.buyRate,
             currency: c.currency || "VND",
-            fxRateToVnd: 1,
-            buyRateVnd: c.buyRate,
+            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
+            buyRateVnd: c.currency === "USD" ? Math.round(c.buyRate * STANDARD_USD_FX_RATE) : c.buyRate,
             validityRange: `[${c.validFrom},${c.validTo})`,
             validityStart: c.validFrom,
             validityEnd: c.validTo,
@@ -530,8 +530,8 @@ function Workspace() {
             vendorName: c.vendorName,
             buyRate: c.buyRate,
             currency: c.currency || "VND",
-            fxRateToVnd: 1,
-            buyRateVnd: c.buyRate,
+            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
+            buyRateVnd: c.currency === "USD" ? Math.round(c.buyRate * STANDARD_USD_FX_RATE) : c.buyRate,
             validityRange: `[${c.validFrom},${c.validTo})`,
             validityStart: c.validFrom,
             validityEnd: c.validTo,
@@ -576,7 +576,7 @@ function Workspace() {
             ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
             : undefined,
           validityDate: pricingDateToUse,
-          invoiceValueVnd: item.unitSellPrice || undefined,
+          invoiceValueVnd: item.insuredValue || undefined,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -586,8 +586,8 @@ function Workspace() {
             vendorName: c.vendorName,
             buyRate: c.buyRate,
             currency: c.currency || "VND",
-            fxRateToVnd: 1,
-            buyRateVnd: c.buyRate,
+            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
+            buyRateVnd: c.currency === "USD" ? Math.round(c.buyRate * STANDARD_USD_FX_RATE) : c.buyRate,
             validityRange: `[${c.validFrom},${c.validTo})`,
             validityStart: c.validFrom,
             validityEnd: c.validTo,
@@ -638,8 +638,8 @@ function Workspace() {
             vendorName: c.vendorName,
             buyRate: c.buyRate,
             currency: c.currency || "VND",
-            fxRateToVnd: 1,
-            buyRateVnd: c.buyRate,
+            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
+            buyRateVnd: c.currency === "USD" ? Math.round(c.buyRate * STANDARD_USD_FX_RATE) : c.buyRate,
             validityRange: `[${c.validFrom},${c.validTo})`,
             validityStart: c.validFrom,
             validityEnd: c.validTo,
@@ -990,6 +990,7 @@ function Workspace() {
             <QuotationFinancialSummary
               totals={totals}
               items={items}
+              costComponents={detail?.costComponents}
               missingCount={missing.length}
               status={status}
               authority={authority}

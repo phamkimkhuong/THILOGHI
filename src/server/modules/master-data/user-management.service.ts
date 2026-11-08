@@ -97,6 +97,13 @@ export async function getUsersDetailedList(filters?: {
   }));
 }
 
+function sanitizeUserForAudit(u: unknown) {
+  if (!u || typeof u !== "object") return null;
+  const copy = { ...(u as Record<string, unknown>) };
+  delete copy.passwordHash;
+  return copy;
+}
+
 export async function saveUserService(
   input: SaveUserInput,
   actor: CurrentActor
@@ -108,7 +115,16 @@ export async function saveUserService(
   const email = (input.email || "").trim() || null;
   const company = (input.company || "").trim() || null;
   const department = (input.department || "").trim() || null;
-  const regionScopes = input.regionScopes && input.regionScopes.length > 0 ? input.regionScopes : ["*"];
+  
+  // Kiểm tra phân quyền vùng: nếu không chọn vùng, chỉ ADMIN/DIRECTOR được phép chọn ["*"], các vai trò khác phải có vùng cụ thể
+  let regionScopes: string[] = [];
+  if (input.regionScopes && input.regionScopes.length > 0) {
+    regionScopes = input.regionScopes;
+  } else if (input.role === "ADMIN" || input.role === "DIRECTOR") {
+    regionScopes = ["*"];
+  } else {
+    throw new Error("Vui lòng chọn ít nhất một vùng phụ trách (Region Scope) cho người dùng.");
+  }
   const isActive = input.isActive !== false;
 
   if (!username) throw new Error("Tên đăng nhập không được để trống.");
@@ -141,33 +157,37 @@ export async function saveUserService(
       passwordHashToUpdate = await hash(input.password.trim(), 10);
     }
 
-    const [updated] = await db
-      .update(users)
-      .set({
-        username,
-        fullName,
-        passwordHash: passwordHashToUpdate,
-        role: input.role,
-        regionScopes,
-        email,
-        company,
-        department,
-        isActive,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.userId, input.userId))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [u] = await tx
+        .update(users)
+        .set({
+          username,
+          fullName,
+          passwordHash: passwordHashToUpdate,
+          role: input.role,
+          regionScopes,
+          email,
+          company,
+          department,
+          isActive,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.userId, input.userId!))
+        .returning();
 
-    // Ghi audit log
-    await db.insert(masterDataAudit).values({
-      entityType: "users",
-      entityId: input.userId,
-      action: "UPDATE",
-      actorId: actor.userId,
-      actorName: actor.fullName,
-      beforeData: existing,
-      afterData: updated,
-      comment: `Cập nhật thông tin tài khoản [${username}]`,
+      // Ghi audit log loại bỏ hoàn toàn passwordHash
+      await tx.insert(masterDataAudit).values({
+        entityType: "users",
+        entityId: input.userId!,
+        action: "UPDATE",
+        actorId: actor.userId,
+        actorName: actor.fullName,
+        beforeData: sanitizeUserForAudit(existing),
+        afterData: sanitizeUserForAudit(u),
+        comment: `Cập nhật thông tin tài khoản [${username}]`,
+      });
+
+      return [u];
     });
 
     return {
@@ -199,32 +219,36 @@ export async function saveUserService(
     const passwordHash = await hash(passwordRaw, 10);
     const newUserId = `USR_${username.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 
-    const [created] = await db
-      .insert(users)
-      .values({
-        userId: newUserId,
-        username,
-        fullName,
-        passwordHash,
-        role: input.role,
-        regionScopes,
-        email,
-        company,
-        department,
-        isActive,
-      })
-      .returning();
+    const [created] = await db.transaction(async (tx) => {
+      const [c] = await tx
+        .insert(users)
+        .values({
+          userId: newUserId,
+          username,
+          fullName,
+          passwordHash,
+          role: input.role,
+          regionScopes,
+          email,
+          company,
+          department,
+          isActive,
+        })
+        .returning();
 
-    // Ghi audit log
-    await db.insert(masterDataAudit).values({
-      entityType: "users",
-      entityId: newUserId,
-      action: "CREATE",
-      actorId: actor.userId,
-      actorName: actor.fullName,
-      beforeData: null,
-      afterData: created,
-      comment: `Khởi tạo tài khoản người dùng mới [${username}]`,
+      // Ghi audit log loại bỏ hoàn toàn passwordHash
+      await tx.insert(masterDataAudit).values({
+        entityType: "users",
+        entityId: newUserId,
+        action: "CREATE",
+        actorId: actor.userId,
+        actorName: actor.fullName,
+        beforeData: null,
+        afterData: sanitizeUserForAudit(c),
+        comment: `Khởi tạo tài khoản người dùng mới [${username}]`,
+      });
+
+      return [c];
     });
 
     return {
@@ -264,24 +288,26 @@ export async function toggleUserStatusService(
 
   const nextActive = !existing.isActive;
 
-  const [updated] = await db
-    .update(users)
-    .set({
-      isActive: nextActive,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.userId, targetUserId))
-    .returning();
+  await db.transaction(async (tx) => {
+    const [u] = await tx
+      .update(users)
+      .set({
+        isActive: nextActive,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.userId, targetUserId))
+      .returning();
 
-  await db.insert(masterDataAudit).values({
-    entityType: "users",
-    entityId: targetUserId,
-    action: "TOGGLE_STATUS",
-    actorId: actor.userId,
-    actorName: actor.fullName,
-    beforeData: existing,
-    afterData: updated,
-    comment: `Chuyển trạng thái tài khoản [${existing.username}] sang ${nextActive ? "Active" : "Locked"}`,
+    await tx.insert(masterDataAudit).values({
+      entityType: "users",
+      entityId: targetUserId,
+      action: "TOGGLE_STATUS",
+      actorId: actor.userId,
+      actorName: actor.fullName,
+      beforeData: sanitizeUserForAudit(existing),
+      afterData: sanitizeUserForAudit(u),
+      comment: `Chuyển trạng thái tài khoản [${existing.username}] sang ${nextActive ? "Active" : "Locked"}`,
+    });
   });
 
   return {
@@ -310,23 +336,25 @@ export async function resetUserPasswordService(
 
   const newHash = await hash(password, 10);
 
-  await db
-    .update(users)
-    .set({
-      passwordHash: newHash,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.userId, targetUserId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({
+        passwordHash: newHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.userId, targetUserId));
 
-  await db.insert(masterDataAudit).values({
-    entityType: "users",
-    entityId: targetUserId,
-    action: "RESET_PASSWORD",
-    actorId: actor.userId,
-    actorName: actor.fullName,
-    beforeData: null,
-    afterData: null,
-    comment: `Đặt lại mật khẩu cho tài khoản [${existing.username}]`,
+    await tx.insert(masterDataAudit).values({
+      entityType: "users",
+      entityId: targetUserId,
+      action: "RESET_PASSWORD",
+      actorId: actor.userId,
+      actorName: actor.fullName,
+      beforeData: null,
+      afterData: null,
+      comment: `Đặt lại mật khẩu cho tài khoản [${existing.username}]`,
+    });
   });
 
   return {

@@ -17,6 +17,7 @@ export interface ServiceItemState {
   unitBuyPrice: number;
   worstCaseBuyPrice: number;
   unitSellPrice: number;
+  insuredValue?: number;
 }
 
 export function restoreQuotationItems(detail: QuotationDetailResponse): ServiceItemState[] {
@@ -30,9 +31,10 @@ export function restoreQuotationItems(detail: QuotationDetailResponse): ServiceI
       equipmentType: item.equipmentType, plannedQuantity: item.plannedQuantity, unit: item.unit,
       unitSellPrice: item.unitSellPrice, unitBuyPrice,
       worstCaseBuyPrice: item.plannedQuantity > 0 ? item.worstCaseBuyAmount / item.plannedQuantity : 0,
+      insuredValue: item.insuredValue ? Number(item.insuredValue) : undefined,
       selectedBuyRateId: item.selectedBuyRateId,
       selectedCandidate: snapshot && item.selectedBuyRateId ? {
-        rateId: item.selectedBuyRateId, vendorId: snapshot.vendorId, vendorName: snapshot.vendorName,
+        rateId: item.selectedBuyRateId, vendorId: snapshot.vendorId ?? "", vendorName: snapshot.vendorName,
         buyRate: snapshot.rateAmount, currency: snapshot.originalCurrency,
         fxRateToVnd: snapshot.fxRateToVnd, buyRateVnd: unitBuyPrice,
         validityRange: `[${snapshot.validityStart},${snapshot.validityEnd})`,

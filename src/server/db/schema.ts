@@ -366,6 +366,7 @@ export const quotationServiceItems = pgTable("quotation_service_items", {
 
   unitSellPrice: numeric("unit_sell_price", { precision: 15, scale: 2 }).default("0"),
   totalSellPrice: numeric("total_sell_price", { precision: 15, scale: 2 }).default("0"),
+  insuredValue: numeric("insured_value", { precision: 15, scale: 2 }),
 
   selectedBuyRateId: uuid("selected_buy_rate_id"),
   estimatedBuyAmount: numeric("estimated_buy_amount", { precision: 15, scale: 2 }).default("0"),
@@ -381,7 +382,9 @@ export const quotationBuySnapshots = pgTable("quotation_buy_snapshots", {
   quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId, { onDelete: "cascade" }),
   itemId: uuid("item_id").notNull().references(() => quotationServiceItems.itemId, { onDelete: "cascade" }),
   sourceRateId: uuid("source_rate_id").notNull(),
-  vendorId: varchar("vendor_id", { length: 50 }).notNull().references(() => vendors.vendorId),
+  vendorId: varchar("vendor_id", { length: 50 }).references(() => vendors.vendorId),
+  costSourceId: varchar("cost_source_id", { length: 100 }),
+  costSourceType: varchar("cost_source_type", { length: 50 }).default("VENDOR"),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
   rateAmount: numeric("rate_amount", { precision: 15, scale: 2 }).notNull(),
   originalCurrency: varchar("original_currency", { length: 3 }).notNull(),
@@ -390,6 +393,28 @@ export const quotationBuySnapshots = pgTable("quotation_buy_snapshots", {
   validityStart: date("validity_start").notNull(),
   validityEnd: date("validity_end").notNull(),
   snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow(),
+});
+
+export const quotationItemCostComponents = pgTable("quotation_item_cost_components", {
+  componentId: uuid("component_id").defaultRandom().primaryKey(),
+  quotationId: uuid("quotation_id").notNull().references(() => customerQuotations.quotationId, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => quotationServiceItems.itemId, { onDelete: "cascade" }),
+  costCode: varchar("cost_code", { length: 50 }).notNull(),
+  costName: varchar("cost_name", { length: 255 }).notNull(),
+  isRequired: boolean("is_required").default(true).notNull(),
+  rateSourceId: uuid("rate_source_id"),
+  vendorId: varchar("vendor_id", { length: 50 }).references(() => vendors.vendorId),
+  costSourceId: varchar("cost_source_id", { length: 100 }),
+  vendorName: varchar("vendor_name", { length: 255 }).notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).default("1").notNull(),
+  unit: varchar("unit", { length: 30 }).default("TRIP").notNull(),
+  rateBasis: varchar("rate_basis", { length: 50 }).default("PER_CONTAINER").notNull(),
+  originalCurrency: varchar("original_currency", { length: 10 }).default("VND").notNull(),
+  originalRate: numeric("original_rate", { precision: 15, scale: 2 }).default("0").notNull(),
+  fxRateToVnd: numeric("fx_rate_to_vnd", { precision: 12, scale: 4 }).default("1.0000").notNull(),
+  estimatedCostVnd: numeric("estimated_cost_vnd", { precision: 15, scale: 2 }).default("0").notNull(),
+  worstCaseCostVnd: numeric("worst_case_cost_vnd", { precision: 15, scale: 2 }).default("0").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export const quotationApprovalLog = pgTable("quotation_approval_log", {
@@ -606,6 +631,7 @@ export const customerQuotationsRelations = relations(customerQuotations, ({ one,
   commodity: one(commodities, { fields: [customerQuotations.commodityId], references: [commodities.commodityId] }),
   serviceItems: many(quotationServiceItems),
   buySnapshots: many(quotationBuySnapshots),
+  costComponents: many(quotationItemCostComponents),
   approvalLogs: many(quotationApprovalLog),
   orders: many(orders),
 }));
@@ -613,12 +639,19 @@ export const customerQuotationsRelations = relations(customerQuotations, ({ one,
 export const quotationServiceItemsRelations = relations(quotationServiceItems, ({ one, many }) => ({
   quotation: one(customerQuotations, { fields: [quotationServiceItems.quotationId], references: [customerQuotations.quotationId] }),
   buySnapshots: many(quotationBuySnapshots),
+  costComponents: many(quotationItemCostComponents),
 }));
 
 export const quotationBuySnapshotsRelations = relations(quotationBuySnapshots, ({ one }) => ({
   quotation: one(customerQuotations, { fields: [quotationBuySnapshots.quotationId], references: [customerQuotations.quotationId] }),
   serviceItem: one(quotationServiceItems, { fields: [quotationBuySnapshots.itemId], references: [quotationServiceItems.itemId] }),
   vendor: one(vendors, { fields: [quotationBuySnapshots.vendorId], references: [vendors.vendorId] }),
+}));
+
+export const quotationItemCostComponentsRelations = relations(quotationItemCostComponents, ({ one }) => ({
+  quotation: one(customerQuotations, { fields: [quotationItemCostComponents.quotationId], references: [customerQuotations.quotationId] }),
+  serviceItem: one(quotationServiceItems, { fields: [quotationItemCostComponents.itemId], references: [quotationServiceItems.itemId] }),
+  vendor: one(vendors, { fields: [quotationItemCostComponents.vendorId], references: [vendors.vendorId] }),
 }));
 
 export const quotationApprovalLogRelations = relations(quotationApprovalLog, ({ one }) => ({
@@ -711,6 +744,9 @@ export type NewQuotationServiceItem = typeof quotationServiceItems.$inferInsert;
 
 export type QuotationBuySnapshot = typeof quotationBuySnapshots.$inferSelect;
 export type NewQuotationBuySnapshot = typeof quotationBuySnapshots.$inferInsert;
+
+export type QuotationItemCostComponent = typeof quotationItemCostComponents.$inferSelect;
+export type NewQuotationItemCostComponent = typeof quotationItemCostComponents.$inferInsert;
 
 export type QuotationApprovalLog = typeof quotationApprovalLog.$inferSelect;
 export type NewQuotationApprovalLog = typeof quotationApprovalLog.$inferInsert;

@@ -43,6 +43,7 @@ export const quotationServiceItemSchema = z.object({
   // SELL Side (Nhân viên Pricing cấu thành)
   unitSellPrice: amount,
   totalSellPrice: amount,
+  insuredValue: amount.optional(),
 
   // P&L metrics
   itemGp: z.number().default(0),

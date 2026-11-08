@@ -454,7 +454,7 @@ export interface OceanRateLookupQuery {
 }
 
 export interface OceanRateLookupResult {
-  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE";
+  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE" | "MULTIPLE_CANDIDATES";
   message: string;
   rate?: OceanRateItem;
   candidates: OceanRateItem[];
@@ -514,9 +514,23 @@ export async function lookupOceanRates(
     };
   }
 
+  // Kiểm tra xung đột: Cùng 1 hãng tàu có >1 biểu cước cho cùng điều kiện không?
+  const carrierCounts = new Map<string, number>();
+  for (const m of matching) {
+    carrierCounts.set(m.carrierId, (carrierCounts.get(m.carrierId) || 0) + 1);
+    if ((carrierCounts.get(m.carrierId) || 0) > 1) {
+      return {
+        status: "CONFLICT_RATE",
+        message: `Phát hiện xung đột biểu cước trùng lặp của cùng Hãng tàu [${m.carrierName}].`,
+        candidates: matching,
+      };
+    }
+  }
+
   return {
-    status: "CONFLICT_RATE",
-    message: "Tìm thấy nhiều biểu cước vận tải biển khả dụng từ các hãng tàu.",
+    status: "MULTIPLE_CANDIDATES",
+    message: `Tìm thấy ${matching.length} phương án hãng tàu khả dụng. Vui lòng chọn hãng tàu phù hợp.`,
+    rate: matching[0],
     candidates: matching,
   };
 }

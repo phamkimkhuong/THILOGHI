@@ -299,7 +299,7 @@ export interface PortRateLookupQuery {
 }
 
 export interface PortRateLookupResult {
-  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE";
+  status: "MATCHED" | "MISSING_RATE" | "CONFLICT_RATE" | "MULTIPLE_CANDIDATES";
   message: string;
   rate?: PortRateItem;
   candidates: PortRateItem[];
@@ -351,9 +351,24 @@ export async function lookupPortRates(
     };
   }
 
+  // Kiểm tra xung đột nếu cùng loại tác nghiệp và loại container có > 1 rate
+  const chargeCounts = new Map<string, number>();
+  for (const m of matching) {
+    const key = `${m.chargeCode}-${m.containerType}-${m.cargoType}`;
+    chargeCounts.set(key, (chargeCounts.get(key) || 0) + 1);
+    if ((chargeCounts.get(key) || 0) > 1) {
+      return {
+        status: "CONFLICT_RATE",
+        message: `Phát hiện nhiều biểu phí cảng trùng lặp điều kiện tác nghiệp [${m.chargeCode}].`,
+        candidates: matching,
+      };
+    }
+  }
+
   return {
-    status: "CONFLICT_RATE",
-    message: "Tìm thấy nhiều biểu phí cảng trùng lặp điều kiện tác nghiệp.",
+    status: "MULTIPLE_CANDIDATES",
+    message: `Tìm thấy ${matching.length} biểu phí cảng khả dụng.`,
+    rate: matching[0],
     candidates: matching,
   };
 }

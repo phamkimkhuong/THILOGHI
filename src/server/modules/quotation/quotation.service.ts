@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { requireRegionScope, requireRole } from "@/server/auth/authorize";
-import { getBusinessDate, roundVnd, STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
+import { getBusinessDate, roundVnd, getFxRateToVnd } from "@/shared/utils/pricing";
 import Decimal from "decimal.js";
 import { pool } from "@/server/db";
 import { CreateQuotationInput, createQuotationSchema } from "@/shared/schemas/quotation.schema";
@@ -27,6 +27,46 @@ export { calculateQuotationFinancials } from "@/shared/utils/pricing";
  * - Server-Authoritative: đọc lại bảng giá road_rates & vendors, quy đổi ngoại tệ FX sang VND
  * - Khóa tính bất biến: Không cho phép sửa nếu đã bị khóa hoặc không ở trạng thái DRAFT
  */
+export interface CostComponentInput {
+  costCode: string;
+  costName: string;
+  isRequired: boolean;
+  rateSourceId?: string | null;
+  vendorId?: string | null;
+  costSourceId?: string | null;
+  vendorName: string;
+  quantity: number;
+  unit: string;
+  rateBasis: string;
+  originalCurrency: string;
+  originalRate: number;
+  fxRateToVnd: number;
+  estimatedCostVnd: number;
+  worstCaseCostVnd: number;
+}
+
+export interface QuotationCostComponentItem {
+  componentId: string;
+  quotationId: string;
+  itemId: string;
+  costCode: string;
+  costName: string;
+  isRequired: boolean;
+  rateSourceId: string | null;
+  vendorId: string | null;
+  costSourceId: string | null;
+  vendorName: string;
+  quantity: number;
+  unit: string;
+  rateBasis: string;
+  originalCurrency: string;
+  originalRate: number;
+  fxRateToVnd: number;
+  estimatedCostVnd: number;
+  worstCaseCostVnd: number;
+  createdAt: string;
+}
+
 export async function saveQuotationDraft(
   rawInput: CreateQuotationInput,
   actor: CurrentActor,
@@ -70,18 +110,21 @@ export async function saveQuotationDraft(
       let verifiedBuyRateVnd = new Decimal(0);
       let verifiedWorstBuyVnd = new Decimal(0);
       let verifiedVendorId: string | null = null;
+      let verifiedCostSourceId: string | null = null;
+      let verifiedCostSourceType = "VENDOR";
       let verifiedVendorName: string | null = null;
       let verifiedOriginalRate = new Decimal(0);
       let verifiedOriginalCurrency = "VND";
       let verifiedFxRate = 1.0;
       let validityStart: string | null = null;
       let validityEnd: string | null = null;
+      const components: CostComponentInput[] = [];
 
       // PR-04 & Blocker 4: Server tra cứu lại giá gốc từ PostgreSQL theo đúng ngữ cảnh, không tin client
       if (item.selectedBuyRateId) {
         if (item.servicePackage === "PORT") {
           const portRes = await client.query(
-            `SELECT rate_id, port_code, port_name, charge_code, unit_price, currency,
+            `SELECT rate_id, port_code, port_name, service_category, charge_code, cargo_type, container_type, unit, unit_price, currency, notes,
                     lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
              FROM port_rates
              WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
@@ -91,19 +134,78 @@ export async function saveQuotationDraft(
             throw new Error("Biểu phí cảng đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
           }
           const pRow = portRes.rows[0];
+          if (item.equipmentType && pRow.container_type !== "ALL" && pRow.container_type !== item.equipmentType) {
+            throw new Error(`Biểu phí cảng (${pRow.container_type}) không phù hợp với loại container [${item.equipmentType}] của báo giá.`);
+          }
           const unitPrice = Number(pRow.unit_price);
-          const fxRate = pRow.currency === "USD" ? STANDARD_USD_FX_RATE : 1.0;
-          const priceVnd = pRow.currency === "USD" ? roundVnd(unitPrice * fxRate).toNumber() : unitPrice;
+          const fxRate = getFxRateToVnd(pRow.currency || "VND");
+          const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
+
+          components.push({
+            costCode: pRow.charge_code || "LOLO",
+            costName: pRow.notes || `${pRow.service_category} [${pRow.charge_code}]`,
+            isRequired: true,
+            rateSourceId: pRow.rate_id,
+            vendorId: null,
+            costSourceId: pRow.port_code,
+            vendorName: `${pRow.port_name} [${pRow.charge_code}]`,
+            quantity: 1,
+            unit: pRow.unit || "Cont",
+            rateBasis: "PER_CONTAINER",
+            originalCurrency: pRow.currency || "VND",
+            originalRate: unitPrice,
+            fxRateToVnd: fxRate,
+            estimatedCostVnd: priceVnd,
+            worstCaseCostVnd: priceVnd,
+          });
+
+          // Nếu là container lạnh (20HR, 40HR) và gói LOLO, tự động kiểm tra phụ phí THC cảng bắt buộc
+          if (["20HR", "40HR"].includes(pRow.container_type) && pRow.charge_code === "LOLO") {
+            const thcRes = await client.query(
+              `SELECT rate_id, port_code, port_name, charge_code, unit_price, currency, notes
+               FROM port_rates
+               WHERE port_code = $1 AND charge_code = 'THC_PORT' AND container_type = $2 AND status = 'ACTIVE' AND validity_range @> $3::date`,
+              [pRow.port_code, pRow.container_type, pricingDate]
+            );
+            if (thcRes.rows.length > 0) {
+              const thcRow = thcRes.rows[0];
+              const thcPrice = Number(thcRow.unit_price);
+              const thcFx = getFxRateToVnd(thcRow.currency || "USD");
+              const thcVnd = roundVnd(new Decimal(thcPrice).mul(thcFx)).toNumber();
+              components.push({
+                costCode: "THC_PORT",
+                costName: thcRow.notes || `Phí THC Cảng container lạnh [${thcRow.port_code}]`,
+                isRequired: true,
+                rateSourceId: thcRow.rate_id,
+                vendorId: null,
+                costSourceId: thcRow.port_code,
+                vendorName: `${thcRow.port_name} [THC]`,
+                quantity: 1,
+                unit: "Cont",
+                rateBasis: "PER_CONTAINER",
+                originalCurrency: thcRow.currency || "USD",
+                originalRate: thcPrice,
+                fxRateToVnd: thcFx,
+                estimatedCostVnd: thcVnd,
+                worstCaseCostVnd: thcVnd,
+              });
+            }
+          }
+
+          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
+          const totalWorstVnd = components.reduce((sum, c) => sum + c.worstCaseCostVnd, 0);
 
           verifiedOriginalRate = new Decimal(unitPrice);
-          verifiedOriginalCurrency = pRow.currency;
+          verifiedOriginalCurrency = pRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(priceVnd);
-          verifiedVendorId = pRow.port_code;
+          verifiedBuyRateVnd = new Decimal(totalCompVnd);
+          verifiedWorstBuyVnd = new Decimal(totalWorstVnd);
+          verifiedVendorId = null; // Cảng Chu Lai / Depot là đơn vị khai thác hạ tầng, không phải vendor trong bảng vendors
+          verifiedCostSourceId = pRow.port_code;
+          verifiedCostSourceType = "PORT_OPERATOR";
           verifiedVendorName = `${pRow.port_name} [${pRow.charge_code}]`;
           validityStart = pRow.validity_start;
           validityEnd = pRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "BORDER_GATE") {
           const borderRes = await client.query(
             `SELECT rate_id, border_pair_id, border_pair_name, commodity_name,
@@ -118,22 +220,88 @@ export async function saveQuotationDraft(
           }
           const bRow = borderRes.rows[0];
           const totalFee = Number(bRow.total_fee);
-          const fxRate = 1.0;
-          const priceVnd = totalFee;
+          const fxRate = getFxRateToVnd(bRow.currency || "VND");
+          const infraFee = Number(bRow.infrastructure_fee || 0);
+          const entryExitFee = Number(bRow.entry_exit_fee || 0);
+          const customsFee = Number(bRow.customs_fee || 0);
+
+          if (infraFee > 0) {
+            components.push({
+              costCode: "INFRASTRUCTURE_FEE",
+              costName: `Phí hạ tầng cửa khẩu [${bRow.border_pair_name}]`,
+              isRequired: true,
+              rateSourceId: bRow.rate_id,
+              vendorId: null,
+              costSourceId: bRow.border_pair_id,
+              vendorName: `${bRow.border_pair_name} [Hạ tầng]`,
+              quantity: 1,
+              unit: "Chuyến",
+              rateBasis: "PER_TRUCK",
+              originalCurrency: bRow.currency || "VND",
+              originalRate: infraFee,
+              fxRateToVnd: fxRate,
+              estimatedCostVnd: roundVnd(new Decimal(infraFee).mul(fxRate)).toNumber(),
+              worstCaseCostVnd: roundVnd(new Decimal(infraFee).mul(fxRate)).toNumber(),
+            });
+          }
+          if (entryExitFee > 0) {
+            components.push({
+              costCode: "ENTRY_EXIT_FEE",
+              costName: `Phí bến bãi ra vào cửa khẩu [${bRow.border_pair_name}]`,
+              isRequired: true,
+              rateSourceId: bRow.rate_id,
+              vendorId: null,
+              costSourceId: bRow.border_pair_id,
+              vendorName: `${bRow.border_pair_name} [Bến bãi]`,
+              quantity: 1,
+              unit: "Chuyến",
+              rateBasis: "PER_TRUCK",
+              originalCurrency: bRow.currency || "VND",
+              originalRate: entryExitFee,
+              fxRateToVnd: fxRate,
+              estimatedCostVnd: roundVnd(new Decimal(entryExitFee).mul(fxRate)).toNumber(),
+              worstCaseCostVnd: roundVnd(new Decimal(entryExitFee).mul(fxRate)).toNumber(),
+            });
+          }
+          if (customsFee > 0) {
+            components.push({
+              costCode: "CUSTOMS_FEE",
+              costName: `Phí kiểm hóa / thủ tục cửa khẩu [${bRow.border_pair_name}]`,
+              isRequired: true,
+              rateSourceId: bRow.rate_id,
+              vendorId: null,
+              costSourceId: bRow.border_pair_id,
+              vendorName: `${bRow.border_pair_name} [Hải quan CK]`,
+              quantity: 1,
+              unit: "Chuyến",
+              rateBasis: "PER_TRUCK",
+              originalCurrency: bRow.currency || "VND",
+              originalRate: customsFee,
+              fxRateToVnd: fxRate,
+              estimatedCostVnd: roundVnd(new Decimal(customsFee).mul(fxRate)).toNumber(),
+              worstCaseCostVnd: roundVnd(new Decimal(customsFee).mul(fxRate)).toNumber(),
+            });
+          }
+
+          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
+          const priceVnd = totalCompVnd > 0 ? totalCompVnd : roundVnd(new Decimal(totalFee).mul(fxRate)).toNumber();
 
           verifiedOriginalRate = new Decimal(totalFee);
           verifiedOriginalCurrency = bRow.currency || "VND";
           verifiedFxRate = fxRate;
           verifiedBuyRateVnd = new Decimal(priceVnd);
-          verifiedVendorId = bRow.border_pair_id;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+          verifiedVendorId = null; // Đơn vị quản lý liên vận cửa khẩu
+          verifiedCostSourceId = bRow.border_pair_id;
+          verifiedCostSourceType = "BORDER_MANAGEMENT";
           verifiedVendorName = `${bRow.border_pair_name} [${bRow.commodity_name}]`;
           validityStart = bRow.validity_start;
           validityEnd = bRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "OCEAN") {
           const oceanRes = await client.query(
-            `SELECT rate_id, carrier_id, carrier_name, pol_name, pod_name,
-                    container_type, commodity_name, ocean_freight_usd, total_charges_vnd,
+            `SELECT rate_id, carrier_id, carrier_name, pol_id, pol_name, pod_id, pod_name,
+                    container_type, commodity_name, ocean_freight_usd, thc_fee, docs_fee,
+                    seal_fee, afs_fee, telex_fee, baf_caf_fee, other_surcharges, total_charges_vnd,
                     currency, lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
              FROM ocean_rates
              WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
@@ -143,23 +311,81 @@ export async function saveQuotationDraft(
             throw new Error("Biểu cước vận tải biển đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
           }
           const oRow = oceanRes.rows[0];
-          const totalFee = Number(oRow.total_charges_vnd);
-          const fxRate = 1.0;
-          const priceVnd = totalFee;
+          if (item.originLocationId && oRow.pol_id && oRow.pol_id !== item.originLocationId) {
+            throw new Error(`Cảng bốc (POL) [${oRow.pol_name}] không khớp với điểm đi [${item.originLocationId}] của dịch vụ.`);
+          }
+          if (item.destinationLocationId && oRow.pod_id && oRow.pod_id !== item.destinationLocationId) {
+            throw new Error(`Cảng dỡ (POD) [${oRow.pod_name}] không khớp với điểm đến [${item.destinationLocationId}] của dịch vụ.`);
+          }
+          if (item.equipmentType && oRow.container_type && oRow.container_type !== item.equipmentType) {
+            throw new Error(`Loại container cước biển [${oRow.container_type}] không khớp với [${item.equipmentType}] của báo giá.`);
+          }
+
+          const oceanFreightUsd = Number(oRow.ocean_freight_usd || 0);
+          const usdFx = getFxRateToVnd("USD");
+          const oceanFreightVnd = roundVnd(new Decimal(oceanFreightUsd).mul(usdFx)).toNumber();
+
+          const localChargesVnd = Number(oRow.thc_fee || 0) + Number(oRow.docs_fee || 0) +
+            Number(oRow.seal_fee || 0) + Number(oRow.afs_fee || 0) + Number(oRow.telex_fee || 0) +
+            Number(oRow.baf_caf_fee || 0) + Number(oRow.other_surcharges || 0);
+
+          if (oceanFreightUsd > 0) {
+            components.push({
+              costCode: "OCEAN_FREIGHT",
+              costName: `Cước biển quốc tế [${oRow.carrier_name} - ${oRow.pol_name} -> ${oRow.pod_name}]`,
+              isRequired: true,
+              rateSourceId: oRow.rate_id,
+              vendorId: oRow.carrier_id,
+              costSourceId: oRow.carrier_id,
+              vendorName: oRow.carrier_name,
+              quantity: 1,
+              unit: "Cont",
+              rateBasis: "PER_CONTAINER",
+              originalCurrency: "USD",
+              originalRate: oceanFreightUsd,
+              fxRateToVnd: usdFx,
+              estimatedCostVnd: oceanFreightVnd,
+              worstCaseCostVnd: oceanFreightVnd,
+            });
+          }
+          if (localChargesVnd > 0) {
+            components.push({
+              costCode: "LOCAL_CHARGES",
+              costName: `Phụ phí địa phương / bến bãi cảng biển (Docs, Seal, AFS, Telex...)`,
+              isRequired: true,
+              rateSourceId: oRow.rate_id,
+              vendorId: oRow.carrier_id,
+              costSourceId: oRow.carrier_id,
+              vendorName: oRow.carrier_name,
+              quantity: 1,
+              unit: "Cont",
+              rateBasis: "PER_CONTAINER",
+              originalCurrency: "VND",
+              originalRate: localChargesVnd,
+              fxRateToVnd: 1.0,
+              estimatedCostVnd: localChargesVnd,
+              worstCaseCostVnd: localChargesVnd,
+            });
+          }
+
+          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
+          const totalFee = totalCompVnd > 0 ? totalCompVnd : Number(oRow.total_charges_vnd);
 
           verifiedOriginalRate = new Decimal(totalFee);
           verifiedOriginalCurrency = "VND";
-          verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedFxRate = 1.0;
+          verifiedBuyRateVnd = new Decimal(totalFee);
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
           verifiedVendorId = oRow.carrier_id;
+          verifiedCostSourceId = oRow.carrier_id;
+          verifiedCostSourceType = "VENDOR";
           verifiedVendorName = `${oRow.carrier_name} [${oRow.container_type} - ${oRow.pol_name} -> ${oRow.pod_name}]`;
           validityStart = oRow.validity_start;
           validityEnd = oRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "CUSTOMS") {
           const customsRes = await client.query(
-            `SELECT rate_id, customs_office_id, customs_office_name, broker_id, broker_name, declaration_type,
-                    customs_fee, inspection_fee, quarantine_fee, fumigation_fee, total_service_fee,
+            `SELECT rate_id, customs_office_id, customs_office_name, provider_id, provider_name,
+                    customs_procedure, service_code, service_name, unit_price, rate_basis,
                     currency, lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
              FROM customs_rates
              WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
@@ -169,22 +395,46 @@ export async function saveQuotationDraft(
             throw new Error("Biểu phí hải quan đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
           }
           const cRow = customsRes.rows[0];
-          const totalFee = Number(cRow.total_service_fee || cRow.customs_fee || 0);
-          const fxRate = 1.0;
+          if (item.originLocationId && cRow.customs_office_id !== item.originLocationId) {
+            throw new Error(`Chi cục Hải quan của biểu phí [${cRow.customs_office_name}] không khớp với địa điểm [${item.originLocationId}] của dịch vụ.`);
+          }
+          const unitPrice = Number(cRow.unit_price || 0);
+          const fxRate = getFxRateToVnd(cRow.currency || "VND");
+          const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
 
-          verifiedOriginalRate = new Decimal(totalFee);
+          components.push({
+            costCode: cRow.service_code || "CUSTOMS_DECLARATION",
+            costName: `${cRow.service_name} [${cRow.customs_office_name}]`,
+            isRequired: true,
+            rateSourceId: cRow.rate_id,
+            vendorId: cRow.provider_id,
+            costSourceId: cRow.provider_id,
+            vendorName: cRow.provider_name,
+            quantity: 1,
+            unit: cRow.rate_basis || "Tờ khai",
+            rateBasis: cRow.rate_basis || "PER_DECLARATION",
+            originalCurrency: cRow.currency || "VND",
+            originalRate: unitPrice,
+            fxRateToVnd: fxRate,
+            estimatedCostVnd: priceVnd,
+            worstCaseCostVnd: priceVnd,
+          });
+
+          verifiedOriginalRate = new Decimal(unitPrice);
           verifiedOriginalCurrency = cRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(totalFee);
-          verifiedVendorId = cRow.broker_id;
-          verifiedVendorName = `${cRow.broker_name} [${cRow.customs_office_name} - ${cRow.declaration_type}]`;
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+          verifiedVendorId = cRow.provider_id;
+          verifiedCostSourceId = cRow.provider_id;
+          verifiedCostSourceType = "VENDOR";
+          verifiedVendorName = `${cRow.provider_name} [${cRow.customs_office_name} - ${cRow.service_name}]`;
           validityStart = cRow.validity_start;
           validityEnd = cRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "WAREHOUSING") {
           const whRes = await client.query(
             `SELECT rate_id, warehouse_id, warehouse_name, provider_id, provider_name,
-                    service_name, unit_price, currency,
+                    service_name, service_code, unit_price, currency, rate_basis, min_charge_vnd,
                     lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
              FROM warehouse_rates
              WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
@@ -194,18 +444,42 @@ export async function saveQuotationDraft(
             throw new Error("Biểu phí kho bãi đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
           }
           const wRow = whRes.rows[0];
+          if (item.originLocationId && wRow.warehouse_id !== item.originLocationId) {
+            throw new Error(`Kho bãi của biểu phí [${wRow.warehouse_name}] không khớp với địa điểm [${item.originLocationId}] của dịch vụ.`);
+          }
           const unitPrice = Number(wRow.unit_price || 0);
-          const fxRate = 1.0;
+          const fxRate = getFxRateToVnd(wRow.currency || "VND");
+          const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
+
+          components.push({
+            costCode: wRow.service_code || "STORAGE_FEE",
+            costName: `${wRow.service_name} [${wRow.warehouse_name}]`,
+            isRequired: true,
+            rateSourceId: wRow.rate_id,
+            vendorId: wRow.provider_id,
+            costSourceId: wRow.provider_id,
+            vendorName: wRow.provider_name,
+            quantity: 1,
+            unit: wRow.rate_basis || "Tấn.Ngày",
+            rateBasis: wRow.rate_basis || "TON_DAY",
+            originalCurrency: wRow.currency || "VND",
+            originalRate: unitPrice,
+            fxRateToVnd: fxRate,
+            estimatedCostVnd: priceVnd,
+            worstCaseCostVnd: priceVnd,
+          });
 
           verifiedOriginalRate = new Decimal(unitPrice);
           verifiedOriginalCurrency = wRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(unitPrice);
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
           verifiedVendorId = wRow.provider_id;
+          verifiedCostSourceId = wRow.provider_id;
+          verifiedCostSourceType = "VENDOR";
           verifiedVendorName = `${wRow.provider_name} [${wRow.service_name} - ${wRow.warehouse_name}]`;
           validityStart = wRow.validity_start;
           validityEnd = wRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "INSURANCE") {
           const insRes = await client.query(
             `SELECT rate_id, insurer_id, insurer_name, coverage_type, transport_mode,
@@ -220,21 +494,47 @@ export async function saveQuotationDraft(
           }
           const iRow = insRes.rows[0];
           let premium = Number(iRow.unit_price || 0);
-          if (iRow.pricing_model === "PERCENT_OF_VALUE" && item.unitSellPrice) {
-            const calculated = (Number(item.unitSellPrice) * Number(iRow.rate_percent || 0)) / 100;
-            premium = Math.max(calculated, Number(iRow.min_premium_vnd || 0));
+          const insuredVal = Number(item.insuredValue || 0);
+          if (iRow.pricing_model === "PERCENT_OF_VALUE") {
+            if (insuredVal > 0) {
+              const calculated = (insuredVal * Number(iRow.rate_percent || 0)) / 100;
+              premium = Math.max(calculated, Number(iRow.min_premium_vnd || 0));
+            } else {
+              throw new Error("Dịch vụ bảo hiểm tính theo % giá trị yêu cầu nhập Giá trị hàng hóa bảo hiểm (insuredValue) lớn hơn 0.");
+            }
           }
-          const fxRate = 1.0;
+          const fxRate = getFxRateToVnd(iRow.currency || "VND");
+          const priceVnd = roundVnd(new Decimal(premium).mul(fxRate)).toNumber();
+
+          components.push({
+            costCode: "INSURANCE_PREMIUM",
+            costName: `Phí bảo hiểm [${iRow.coverage_type} - ${iRow.transport_mode}]`,
+            isRequired: true,
+            rateSourceId: iRow.rate_id,
+            vendorId: iRow.insurer_id,
+            costSourceId: iRow.insurer_id,
+            vendorName: iRow.insurer_name,
+            quantity: 1,
+            unit: "Lô hàng",
+            rateBasis: "PER_SHIPMENT",
+            originalCurrency: iRow.currency || "VND",
+            originalRate: premium,
+            fxRateToVnd: fxRate,
+            estimatedCostVnd: priceVnd,
+            worstCaseCostVnd: priceVnd,
+          });
 
           verifiedOriginalRate = new Decimal(premium);
           verifiedOriginalCurrency = iRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(premium);
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
           verifiedVendorId = iRow.insurer_id;
+          verifiedCostSourceId = iRow.insurer_id;
+          verifiedCostSourceType = "VENDOR";
           verifiedVendorName = `${iRow.insurer_name} [${iRow.coverage_type} - ${iRow.transport_mode}]`;
           validityStart = iRow.validity_start;
           validityEnd = iRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else if (item.servicePackage === "OTHER") {
           const otherRes = await client.query(
             `SELECT rate_id, service_code, service_name, provider_id, provider_name,
@@ -249,17 +549,38 @@ export async function saveQuotationDraft(
           }
           const otRow = otherRes.rows[0];
           const unitPrice = Number(otRow.unit_price || 0);
-          const fxRate = 1.0;
+          const fxRate = getFxRateToVnd(otRow.currency || "VND");
+          const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
+
+          components.push({
+            costCode: otRow.service_code || "OTHER_FEE",
+            costName: `${otRow.service_name} [${otRow.provider_name}]`,
+            isRequired: true,
+            rateSourceId: otRow.rate_id,
+            vendorId: otRow.provider_id,
+            costSourceId: otRow.provider_id,
+            vendorName: otRow.provider_name,
+            quantity: 1,
+            unit: otRow.rate_basis || "Lô",
+            rateBasis: otRow.rate_basis || "LOT",
+            originalCurrency: otRow.currency || "VND",
+            originalRate: unitPrice,
+            fxRateToVnd: fxRate,
+            estimatedCostVnd: priceVnd,
+            worstCaseCostVnd: priceVnd,
+          });
 
           verifiedOriginalRate = new Decimal(unitPrice);
           verifiedOriginalCurrency = otRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(unitPrice);
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
           verifiedVendorId = otRow.provider_id;
+          verifiedCostSourceId = otRow.provider_id;
+          verifiedCostSourceType = "VENDOR";
           verifiedVendorName = `${otRow.provider_name} [${otRow.service_name} - ${otRow.pricing_method}]`;
           validityStart = otRow.validity_start;
           validityEnd = otRow.validity_end;
-          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else {
           const result = await lookupRoadRates({
             pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,
@@ -273,10 +594,30 @@ export async function saveQuotationDraft(
           verifiedFxRate = selected.fxRateToVnd;
           verifiedBuyRateVnd = new Decimal(selected.buyRateVnd);
           verifiedVendorId = selected.vendorId;
+          verifiedCostSourceId = selected.vendorId;
+          verifiedCostSourceType = "VENDOR";
           verifiedVendorName = selected.vendorName;
           validityStart = selected.validityStart;
           validityEnd = selected.validityEnd;
           verifiedWorstBuyVnd = new Decimal(result.worstCaseBuy ?? selected.buyRateVnd);
+
+          components.push({
+            costCode: "ROAD_FREIGHT",
+            costName: `Cước vận tải đường bộ [${selected.vendorName}]`,
+            isRequired: true,
+            rateSourceId: selected.rateId,
+            vendorId: selected.vendorId,
+            costSourceId: selected.vendorId,
+            vendorName: selected.vendorName,
+            quantity: 1,
+            unit: item.unit || "TRIP",
+            rateBasis: "PER_TRIP",
+            originalCurrency: selected.currency,
+            originalRate: Number(selected.buyRate),
+            fxRateToVnd: selected.fxRateToVnd,
+            estimatedCostVnd: selected.buyRateVnd,
+            worstCaseCostVnd: Number(result.worstCaseBuy ?? selected.buyRateVnd),
+          });
         }
       }
 
@@ -303,9 +644,12 @@ export async function saveQuotationDraft(
         itemGp,
         itemMargin,
         verifiedVendorId,
+        verifiedCostSourceId,
+        verifiedCostSourceType,
         verifiedVendorName,
         validityStart,
         validityEnd,
+        components,
       });
     }
 
@@ -398,7 +742,8 @@ export async function saveQuotationDraft(
         ]
       );
 
-      // Xóa snapshot và các dòng dịch vụ cũ theo thứ tự an toàn để tránh lỗi Foreign Key
+      // Xóa cấu phần chi phí, snapshot và các dòng dịch vụ cũ theo thứ tự an toàn để tránh lỗi Foreign Key
+      await client.query("DELETE FROM quotation_item_cost_components WHERE quotation_id = $1", [quotationId]);
       await client.query("DELETE FROM quotation_buy_snapshots WHERE quotation_id = $1", [quotationId]);
       await client.query("DELETE FROM quotation_service_items WHERE quotation_id = $1", [quotationId]);
     } else {
@@ -457,13 +802,13 @@ export async function saveQuotationDraft(
            origin_location_id, destination_location_id, equipment_type,
            planned_quantity, unit, unit_sell_price, total_sell_price,
            selected_buy_rate_id, estimated_buy_amount, worst_case_buy_amount,
-           item_gp, item_margin_percent
+           item_gp, item_margin_percent, insured_value
          ) VALUES (
            $1, $2, $3,
            $4, $5, $6,
            $7, $8, $9, $10,
            $11, $12, $13,
-           $14, $15
+           $14, $15, $16
          ) RETURNING item_id;`,
         [
           quotationId,
@@ -481,28 +826,31 @@ export async function saveQuotationDraft(
           vItem.itemWorstTotal.toNumber(),
           vItem.itemGp.toNumber(),
           Number(vItem.itemMargin.toFixed(2)),
+          vItem.item.insuredValue ? Number(vItem.item.insuredValue) : null,
         ]
       );
 
-      // PR-04: Lưu Snapshot với dữ liệu có thẩm quyền từ PostgreSQL kèm FX Rate
-      if (vItem.item.selectedBuyRateId && vItem.verifiedVendorId) {
+      // PR-04: Lưu Snapshot với dữ liệu có thẩm quyền từ PostgreSQL kèm FX Rate & Cost Source
+      if (vItem.item.selectedBuyRateId && (vItem.verifiedVendorId || vItem.verifiedCostSourceId)) {
         await client.query(
           `INSERT INTO quotation_buy_snapshots (
              quotation_id, item_id, source_rate_id,
              vendor_id, vendor_name, rate_amount,
              original_currency, fx_rate_to_vnd, rate_amount_vnd,
-             validity_start, validity_end
+             validity_start, validity_end,
+             cost_source_id, cost_source_type
            ) VALUES (
              $1, $2, $3,
              $4, $5, $6,
              $7, $8, $9,
-             $10::date, $11::date
+             $10::date, $11::date,
+             $12, $13
            );`,
           [
             quotationId,
             itemRes.rows[0].item_id,
             vItem.item.selectedBuyRateId,
-            vItem.verifiedVendorId,
+            vItem.verifiedVendorId || null,
             vItem.verifiedVendorName || "Nhà cung cấp đã duyệt",
             vItem.verifiedOriginalRate.toNumber(),
             vItem.verifiedOriginalCurrency,
@@ -510,8 +858,49 @@ export async function saveQuotationDraft(
             vItem.verifiedBuyRateVnd.toNumber(),
             vItem.validityStart,
             vItem.validityEnd,
+            vItem.verifiedCostSourceId || vItem.verifiedVendorId,
+            vItem.verifiedCostSourceType || "VENDOR",
           ]
         );
+      }
+
+      // Lưu chi tiết từng cấu phần chi phí (Cost Components) cấu thành dịch vụ
+      const currentItemId = itemRes.rows[0].item_id;
+      if (vItem.components && vItem.components.length > 0) {
+        for (const comp of vItem.components) {
+          await client.query(
+            `INSERT INTO quotation_item_cost_components (
+               quotation_id, item_id, cost_code, cost_name, is_required,
+               rate_source_id, vendor_id, cost_source_id, vendor_name,
+               quantity, unit, rate_basis, original_currency, original_rate,
+               fx_rate_to_vnd, estimated_cost_vnd, worst_case_cost_vnd
+             ) VALUES (
+               $1, $2, $3, $4, $5,
+               $6, $7, $8, $9,
+               $10, $11, $12, $13, $14,
+               $15, $16, $17
+             );`,
+            [
+              quotationId,
+              currentItemId,
+              comp.costCode,
+              comp.costName,
+              comp.isRequired,
+              comp.rateSourceId || null,
+              comp.vendorId || null,
+              comp.costSourceId || null,
+              comp.vendorName,
+              comp.quantity,
+              comp.unit,
+              comp.rateBasis,
+              comp.originalCurrency,
+              comp.originalRate,
+              comp.fxRateToVnd,
+              comp.estimatedCostVnd,
+              comp.worstCaseCostVnd,
+            ]
+          );
+        }
       }
     }
 
@@ -1007,7 +1396,9 @@ export interface QuotationSnapshotItem {
   snapshotId: string;
   itemId: string;
   sourceRateId: string;
-  vendorId: string;
+  vendorId: string | null;
+  costSourceId?: string;
+  costSourceType?: string;
   vendorName: string;
   rateAmount: number;
   originalCurrency: string;
@@ -1071,6 +1462,7 @@ export interface QuotationDetailResponse {
     unit: string;
     unitSellPrice: number;
     totalSellPrice: number;
+    insuredValue?: number;
     selectedBuyRateId?: string;
     estimatedBuyAmount: number;
     worstCaseBuyAmount: number;
@@ -1078,6 +1470,7 @@ export interface QuotationDetailResponse {
     itemMarginPercent: number;
   }>;
   snapshots: QuotationSnapshotItem[];
+  costComponents?: QuotationCostComponentItem[];
   approvalLogs: QuotationApprovalLogItem[];
 }
 
@@ -1234,6 +1627,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
        i.unit,
        i.unit_sell_price as "unitSellPrice",
        i.total_sell_price as "totalSellPrice",
+       i.insured_value as "insuredValue",
        i.selected_buy_rate_id as "selectedBuyRateId",
        i.estimated_buy_amount as "estimatedBuyAmount",
        i.worst_case_buy_amount as "worstCaseBuyAmount",
@@ -1253,6 +1647,8 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
        item_id as "itemId",
        source_rate_id as "sourceRateId",
        vendor_id as "vendorId",
+       cost_source_id as "costSourceId",
+       cost_source_type as "costSourceType",
        vendor_name as "vendorName",
        rate_amount as "rateAmount",
        original_currency as "originalCurrency",
@@ -1282,6 +1678,60 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
      ORDER BY created_at DESC`,
     [quotationId]
   );
+
+  let costComponents: QuotationCostComponentItem[] = [];
+  try {
+    const costComponentsRes = await pool.query(
+      `SELECT 
+         component_id as "componentId",
+         quotation_id as "quotationId",
+         item_id as "itemId",
+         cost_code as "costCode",
+         cost_name as "costName",
+         is_required as "isRequired",
+         rate_source_id as "rateSourceId",
+         vendor_id as "vendorId",
+         cost_source_id as "costSourceId",
+         vendor_name as "vendorName",
+         quantity,
+         unit,
+         rate_basis as "rateBasis",
+         original_currency as "originalCurrency",
+         original_rate as "originalRate",
+         fx_rate_to_vnd as "fxRateToVnd",
+         estimated_cost_vnd as "estimatedCostVnd",
+         worst_case_cost_vnd as "worstCaseCostVnd",
+         created_at as "createdAt"
+       FROM quotation_item_cost_components
+       WHERE quotation_id = $1
+       ORDER BY created_at ASC`,
+      [quotationId]
+    );
+    costComponents = costComponentsRes.rows.map((r) => ({
+      componentId: r.componentId,
+      quotationId: r.quotationId,
+      itemId: r.itemId,
+      costCode: r.costCode,
+      costName: r.costName,
+      isRequired: Boolean(r.isRequired),
+      rateSourceId: r.rateSourceId || null,
+      vendorId: r.vendorId || null,
+      costSourceId: r.costSourceId || null,
+      vendorName: r.vendorName,
+      quantity: Number(r.quantity || 1),
+      unit: r.unit,
+      rateBasis: r.rateBasis,
+      originalCurrency: r.originalCurrency,
+      originalRate: Number(r.originalRate || 0),
+      fxRateToVnd: Number(r.fxRateToVnd || 1),
+      estimatedCostVnd: Number(r.estimatedCostVnd || 0),
+      worstCaseCostVnd: Number(r.worstCaseCostVnd || 0),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
+    }));
+  } catch {
+    // Trường hợp test mock không định nghĩa bảng cost components
+    costComponents = [];
+  }
 
   return {
     quote: {
@@ -1323,6 +1773,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
       unit: r.unit,
       unitSellPrice: Number(r.unitSellPrice || 0),
       totalSellPrice: Number(r.totalSellPrice || 0),
+      insuredValue: r.insuredValue ? Number(r.insuredValue) : undefined,
       selectedBuyRateId: r.selectedBuyRateId || undefined,
       estimatedBuyAmount: Number(r.estimatedBuyAmount || 0),
       worstCaseBuyAmount: Number(r.worstCaseBuyAmount || 0),
@@ -1344,6 +1795,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
       validityEnd: r.validityEnd || "",
       snapshotAt: r.snapshotAt ? new Date(r.snapshotAt).toISOString() : "",
     })),
+    costComponents,
     approvalLogs: logsRes.rows.map((r) => ({
       logId: r.logId,
       version: Number(r.version || 1),

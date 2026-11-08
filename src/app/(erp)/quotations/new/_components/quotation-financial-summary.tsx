@@ -4,11 +4,13 @@ import { PieChart, AlertCircle, ShieldAlert, ShieldCheck, Layers } from "lucide-
 import { calculateQuotationFinancials, summarizeCostComponents } from "@/shared/utils/pricing";
 import type { evaluateApprovalAuthority } from "@/features/quotation/approval-policy";
 import type { ServiceItemState } from "@/features/quotation/editor-state";
+import type { QuotationDetailResponse } from "@/server/modules/quotation/quotation.service";
 import { money, panelClass } from "./types";
 
 interface QuotationFinancialSummaryProps {
   totals: ReturnType<typeof calculateQuotationFinancials>;
   items?: ServiceItemState[];
+  costComponents?: QuotationDetailResponse["costComponents"];
   missingCount: number;
   status: string;
   authority: ReturnType<typeof evaluateApprovalAuthority>;
@@ -17,6 +19,7 @@ interface QuotationFinancialSummaryProps {
 export function QuotationFinancialSummary({
   totals,
   items,
+  costComponents,
   missingCount,
   status,
   authority,
@@ -123,6 +126,32 @@ export function QuotationFinancialSummary({
                 <span>∑ WorstCaseBUY</span>
                 <span className="font-mono text-foreground">{money(totals.totalWorstCaseBuy)}</span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Chi tiết từng cấu phần chi phí đã lưu (Cost Components Breakdown) */}
+        {costComponents && costComponents.length > 0 && (
+          <div className="pt-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>Cấu phần giá vốn BUY ({costComponents.length} khoản)</span>
+            </div>
+            <div className="space-y-1.5 rounded-lg bg-background/80 p-2 border border-border">
+              {costComponents.map((comp) => (
+                <div key={comp.componentId} className="flex items-start justify-between text-xs py-1 border-b border-border/40 last:border-b-0">
+                  <div className="pr-2">
+                    <span className="font-semibold text-foreground block">{comp.costName}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{comp.costCode} · {comp.vendorName}</span>
+                  </div>
+                  <div className="text-right font-mono whitespace-nowrap">
+                    <span className="font-bold text-amber-700 dark:text-amber-400 block">{money(comp.estimatedCostVnd)}</span>
+                    {comp.worstCaseCostVnd > comp.estimatedCostVnd && (
+                      <span className="text-[10px] text-rose-600 dark:text-rose-400 block">Rủi ro: {money(comp.worstCaseCostVnd)}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

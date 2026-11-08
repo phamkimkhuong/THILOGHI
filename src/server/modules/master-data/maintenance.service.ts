@@ -54,7 +54,7 @@ export async function maintenanceOptions(kind: string, search: string) {
   return (await pool.query(query, [`%${search}%`])).rows as {id: string; name: string}[];
 }
 export function checkTransition(status: string, action: string) {
-  const allowed: Record<string, string[]> = { SAVE: ["DRAFT", "REJECTED"], SUBMIT: ["DRAFT", "REJECTED"], APPROVE: ["PENDING_APPROVAL"], REJECT: ["PENDING_APPROVAL"], RETIRE: ["APPROVED"] };
+  const allowed: Record<string, string[]> = { SAVE: ["DRAFT", "REJECTED", "RETIRED", "INACTIVE"], SUBMIT: ["DRAFT", "REJECTED"], APPROVE: ["PENDING_APPROVAL"], REJECT: ["PENDING_APPROVAL"], RETIRE: ["APPROVED"] };
   if (!allowed[action]?.includes(status)) throw new Error("Trạng thái đã thay đổi hoặc không cho phép thao tác này. Hãy tải lại.");
 }
 export async function mutateMaintenance(raw: unknown, actor: CurrentActor) {
@@ -112,7 +112,7 @@ export async function mutateMaintenance(raw: unknown, actor: CurrentActor) {
     }
     if (kind === "rates") {
       if (action === "SAVE") add("validity_range", `[${fields.valid_from},${fields.valid_to})`);
-      add("status", ({ SAVE: "DRAFT", SUBMIT: "PENDING_APPROVAL", APPROVE: "APPROVED", REJECT: "REJECTED", RETIRE: "INACTIVE" })[action]);
+      add("status", ({ SAVE: "DRAFT", SUBMIT: "PENDING_APPROVAL", APPROVE: "APPROVED", REJECT: "REJECTED", RETIRE: "RETIRED" })[action]);
     }
     if (kind === "partners" || kind === "customers" || kind === "vendors") add("updated_at", new Date());
     if ((kind === "customers" || kind === "vendors") && fields.role_status === "ACTIVE" && old?.role_status !== "ACTIVE") {

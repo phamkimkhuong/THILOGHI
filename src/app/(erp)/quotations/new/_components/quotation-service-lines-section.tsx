@@ -266,7 +266,11 @@ export function QuotationServiceLinesSection({
                   ? "Địa bàn áp dụng bảo hiểm"
                   : item.servicePackage === "OTHER"
                   ? "Địa điểm cung cấp dịch vụ"
-                  : "Điểm đi (Origin / POL)"
+                  : item.servicePackage === "OCEAN"
+                  ? "Cảng xếp hàng (POL)"
+                  : item.servicePackage === "BORDER_GATE"
+                  ? "Cửa khẩu xuất cảnh (Origin)"
+                  : "Điểm nhận hàng / Điểm đi (Origin)"
               }
               required
               value={item.originLocationId}
@@ -286,7 +290,13 @@ export function QuotationServiceLinesSection({
             {/* Điểm đến */}
             {item.servicePackage === "TRUCKING" || item.servicePackage === "OCEAN" || item.servicePackage === "BORDER_GATE" ? (
               <ChoiceSelect
-                label="Điểm đến (Destination / POD)"
+                label={
+                  item.servicePackage === "OCEAN"
+                    ? "Cảng dỡ hàng (POD)"
+                    : item.servicePackage === "BORDER_GATE"
+                    ? "Cửa khẩu nhập cảnh (Destination)"
+                    : "Điểm trả hàng / Điểm đến (Destination)"
+                }
                 required
                 value={item.destinationLocationId}
                 options={master?.locations ?? []}
@@ -380,6 +390,29 @@ export function QuotationServiceLinesSection({
                 />
               </label>
             </div>
+
+            {/* Giá trị hàng bảo hiểm (chỉ áp dụng cho gói INSURANCE) */}
+            {item.servicePackage === "INSURANCE" && (
+              <div className="space-y-1.5 font-sans sm:col-span-2 lg:col-span-3">
+                <label className="block text-xs font-semibold text-foreground">
+                  <span className="text-blue-700 dark:text-blue-400 font-bold">
+                    Giá trị hàng hóa được bảo hiểm (VND) <span className="text-red-500">*</span>
+                  </span>
+                  <div className="mt-1">
+                    <CurrencyInput
+                      disabled={locked}
+                      value={item.insuredValue ?? 0}
+                      placeholder="Nhập giá trị hóa đơn/hàng hóa bảo hiểm (ví dụ: 1.000.000.000 đ)..."
+                      className="text-base font-bold text-foreground border-blue-200 focus:border-blue-500 ring-1 ring-blue-500/20"
+                      onValueChange={(v) => onUpdateItem({ insuredValue: v ?? 0 }, true)}
+                    />
+                  </div>
+                  <span className="text-[11px] text-muted-foreground mt-0.5 block">
+                    Cơ sở để tính phí bảo hiểm mua vào theo % tỷ lệ phí (Premium = % x Giá trị hàng).
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* Đơn giá bán */}
             <div className="space-y-1.5 font-sans sm:col-span-2 lg:col-span-3">

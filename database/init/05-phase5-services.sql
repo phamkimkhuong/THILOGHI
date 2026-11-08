@@ -25,7 +25,7 @@ VALUES
     'TRUCKING',
     'Vận tải đường bộ',
     'CORE_TRANSPORT',
-    'Di chuyển hàng bằng phương tiện đường bộ (xe đầu kéo, xe tải thùng, xe chuyên dụng). Phạm vi D2D, D2P, P2D nội địa & liên vận quốc tế.',
+    'Di chuyển hàng bằng phương tiện đường bộ (xe đầu kéo, xe tải thùng, xe chuyên dụng) nội địa & liên vận quốc tế.',
     'TRIP',
     'ROUTE_BASED',
     true,

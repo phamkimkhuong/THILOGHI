@@ -70,7 +70,8 @@ export async function saveRoadRateService(input: SaveRoadRateInput, actor: Curre
   const currency = (input.currency || "VND").trim().toUpperCase();
   const validFrom = (input.validFrom || "").trim();
   const validTo = (input.validTo || "").trim();
-  const status = (input.status || "APPROVED").trim().toUpperCase();
+  const rawStatus = (input.status || "APPROVED").trim().toUpperCase();
+  const status = rawStatus === "INACTIVE" ? "RETIRED" : rawStatus;
   const remarks = (input.remarks || "").trim() || null;
 
   if (!vendorId) throw new Error("Vui lòng chọn nhà cung cấp vận tải.");
@@ -254,14 +255,25 @@ export async function toggleRoadRateStatusService(rateId: string, actor: Current
     }
     const newStatus = rate.status === "APPROVED" ? "RETIRED" : "APPROVED";
 
+    if (newStatus === "APPROVED") {
+      const authorRes = await client.query(
+        "SELECT actor_id FROM master_data_audit WHERE entity_type='rates' AND entity_id=$1 AND action='SAVE' ORDER BY created_at DESC LIMIT 1",
+        [rateId]
+      );
+      if (authorRes.rows.length > 0 && authorRes.rows[0].actor_id === actor.userId && actor.role !== "ADMIN") {
+        throw new Error("Nguyên tắc 4 mắt (Four-Eyes Principle): Người lập biểu cước không được tự phê duyệt.");
+      }
+    }
+
     const updateRes = await client.query(
       "UPDATE road_rates SET status = $1 WHERE rate_id = $2 RETURNING *",
       [newStatus, rateId]
     );
 
+    const auditAction = newStatus === "APPROVED" ? "APPROVE" : "RETIRE";
     await client.query(
       "INSERT INTO master_data_audit (entity_type, entity_id, action, actor_id, actor_name, before_data, after_data, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-      ["rates", rateId, "UPDATE", actor.userId, actor.fullName, JSON.stringify(rate), JSON.stringify(updateRes.rows[0]), `Chuyển trạng thái sang [${newStatus}]`]
+      ["rates", rateId, auditAction, actor.userId, actor.fullName, JSON.stringify(rate), JSON.stringify(updateRes.rows[0]), `Chuyển trạng thái sang [${newStatus}]`]
     );
 
     await client.query("COMMIT");
