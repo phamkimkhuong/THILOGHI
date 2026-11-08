@@ -61,6 +61,18 @@ import {
   type SaveBorderRateInput,
   type BorderRateLookupQuery,
 } from "@/server/modules/supplier-pricing/border-rates.service";
+import {
+  getOceanRatesDetailedList,
+  saveOceanRateService,
+  toggleOceanRateStatusService,
+  deleteOceanRateService,
+  lookupOceanRates,
+  getOceanCarriersList,
+  getOceanPortsList,
+  type OceanRateItem,
+  type SaveOceanRateInput,
+  type OceanRateLookupQuery,
+} from "@/server/modules/supplier-pricing/ocean-rates.service";
 
 export type {
   PortRateItem,
@@ -69,6 +81,9 @@ export type {
   BorderRateItem,
   SaveBorderRateInput,
   BorderRateLookupQuery,
+  OceanRateItem,
+  SaveOceanRateInput,
+  OceanRateLookupQuery,
   PortDepotPartnerOption,
 };
 
@@ -830,6 +845,119 @@ export async function lookupBorderRatesAction(query: BorderRateLookupQuery) {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí cửa khẩu",
+      candidates: [],
+    };
+  }
+}
+
+export async function getOceanCarriersAction() {
+  try {
+    await requireAuth();
+    const data = await getOceanCarriersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục hãng tàu",
+    };
+  }
+}
+
+export async function getOceanPortsAction() {
+  try {
+    await requireAuth();
+    const data = await getOceanPortsList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục cảng biển",
+    };
+  }
+}
+
+export async function getOceanRatesAction(filters?: {
+  search?: string;
+  carrierId?: string;
+  polId?: string;
+  podId?: string;
+  containerType?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getOceanRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải biểu cước vận tải biển",
+    };
+  }
+}
+
+export async function saveOceanRateAction(input: SaveOceanRateInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveOceanRateService(input, actor);
+    return {
+      success: true,
+      data: res,
+      message: `Đã lưu biểu cước vận tải biển [${res.carrierName}: ${res.polName} -> ${res.podName}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu cước vận tải biển",
+    };
+  }
+}
+
+export async function toggleOceanRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleOceanRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã đổi trạng thái sang [${status}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu cước vận tải biển",
+    };
+  }
+}
+
+export async function deleteOceanRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteOceanRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu cước vận tải biển thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu cước vận tải biển",
+    };
+  }
+}
+
+export async function lookupOceanRatesAction(query: OceanRateLookupQuery) {
+  try {
+    await requireAuth();
+    const res = await lookupOceanRates(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu cước vận tải biển",
       candidates: [],
     };
   }

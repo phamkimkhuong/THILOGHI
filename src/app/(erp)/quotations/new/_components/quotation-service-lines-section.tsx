@@ -381,6 +381,8 @@ export function QuotationServiceLinesSection({
                 ? "Tra cứu biểu phí Cảng Chu Lai"
                 : item.servicePackage === "BORDER_GATE"
                 ? "Tra cứu biểu phí Cửa khẩu"
+                : item.servicePackage === "OCEAN"
+                ? "Tra cứu cước Vận tải biển"
                 : "Tra và so sánh giá mua NCC"}
             </Button>
           </div>
@@ -397,6 +399,8 @@ export function QuotationServiceLinesSection({
                 ? "Biểu phí cảng đã chọn: "
                 : item.servicePackage === "BORDER_GATE"
                 ? "Biểu phí cửa khẩu đã chọn: "
+                : item.servicePackage === "OCEAN"
+                ? "Cước hãng tàu đã chọn: "
                 : "Nhà cung cấp đã chọn: "}
               <strong className="text-emerald-900 dark:text-emerald-200">
                 {item.selectedCandidate.vendorName}
@@ -416,7 +420,7 @@ export function QuotationServiceLinesSection({
         </div>
       )}
 
-      {/* Bảng so sánh các nhà xe / biểu phí cảng / cửa khẩu khả dụng */}
+      {/* Bảng so sánh các nhà xe / biểu phí cảng / cửa khẩu / hãng tàu khả dụng */}
       {!!item?.lookupResult?.candidates.length && (
         <div className="space-y-2 pt-2">
           <p className="text-xs text-muted-foreground flex items-center justify-between">
@@ -425,6 +429,8 @@ export function QuotationServiceLinesSection({
                 ? "Danh sách biểu phí Cảng Chu Lai khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
                 : item.servicePackage === "BORDER_GATE"
                 ? "Danh sách biểu phí Cửa khẩu khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "OCEAN"
+                ? "Danh sách biểu cước hãng tàu khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
                 : "So sánh các nhà cung cấp khả dụng (quy đổi VND). Bấm \"Chọn NCC\" để áp giá vào báo giá."}
             </span>
           </p>
@@ -437,6 +443,8 @@ export function QuotationServiceLinesSection({
                       ? "Tác nghiệp & Cảng"
                       : item.servicePackage === "BORDER_GATE"
                       ? "Cặp cửa khẩu & Mặt hàng"
+                      : item.servicePackage === "OCEAN"
+                      ? "Hãng tàu & Tuyến cảng"
                       : "Nhà cung cấp"}
                   </th>
                   <th className="text-right">Đơn giá gốc</th>

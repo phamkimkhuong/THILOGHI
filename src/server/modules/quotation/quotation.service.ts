@@ -130,6 +130,32 @@ export async function saveQuotationDraft(
           validityStart = bRow.validity_start;
           validityEnd = bRow.validity_end;
           verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "OCEAN") {
+          const oceanRes = await client.query(
+            `SELECT rate_id, carrier_id, carrier_name, pol_name, pod_name,
+                    container_type, commodity_name, ocean_freight_usd, total_charges_vnd,
+                    currency, lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM ocean_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (oceanRes.rows.length === 0) {
+            throw new Error("Biểu cước vận tải biển đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const oRow = oceanRes.rows[0];
+          const totalFee = Number(oRow.total_charges_vnd);
+          const fxRate = 1.0;
+          const priceVnd = totalFee;
+
+          verifiedOriginalRate = new Decimal(totalFee);
+          verifiedOriginalCurrency = "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedVendorId = oRow.carrier_id;
+          verifiedVendorName = `${oRow.carrier_name} [${oRow.container_type} - ${oRow.pol_name} -> ${oRow.pod_name}]`;
+          validityStart = oRow.validity_start;
+          validityEnd = oRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else {
           const result = await lookupRoadRates({
             pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,
