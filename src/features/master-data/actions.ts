@@ -105,12 +105,24 @@ import {
   type InsuranceRateItem,
   type SaveInsuranceRateInput,
 } from "@/server/modules/supplier-pricing/insurance-rates.service";
+import {
+  getOtherRatesDetailedList,
+  getOtherProvidersList,
+  saveOtherRateService,
+  toggleOtherRateStatusService,
+  deleteOtherRateService,
+  lookupOtherRate,
+  type OtherRateItem,
+  type SaveOtherRateInput,
+} from "@/server/modules/supplier-pricing/other-rates.service";
 
 export type {
   WarehouseRateItem,
   SaveWarehouseRateInput,
   InsuranceRateItem,
   SaveInsuranceRateInput,
+  OtherRateItem,
+  SaveOtherRateInput,
 };
 
 export type {
@@ -1349,6 +1361,110 @@ export async function lookupInsuranceRatesAction(query: {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí Bảo hiểm hàng hóa",
+      candidates: [],
+    };
+  }
+}
+
+/* ====================================================================
+ * PHASE 12: BIỂU PHÍ DỊCH VỤ KHÁC CÓ KIỂM SOÁT (OTHER RATES)
+ * ==================================================================== */
+
+export async function getOtherRatesAction(filters?: {
+  serviceCode?: string;
+  providerId?: string;
+  pricingMethod?: string;
+  status?: string;
+  search?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getOtherRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh sách biểu phí Dịch vụ khác",
+    };
+  }
+}
+
+export async function getOtherProvidersAction() {
+  try {
+    await requireAuth();
+    const data = await getOtherProvidersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục đơn vị cung cấp dịch vụ khác",
+    };
+  }
+}
+
+export async function saveOtherRateAction(input: SaveOtherRateInput): Promise<
+  | { success: true; message: string; rateId: string }
+  | { success: false; error: string }
+> {
+  try {
+    const actor = await requireAuth();
+    const result = await saveOtherRateService(input, actor);
+    return { success: true, message: result.message, rateId: result.rateId };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí Dịch vụ khác",
+    };
+  }
+}
+
+export async function toggleOtherRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleOtherRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã ${status === "ACTIVE" ? "kích hoạt" : "tạm dừng"} biểu phí Dịch vụ khác thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí Dịch vụ khác",
+    };
+  }
+}
+
+export async function deleteOtherRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteOtherRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí Dịch vụ khác thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí Dịch vụ khác",
+    };
+  }
+}
+
+export async function lookupOtherRatesAction(query: {
+  serviceCode?: string;
+  validityDate?: string;
+}) {
+  try {
+    await requireAuth();
+    const res = await lookupOtherRate(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí Dịch vụ khác",
       candidates: [],
     };
   }

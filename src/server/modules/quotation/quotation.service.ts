@@ -156,6 +156,110 @@ export async function saveQuotationDraft(
           validityStart = oRow.validity_start;
           validityEnd = oRow.validity_end;
           verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "CUSTOMS") {
+          const customsRes = await client.query(
+            `SELECT rate_id, customs_office_id, customs_office_name, broker_id, broker_name, declaration_type,
+                    customs_fee, inspection_fee, quarantine_fee, fumigation_fee, total_service_fee,
+                    currency, lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM customs_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (customsRes.rows.length === 0) {
+            throw new Error("Biểu phí hải quan đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const cRow = customsRes.rows[0];
+          const totalFee = Number(cRow.total_service_fee || cRow.customs_fee || 0);
+          const fxRate = 1.0;
+
+          verifiedOriginalRate = new Decimal(totalFee);
+          verifiedOriginalCurrency = cRow.currency || "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(totalFee);
+          verifiedVendorId = cRow.broker_id;
+          verifiedVendorName = `${cRow.broker_name} [${cRow.customs_office_name} - ${cRow.declaration_type}]`;
+          validityStart = cRow.validity_start;
+          validityEnd = cRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "WAREHOUSING") {
+          const whRes = await client.query(
+            `SELECT rate_id, warehouse_id, warehouse_name, provider_id, provider_name,
+                    service_name, unit_price, currency,
+                    lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM warehouse_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (whRes.rows.length === 0) {
+            throw new Error("Biểu phí kho bãi đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const wRow = whRes.rows[0];
+          const unitPrice = Number(wRow.unit_price || 0);
+          const fxRate = 1.0;
+
+          verifiedOriginalRate = new Decimal(unitPrice);
+          verifiedOriginalCurrency = wRow.currency || "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(unitPrice);
+          verifiedVendorId = wRow.provider_id;
+          verifiedVendorName = `${wRow.provider_name} [${wRow.service_name} - ${wRow.warehouse_name}]`;
+          validityStart = wRow.validity_start;
+          validityEnd = wRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "INSURANCE") {
+          const insRes = await client.query(
+            `SELECT rate_id, insurer_id, insurer_name, coverage_type, transport_mode,
+                    pricing_model, unit_price, rate_percent, min_premium_vnd, deductible_vnd,
+                    currency, lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM insurance_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (insRes.rows.length === 0) {
+            throw new Error("Biểu phí bảo hiểm đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const iRow = insRes.rows[0];
+          let premium = Number(iRow.unit_price || 0);
+          if (iRow.pricing_model === "PERCENT_OF_VALUE" && item.unitSellPrice) {
+            const calculated = (Number(item.unitSellPrice) * Number(iRow.rate_percent || 0)) / 100;
+            premium = Math.max(calculated, Number(iRow.min_premium_vnd || 0));
+          }
+          const fxRate = 1.0;
+
+          verifiedOriginalRate = new Decimal(premium);
+          verifiedOriginalCurrency = iRow.currency || "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(premium);
+          verifiedVendorId = iRow.insurer_id;
+          verifiedVendorName = `${iRow.insurer_name} [${iRow.coverage_type} - ${iRow.transport_mode}]`;
+          validityStart = iRow.validity_start;
+          validityEnd = iRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "OTHER") {
+          const otherRes = await client.query(
+            `SELECT rate_id, service_code, service_name, provider_id, provider_name,
+                    pricing_method, rate_basis, unit_price, currency, evidence_required,
+                    lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM other_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (otherRes.rows.length === 0) {
+            throw new Error("Biểu phí dịch vụ khác đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const otRow = otherRes.rows[0];
+          const unitPrice = Number(otRow.unit_price || 0);
+          const fxRate = 1.0;
+
+          verifiedOriginalRate = new Decimal(unitPrice);
+          verifiedOriginalCurrency = otRow.currency || "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(unitPrice);
+          verifiedVendorId = otRow.provider_id;
+          verifiedVendorName = `${otRow.provider_name} [${otRow.service_name} - ${otRow.pricing_method}]`;
+          validityStart = otRow.validity_start;
+          validityEnd = otRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
         } else {
           const result = await lookupRoadRates({
             pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,

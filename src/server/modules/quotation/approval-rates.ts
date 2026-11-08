@@ -52,6 +52,59 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       continue;
     }
 
+    if (line.service_package === "CUSTOMS") {
+      const customsRes = await client.query(
+        `SELECT rate_id, total_service_fee, customs_fee, currency, status, validity_range @> $2::date as is_valid
+         FROM customs_rates WHERE rate_id = $1`,
+        [line.selected_buy_rate_id, getBusinessDate()]
+      );
+      const cr = customsRes.rows[0];
+      const fee = cr ? Number(cr.total_service_fee || cr.customs_fee || 0) : 0;
+      if (!cr || cr.status !== "ACTIVE" || !cr.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(fee)) {
+        throw new Error("Biểu phí hải quan đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
+      }
+      continue;
+    }
+
+    if (line.service_package === "WAREHOUSING") {
+      const whRes = await client.query(
+        `SELECT rate_id, unit_price, currency, status, validity_range @> $2::date as is_valid
+         FROM warehouse_rates WHERE rate_id = $1`,
+        [line.selected_buy_rate_id, getBusinessDate()]
+      );
+      const wr = whRes.rows[0];
+      if (!wr || wr.status !== "ACTIVE" || !wr.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(wr.unit_price)) {
+        throw new Error("Biểu phí kho bãi đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
+      }
+      continue;
+    }
+
+    if (line.service_package === "INSURANCE") {
+      const insRes = await client.query(
+        `SELECT rate_id, unit_price, rate_percent, pricing_model, min_premium_vnd, currency, status, validity_range @> $2::date as is_valid
+         FROM insurance_rates WHERE rate_id = $1`,
+        [line.selected_buy_rate_id, getBusinessDate()]
+      );
+      const ir = insRes.rows[0];
+      if (!ir || ir.status !== "ACTIVE" || !ir.is_valid || line.rate_amount == null) {
+        throw new Error("Biểu phí bảo hiểm đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
+      }
+      continue;
+    }
+
+    if (line.service_package === "OTHER") {
+      const otherRes = await client.query(
+        `SELECT rate_id, unit_price, currency, status, validity_range @> $2::date as is_valid
+         FROM other_rates WHERE rate_id = $1`,
+        [line.selected_buy_rate_id, getBusinessDate()]
+      );
+      const or = otherRes.rows[0];
+      if (!or || or.status !== "ACTIVE" || !or.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(or.unit_price)) {
+        throw new Error("Biểu phí dịch vụ khác đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
+      }
+      continue;
+    }
+
     const rates = await lookupRoadRates({pickupLocationId:line.origin_location_id,deliveryLocationId:line.destination_location_id,equipmentType:line.equipment_type,pricingDate:getBusinessDate()},client);
     const selected = rates.candidates.find(rate=>rate.rateId===line.selected_buy_rate_id);
     if (rates.status === "CONFLICT_RATE" || !selected || line.rate_amount == null || !new Decimal(line.rate_amount).eq(selected.buyRate) || line.original_currency!==selected.currency || !new Decimal(line.fx_rate_to_vnd).eq(selected.fxRateToVnd)) {

@@ -493,7 +493,7 @@ export function QuotationServiceLinesSection({
                           }
                           className="h-7 text-xs px-2.5"
                         >
-                          {isChosen ? "Đã chọn" : ["PORT", "CUSTOMS", "WAREHOUSING", "INSURANCE"].includes(item.servicePackage) ? "Áp dụng" : "Chọn NCC"}
+                          {isChosen ? "Đã chọn" : ["PORT", "CUSTOMS", "WAREHOUSING", "INSURANCE", "OTHER"].includes(item.servicePackage) ? "Áp dụng" : "Chọn NCC"}
                         </Button>
                       </td>
                     </tr>
