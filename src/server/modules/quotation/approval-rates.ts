@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import Decimal from "decimal.js";
 import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
-import { getBusinessDate, getFxRateToVnd } from "@/shared/utils/pricing";
+import { getBusinessDate, getFxRateToVnd, roundVnd } from "@/shared/utils/pricing";
 
 export async function validateApprovalRates(
   client: PoolClient,
@@ -31,9 +31,23 @@ export async function validateApprovalRates(
     pricingDate = getBusinessDate();
   }
 
+  let quoteCommodityName = "";
+  try {
+    const qCommRes = await client.query(
+      `SELECT c.commodity_name 
+       FROM customer_quotations q
+       LEFT JOIN commodities c ON q.commodity_id = c.commodity_id
+       WHERE q.quotation_id = $1`,
+      [quotationId]
+    );
+    quoteCommodityName = String(qCommRes.rows[0]?.commodity_name || "").trim();
+  } catch {
+    quoteCommodityName = "";
+  }
+
   const lines = await client.query(
     `SELECT i.item_id, i.service_package, i.origin_location_id, i.destination_location_id, i.equipment_type, i.selected_buy_rate_id,
-            i.insured_value, i.estimated_buy_amount,
+            i.planned_quantity, i.insured_value, i.estimated_buy_amount,
             s.rate_amount, s.original_currency, s.fx_rate_to_vnd
      FROM quotation_service_items i
      LEFT JOIN quotation_buy_snapshots s ON s.item_id = i.item_id AND s.quotation_id = i.quotation_id
@@ -52,9 +66,11 @@ export async function validateApprovalRates(
       cost_name: string;
       is_required: boolean;
       rate_source_id: string | null;
+      quantity: number;
       original_currency: string;
       original_rate: number;
       fx_rate_to_vnd: number;
+      unit_cost_vnd: number;
       estimated_cost_vnd: number;
     }> = [];
 
@@ -62,7 +78,8 @@ export async function validateApprovalRates(
       try {
         const compRes = await client.query(
           `SELECT component_id, cost_code, cost_name, is_required, rate_source_id,
-                  original_currency, original_rate, fx_rate_to_vnd, estimated_cost_vnd
+                  quantity, original_currency, original_rate, fx_rate_to_vnd,
+                  COALESCE(unit_cost_vnd, 0) as unit_cost_vnd, estimated_cost_vnd
            FROM quotation_item_cost_components
            WHERE quotation_id = $1 AND item_id = $2`,
           [quotationId, line.item_id]
@@ -74,6 +91,19 @@ export async function validateApprovalRates(
     }
 
     if (compRows.length > 0) {
+      if (
+        line.service_package === "PORT" &&
+        ["20HR", "40HR"].includes(line.equipment_type)
+      ) {
+        const hasLolo = compRows.some((c) => c.cost_code === "LOLO");
+        const hasThc = compRows.some((c) => c.cost_code === "THC_PORT");
+        if (hasLolo && !hasThc) {
+          throw new Error(
+            `Báo giá thiếu chi phí THC cảng bắt buộc cho container lạnh [${line.equipment_type}]. Trả báo giá về nháp để bổ sung chi phí trước khi duyệt.`
+          );
+        }
+      }
+
       for (const comp of compRows) {
         if (!comp.rate_source_id) continue;
 
@@ -126,7 +156,7 @@ export async function validateApprovalRates(
           }
         } else if (line.service_package === "OCEAN") {
           const oceanRateRes = await client.query(
-            `SELECT rate_id, ocean_freight_usd, thc_fee, docs_fee, seal_fee, afs_fee, telex_fee, baf_caf_fee, other_surcharges, total_charges_vnd, currency, status, validity_range @> $2::date as is_valid
+            `SELECT rate_id, commodity_name, ocean_freight_usd, thc_fee, docs_fee, seal_fee, afs_fee, telex_fee, baf_caf_fee, other_surcharges, total_charges_vnd, currency, status, validity_range @> $2::date as is_valid
              FROM ocean_rates WHERE rate_id = $1`,
             [comp.rate_source_id, pricingDate]
           );
@@ -135,6 +165,15 @@ export async function validateApprovalRates(
             throw new Error(
               `Biểu cước vận tải biển [${comp.cost_name}] đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.`
             );
+          }
+          if (quoteCommodityName && or.commodity_name) {
+            const cleanQuote = quoteCommodityName.toLowerCase().trim();
+            const cleanRate = or.commodity_name.toLowerCase().trim();
+            if (!cleanQuote.includes(cleanRate) && !cleanRate.includes(cleanQuote)) {
+              throw new Error(
+                `Biểu cước vận tải biển [${comp.cost_name}] áp dụng cho mặt hàng [${or.commodity_name}], không khớp với mặt hàng [${quoteCommodityName}] của báo giá.`
+              );
+            }
           }
           if (comp.cost_code === "OCEAN_FREIGHT") {
             const usdFx = getFxRateToVnd("USD");
@@ -285,6 +324,18 @@ export async function validateApprovalRates(
         }
       }
 
+      // Kiểm tra tính nhất quán thành tiền từng cấu phần: estimated_cost_vnd = roundVnd(unit_cost_vnd * quantity)
+      for (const comp of compRows) {
+        if (Number(comp.unit_cost_vnd) > 0 && Number(comp.quantity) > 0) {
+          const expectedEst = roundVnd(new Decimal(comp.unit_cost_vnd).mul(comp.quantity)).toNumber();
+          if (!new Decimal(comp.estimated_cost_vnd).eq(expectedEst)) {
+            throw new Error(
+              `Thành tiền cấu phần [${comp.cost_name}] (${comp.estimated_cost_vnd}) không khớp với đơn giá x số lượng (${expectedEst}). Trả báo giá về nháp để tính lại giá trước khi duyệt.`
+            );
+          }
+        }
+      }
+
       // Kiểm tra tính nhất quán tổng BUY của các cấu phần bắt buộc
       const requiredTotal = compRows
         .filter((c) => c.is_required)
@@ -329,7 +380,7 @@ export async function validateApprovalRates(
 
     if (line.service_package === "OCEAN") {
       const oceanRateRes = await client.query(
-        `SELECT rate_id, total_charges_vnd, currency, status, validity_range @> $2::date as is_valid
+        `SELECT rate_id, commodity_name, total_charges_vnd, currency, status, validity_range @> $2::date as is_valid
          FROM ocean_rates WHERE rate_id = $1`,
         [line.selected_buy_rate_id, pricingDate]
       );
@@ -337,6 +388,15 @@ export async function validateApprovalRates(
       const fxRate = 1.0;
       if (!or || or.status !== "ACTIVE" || !or.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(or.total_charges_vnd) || line.original_currency !== "VND" || !new Decimal(line.fx_rate_to_vnd).eq(fxRate)) {
         throw new Error("Biểu cước vận tải biển đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
+      }
+      if (quoteCommodityName && or.commodity_name) {
+        const cleanQuote = quoteCommodityName.toLowerCase().trim();
+        const cleanRate = or.commodity_name.toLowerCase().trim();
+        if (!cleanQuote.includes(cleanRate) && !cleanRate.includes(cleanQuote)) {
+          throw new Error(
+            `Biểu cước vận tải biển áp dụng cho mặt hàng [${or.commodity_name}], không khớp với mặt hàng [${quoteCommodityName}] của báo giá.`
+          );
+        }
       }
       continue;
     }

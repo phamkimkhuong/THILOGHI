@@ -285,6 +285,7 @@ export interface BorderRateLookupQuery {
   countryPair?: string;
   commodityName?: string;
   pricingDate?: string;
+  validityDate?: string;
 }
 
 export interface BorderRateLookupResult {
@@ -300,6 +301,8 @@ export interface BorderRateLookupResult {
 export async function lookupBorderRates(
   query: BorderRateLookupQuery
 ): Promise<BorderRateLookupResult> {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const allRates = await getBorderRatesDetailedList({
     status: "ACTIVE",
     borderPairId: query.borderPairId,
@@ -315,6 +318,10 @@ export async function lookupBorderRates(
     }
     if (query.commodityName && r.commodityName !== "Tất cả loại hàng" && !r.commodityName.toLowerCase().includes(query.commodityName.toLowerCase())) {
       return false;
+    }
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
     }
     return true;
   });

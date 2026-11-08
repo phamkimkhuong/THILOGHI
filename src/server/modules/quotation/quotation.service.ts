@@ -41,6 +41,7 @@ export interface CostComponentInput {
   originalCurrency: string;
   originalRate: number;
   fxRateToVnd: number;
+  unitCostVnd: number;
   estimatedCostVnd: number;
   worstCaseCostVnd: number;
 }
@@ -62,6 +63,7 @@ export interface QuotationCostComponentItem {
   originalCurrency: string;
   originalRate: number;
   fxRateToVnd: number;
+  unitCostVnd: number;
   estimatedCostVnd: number;
   worstCaseCostVnd: number;
   createdAt: string;
@@ -98,6 +100,22 @@ export async function saveQuotationDraft(
     let serverTotalSell = new Decimal(0);
     let serverTotalBuy = new Decimal(0);
     let serverTotalWorstBuy = new Decimal(0);
+
+    // Truy vấn tên mặt hàng của báo giá để xác thực tính tương thích của biểu cước
+    let quoteCommodityName = "";
+    const effectiveCommodityId = input.commodityId || (input.quotationId ? (
+      await client.query('SELECT commodity_id FROM customer_quotations WHERE quotation_id = $1', [input.quotationId])
+    ).rows[0]?.commodity_id : null);
+
+    if (effectiveCommodityId) {
+      const commRes = await client.query(
+        'SELECT commodity_name FROM commodities WHERE commodity_id = $1',
+        [effectiveCommodityId]
+      );
+      if (commRes.rows.length > 0) {
+        quoteCommodityName = String(commRes.rows[0].commodity_name || "").trim();
+      }
+    }
 
     const verifiedItems = [];
 
@@ -141,6 +159,7 @@ export async function saveQuotationDraft(
           const fxRate = getFxRateToVnd(pRow.currency || "VND");
           const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
 
+          const loloEstVnd = roundVnd(new Decimal(priceVnd).mul(itemQty)).toNumber();
           components.push({
             costCode: pRow.charge_code || "LOLO",
             costName: pRow.notes || `${pRow.service_category} [${pRow.charge_code}]`,
@@ -149,14 +168,15 @@ export async function saveQuotationDraft(
             vendorId: null,
             costSourceId: pRow.port_code,
             vendorName: `${pRow.port_name} [${pRow.charge_code}]`,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: pRow.unit || "Cont",
             rateBasis: "PER_CONTAINER",
             originalCurrency: pRow.currency || "VND",
             originalRate: unitPrice,
             fxRateToVnd: fxRate,
-            estimatedCostVnd: priceVnd,
-            worstCaseCostVnd: priceVnd,
+            unitCostVnd: priceVnd,
+            estimatedCostVnd: loloEstVnd,
+            worstCaseCostVnd: loloEstVnd,
           });
 
           // Nếu là container lạnh (20HR, 40HR) và gói LOLO, tự động kiểm tra phụ phí THC cảng bắt buộc
@@ -167,39 +187,44 @@ export async function saveQuotationDraft(
                WHERE port_code = $1 AND charge_code = 'THC_PORT' AND container_type = $2 AND status = 'ACTIVE' AND validity_range @> $3::date`,
               [pRow.port_code, pRow.container_type, pricingDate]
             );
-            if (thcRes.rows.length > 0) {
-              const thcRow = thcRes.rows[0];
-              const thcPrice = Number(thcRow.unit_price);
-              const thcFx = getFxRateToVnd(thcRow.currency || "USD");
-              const thcVnd = roundVnd(new Decimal(thcPrice).mul(thcFx)).toNumber();
-              components.push({
-                costCode: "THC_PORT",
-                costName: thcRow.notes || `Phí THC Cảng container lạnh [${thcRow.port_code}]`,
-                isRequired: true,
-                rateSourceId: thcRow.rate_id,
-                vendorId: null,
-                costSourceId: thcRow.port_code,
-                vendorName: `${thcRow.port_name} [THC]`,
-                quantity: 1,
-                unit: "Cont",
-                rateBasis: "PER_CONTAINER",
-                originalCurrency: thcRow.currency || "USD",
-                originalRate: thcPrice,
-                fxRateToVnd: thcFx,
-                estimatedCostVnd: thcVnd,
-                worstCaseCostVnd: thcVnd,
-              });
+            if (thcRes.rows.length === 0) {
+              throw new Error(
+                `Không tìm thấy biểu phí THC cảng hiệu lực cho container lạnh [${pRow.container_type}] tại [${pRow.port_name}] ngày ${pricingDate}. Theo quy định thương mại, THC cảng là chi phí bắt buộc đối với container lạnh.`
+              );
             }
+            const thcRow = thcRes.rows[0];
+            const thcPrice = Number(thcRow.unit_price);
+            const thcFx = getFxRateToVnd(thcRow.currency || "USD");
+            const thcVnd = roundVnd(new Decimal(thcPrice).mul(thcFx)).toNumber();
+            const thcEstVnd = roundVnd(new Decimal(thcVnd).mul(itemQty)).toNumber();
+            components.push({
+              costCode: "THC_PORT",
+              costName: thcRow.notes || `Phí THC Cảng container lạnh [${thcRow.port_code}]`,
+              isRequired: true,
+              rateSourceId: thcRow.rate_id,
+              vendorId: null,
+              costSourceId: thcRow.port_code,
+              vendorName: `${thcRow.port_name} [THC]`,
+              quantity: itemQty.toNumber(),
+              unit: "Cont",
+              rateBasis: "PER_CONTAINER",
+              originalCurrency: thcRow.currency || "USD",
+              originalRate: thcPrice,
+              fxRateToVnd: thcFx,
+              unitCostVnd: thcVnd,
+              estimatedCostVnd: thcEstVnd,
+              worstCaseCostVnd: thcEstVnd,
+            });
           }
 
-          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
-          const totalWorstVnd = components.reduce((sum, c) => sum + c.worstCaseCostVnd, 0);
+          const totalCompUnitVnd = components.reduce((sum, c) => sum + c.unitCostVnd, 0);
+          const totalWorstUnitVnd = components.reduce((sum, c) => sum + c.unitCostVnd, 0);
 
           verifiedOriginalRate = new Decimal(unitPrice);
           verifiedOriginalCurrency = pRow.currency || "VND";
           verifiedFxRate = fxRate;
-          verifiedBuyRateVnd = new Decimal(totalCompVnd);
-          verifiedWorstBuyVnd = new Decimal(totalWorstVnd);
+          verifiedBuyRateVnd = new Decimal(totalCompUnitVnd);
+          verifiedWorstBuyVnd = new Decimal(totalWorstUnitVnd);
           verifiedVendorId = null; // Cảng Chu Lai / Depot là đơn vị khai thác hạ tầng, không phải vendor trong bảng vendors
           verifiedCostSourceId = pRow.port_code;
           verifiedCostSourceType = "PORT_OPERATOR";
@@ -226,6 +251,8 @@ export async function saveQuotationDraft(
           const customsFee = Number(bRow.customs_fee || 0);
 
           if (infraFee > 0) {
+            const infraUnitVnd = roundVnd(new Decimal(infraFee).mul(fxRate)).toNumber();
+            const infraEstVnd = roundVnd(new Decimal(infraUnitVnd).mul(itemQty)).toNumber();
             components.push({
               costCode: "INFRASTRUCTURE_FEE",
               costName: `Phí hạ tầng cửa khẩu [${bRow.border_pair_name}]`,
@@ -234,17 +261,20 @@ export async function saveQuotationDraft(
               vendorId: null,
               costSourceId: bRow.border_pair_id,
               vendorName: `${bRow.border_pair_name} [Hạ tầng]`,
-              quantity: 1,
+              quantity: itemQty.toNumber(),
               unit: "Chuyến",
               rateBasis: "PER_TRUCK",
               originalCurrency: bRow.currency || "VND",
               originalRate: infraFee,
               fxRateToVnd: fxRate,
-              estimatedCostVnd: roundVnd(new Decimal(infraFee).mul(fxRate)).toNumber(),
-              worstCaseCostVnd: roundVnd(new Decimal(infraFee).mul(fxRate)).toNumber(),
+              unitCostVnd: infraUnitVnd,
+              estimatedCostVnd: infraEstVnd,
+              worstCaseCostVnd: infraEstVnd,
             });
           }
           if (entryExitFee > 0) {
+            const entryUnitVnd = roundVnd(new Decimal(entryExitFee).mul(fxRate)).toNumber();
+            const entryEstVnd = roundVnd(new Decimal(entryUnitVnd).mul(itemQty)).toNumber();
             components.push({
               costCode: "ENTRY_EXIT_FEE",
               costName: `Phí bến bãi ra vào cửa khẩu [${bRow.border_pair_name}]`,
@@ -253,17 +283,20 @@ export async function saveQuotationDraft(
               vendorId: null,
               costSourceId: bRow.border_pair_id,
               vendorName: `${bRow.border_pair_name} [Bến bãi]`,
-              quantity: 1,
+              quantity: itemQty.toNumber(),
               unit: "Chuyến",
               rateBasis: "PER_TRUCK",
               originalCurrency: bRow.currency || "VND",
               originalRate: entryExitFee,
               fxRateToVnd: fxRate,
-              estimatedCostVnd: roundVnd(new Decimal(entryExitFee).mul(fxRate)).toNumber(),
-              worstCaseCostVnd: roundVnd(new Decimal(entryExitFee).mul(fxRate)).toNumber(),
+              unitCostVnd: entryUnitVnd,
+              estimatedCostVnd: entryEstVnd,
+              worstCaseCostVnd: entryEstVnd,
             });
           }
           if (customsFee > 0) {
+            const customsUnitVnd = roundVnd(new Decimal(customsFee).mul(fxRate)).toNumber();
+            const customsEstVnd = roundVnd(new Decimal(customsUnitVnd).mul(itemQty)).toNumber();
             components.push({
               costCode: "CUSTOMS_FEE",
               costName: `Phí kiểm hóa / thủ tục cửa khẩu [${bRow.border_pair_name}]`,
@@ -272,19 +305,20 @@ export async function saveQuotationDraft(
               vendorId: null,
               costSourceId: bRow.border_pair_id,
               vendorName: `${bRow.border_pair_name} [Hải quan CK]`,
-              quantity: 1,
+              quantity: itemQty.toNumber(),
               unit: "Chuyến",
               rateBasis: "PER_TRUCK",
               originalCurrency: bRow.currency || "VND",
               originalRate: customsFee,
               fxRateToVnd: fxRate,
-              estimatedCostVnd: roundVnd(new Decimal(customsFee).mul(fxRate)).toNumber(),
-              worstCaseCostVnd: roundVnd(new Decimal(customsFee).mul(fxRate)).toNumber(),
+              unitCostVnd: customsUnitVnd,
+              estimatedCostVnd: customsEstVnd,
+              worstCaseCostVnd: customsEstVnd,
             });
           }
 
-          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
-          const priceVnd = totalCompVnd > 0 ? totalCompVnd : roundVnd(new Decimal(totalFee).mul(fxRate)).toNumber();
+          const totalCompUnitVnd = components.reduce((sum, c) => sum + c.unitCostVnd, 0);
+          const priceVnd = totalCompUnitVnd > 0 ? totalCompUnitVnd : roundVnd(new Decimal(totalFee).mul(fxRate)).toNumber();
 
           verifiedOriginalRate = new Decimal(totalFee);
           verifiedOriginalCurrency = bRow.currency || "VND";
@@ -320,6 +354,15 @@ export async function saveQuotationDraft(
           if (item.equipmentType && oRow.container_type && oRow.container_type !== item.equipmentType) {
             throw new Error(`Loại container cước biển [${oRow.container_type}] không khớp với [${item.equipmentType}] của báo giá.`);
           }
+          if (quoteCommodityName && oRow.commodity_name) {
+            const qComm = quoteCommodityName.toLowerCase().trim();
+            const rComm = oRow.commodity_name.toLowerCase().trim();
+            if (!qComm.includes(rComm) && !rComm.includes(qComm)) {
+              throw new Error(
+                `Biểu cước vận tải biển [${oRow.carrier_name}] áp dụng cho mặt hàng [${oRow.commodity_name}], không khớp với mặt hàng [${quoteCommodityName}] của báo giá.`
+              );
+            }
+          }
 
           const oceanFreightUsd = Number(oRow.ocean_freight_usd || 0);
           const usdFx = getFxRateToVnd("USD");
@@ -330,6 +373,7 @@ export async function saveQuotationDraft(
             Number(oRow.baf_caf_fee || 0) + Number(oRow.other_surcharges || 0);
 
           if (oceanFreightUsd > 0) {
+            const oceanEstVnd = roundVnd(new Decimal(oceanFreightVnd).mul(itemQty)).toNumber();
             components.push({
               costCode: "OCEAN_FREIGHT",
               costName: `Cước biển quốc tế [${oRow.carrier_name} - ${oRow.pol_name} -> ${oRow.pod_name}]`,
@@ -338,17 +382,19 @@ export async function saveQuotationDraft(
               vendorId: oRow.carrier_id,
               costSourceId: oRow.carrier_id,
               vendorName: oRow.carrier_name,
-              quantity: 1,
+              quantity: itemQty.toNumber(),
               unit: "Cont",
               rateBasis: "PER_CONTAINER",
               originalCurrency: "USD",
               originalRate: oceanFreightUsd,
               fxRateToVnd: usdFx,
-              estimatedCostVnd: oceanFreightVnd,
-              worstCaseCostVnd: oceanFreightVnd,
+              unitCostVnd: oceanFreightVnd,
+              estimatedCostVnd: oceanEstVnd,
+              worstCaseCostVnd: oceanEstVnd,
             });
           }
           if (localChargesVnd > 0) {
+            const localEstVnd = roundVnd(new Decimal(localChargesVnd).mul(itemQty)).toNumber();
             components.push({
               costCode: "LOCAL_CHARGES",
               costName: `Phụ phí địa phương / bến bãi cảng biển (Docs, Seal, AFS, Telex...)`,
@@ -357,19 +403,20 @@ export async function saveQuotationDraft(
               vendorId: oRow.carrier_id,
               costSourceId: oRow.carrier_id,
               vendorName: oRow.carrier_name,
-              quantity: 1,
+              quantity: itemQty.toNumber(),
               unit: "Cont",
               rateBasis: "PER_CONTAINER",
               originalCurrency: "VND",
               originalRate: localChargesVnd,
               fxRateToVnd: 1.0,
-              estimatedCostVnd: localChargesVnd,
-              worstCaseCostVnd: localChargesVnd,
+              unitCostVnd: localChargesVnd,
+              estimatedCostVnd: localEstVnd,
+              worstCaseCostVnd: localEstVnd,
             });
           }
 
-          const totalCompVnd = components.reduce((sum, c) => sum + c.estimatedCostVnd, 0);
-          const totalFee = totalCompVnd > 0 ? totalCompVnd : Number(oRow.total_charges_vnd);
+          const totalCompUnitVnd = components.reduce((sum, c) => sum + c.unitCostVnd, 0);
+          const totalFee = totalCompUnitVnd > 0 ? totalCompUnitVnd : Number(oRow.total_charges_vnd);
 
           verifiedOriginalRate = new Decimal(totalFee);
           verifiedOriginalCurrency = "VND";
@@ -402,6 +449,7 @@ export async function saveQuotationDraft(
           const fxRate = getFxRateToVnd(cRow.currency || "VND");
           const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
 
+          const customsEstVnd = roundVnd(new Decimal(priceVnd).mul(itemQty)).toNumber();
           components.push({
             costCode: cRow.service_code || "CUSTOMS_DECLARATION",
             costName: `${cRow.service_name} [${cRow.customs_office_name}]`,
@@ -410,14 +458,15 @@ export async function saveQuotationDraft(
             vendorId: cRow.provider_id,
             costSourceId: cRow.provider_id,
             vendorName: cRow.provider_name,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: cRow.rate_basis || "Tờ khai",
             rateBasis: cRow.rate_basis || "PER_DECLARATION",
             originalCurrency: cRow.currency || "VND",
             originalRate: unitPrice,
             fxRateToVnd: fxRate,
-            estimatedCostVnd: priceVnd,
-            worstCaseCostVnd: priceVnd,
+            unitCostVnd: priceVnd,
+            estimatedCostVnd: customsEstVnd,
+            worstCaseCostVnd: customsEstVnd,
           });
 
           verifiedOriginalRate = new Decimal(unitPrice);
@@ -451,6 +500,7 @@ export async function saveQuotationDraft(
           const fxRate = getFxRateToVnd(wRow.currency || "VND");
           const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
 
+          const whEstVnd = roundVnd(new Decimal(priceVnd).mul(itemQty)).toNumber();
           components.push({
             costCode: wRow.service_code || "STORAGE_FEE",
             costName: `${wRow.service_name} [${wRow.warehouse_name}]`,
@@ -459,14 +509,15 @@ export async function saveQuotationDraft(
             vendorId: wRow.provider_id,
             costSourceId: wRow.provider_id,
             vendorName: wRow.provider_name,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: wRow.rate_basis || "Tấn.Ngày",
             rateBasis: wRow.rate_basis || "TON_DAY",
             originalCurrency: wRow.currency || "VND",
             originalRate: unitPrice,
             fxRateToVnd: fxRate,
-            estimatedCostVnd: priceVnd,
-            worstCaseCostVnd: priceVnd,
+            unitCostVnd: priceVnd,
+            estimatedCostVnd: whEstVnd,
+            worstCaseCostVnd: whEstVnd,
           });
 
           verifiedOriginalRate = new Decimal(unitPrice);
@@ -506,6 +557,7 @@ export async function saveQuotationDraft(
           const fxRate = getFxRateToVnd(iRow.currency || "VND");
           const priceVnd = roundVnd(new Decimal(premium).mul(fxRate)).toNumber();
 
+          const insEstVnd = roundVnd(new Decimal(priceVnd).mul(itemQty)).toNumber();
           components.push({
             costCode: "INSURANCE_PREMIUM",
             costName: `Phí bảo hiểm [${iRow.coverage_type} - ${iRow.transport_mode}]`,
@@ -514,14 +566,15 @@ export async function saveQuotationDraft(
             vendorId: iRow.insurer_id,
             costSourceId: iRow.insurer_id,
             vendorName: iRow.insurer_name,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: "Lô hàng",
             rateBasis: "PER_SHIPMENT",
             originalCurrency: iRow.currency || "VND",
             originalRate: premium,
             fxRateToVnd: fxRate,
-            estimatedCostVnd: priceVnd,
-            worstCaseCostVnd: priceVnd,
+            unitCostVnd: priceVnd,
+            estimatedCostVnd: insEstVnd,
+            worstCaseCostVnd: insEstVnd,
           });
 
           verifiedOriginalRate = new Decimal(premium);
@@ -552,6 +605,7 @@ export async function saveQuotationDraft(
           const fxRate = getFxRateToVnd(otRow.currency || "VND");
           const priceVnd = roundVnd(new Decimal(unitPrice).mul(fxRate)).toNumber();
 
+          const otherEstVnd = roundVnd(new Decimal(priceVnd).mul(itemQty)).toNumber();
           components.push({
             costCode: otRow.service_code || "OTHER_FEE",
             costName: `${otRow.service_name} [${otRow.provider_name}]`,
@@ -560,14 +614,15 @@ export async function saveQuotationDraft(
             vendorId: otRow.provider_id,
             costSourceId: otRow.provider_id,
             vendorName: otRow.provider_name,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: otRow.rate_basis || "Lô",
             rateBasis: otRow.rate_basis || "LOT",
             originalCurrency: otRow.currency || "VND",
             originalRate: unitPrice,
             fxRateToVnd: fxRate,
-            estimatedCostVnd: priceVnd,
-            worstCaseCostVnd: priceVnd,
+            unitCostVnd: priceVnd,
+            estimatedCostVnd: otherEstVnd,
+            worstCaseCostVnd: otherEstVnd,
           });
 
           verifiedOriginalRate = new Decimal(unitPrice);
@@ -592,14 +647,16 @@ export async function saveQuotationDraft(
           verifiedOriginalRate = new Decimal(selected.buyRate);
           verifiedOriginalCurrency = selected.currency;
           verifiedFxRate = selected.fxRateToVnd;
-          verifiedBuyRateVnd = new Decimal(selected.buyRateVnd);
+          const roadUnitBuy = selected.buyRateVnd;
+          const roadWorstUnit = Number(result.worstCaseBuy ?? selected.buyRateVnd);
+          verifiedBuyRateVnd = new Decimal(roadUnitBuy);
+          verifiedWorstBuyVnd = new Decimal(roadWorstUnit);
           verifiedVendorId = selected.vendorId;
           verifiedCostSourceId = selected.vendorId;
           verifiedCostSourceType = "VENDOR";
           verifiedVendorName = selected.vendorName;
           validityStart = selected.validityStart;
           validityEnd = selected.validityEnd;
-          verifiedWorstBuyVnd = new Decimal(result.worstCaseBuy ?? selected.buyRateVnd);
 
           components.push({
             costCode: "ROAD_FREIGHT",
@@ -609,14 +666,15 @@ export async function saveQuotationDraft(
             vendorId: selected.vendorId,
             costSourceId: selected.vendorId,
             vendorName: selected.vendorName,
-            quantity: 1,
+            quantity: itemQty.toNumber(),
             unit: item.unit || "TRIP",
             rateBasis: "PER_TRIP",
             originalCurrency: selected.currency,
             originalRate: Number(selected.buyRate),
             fxRateToVnd: selected.fxRateToVnd,
-            estimatedCostVnd: selected.buyRateVnd,
-            worstCaseCostVnd: Number(result.worstCaseBuy ?? selected.buyRateVnd),
+            unitCostVnd: roadUnitBuy,
+            estimatedCostVnd: roundVnd(new Decimal(roadUnitBuy).mul(itemQty)).toNumber(),
+            worstCaseCostVnd: roundVnd(new Decimal(roadWorstUnit).mul(itemQty)).toNumber(),
           });
         }
       }
@@ -873,12 +931,12 @@ export async function saveQuotationDraft(
                quotation_id, item_id, cost_code, cost_name, is_required,
                rate_source_id, vendor_id, cost_source_id, vendor_name,
                quantity, unit, rate_basis, original_currency, original_rate,
-               fx_rate_to_vnd, estimated_cost_vnd, worst_case_cost_vnd
+               fx_rate_to_vnd, unit_cost_vnd, estimated_cost_vnd, worst_case_cost_vnd
              ) VALUES (
                $1, $2, $3, $4, $5,
                $6, $7, $8, $9,
                $10, $11, $12, $13, $14,
-               $15, $16, $17
+               $15, $16, $17, $18
              );`,
             [
               quotationId,
@@ -896,6 +954,7 @@ export async function saveQuotationDraft(
               comp.originalCurrency,
               comp.originalRate,
               comp.fxRateToVnd,
+              comp.unitCostVnd,
               comp.estimatedCostVnd,
               comp.worstCaseCostVnd,
             ]
@@ -1699,6 +1758,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
          original_currency as "originalCurrency",
          original_rate as "originalRate",
          fx_rate_to_vnd as "fxRateToVnd",
+         unit_cost_vnd as "unitCostVnd",
          estimated_cost_vnd as "estimatedCostVnd",
          worst_case_cost_vnd as "worstCaseCostVnd",
          created_at as "createdAt"
@@ -1724,6 +1784,7 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
       originalCurrency: r.originalCurrency,
       originalRate: Number(r.originalRate || 0),
       fxRateToVnd: Number(r.fxRateToVnd || 1),
+      unitCostVnd: Number(r.unitCostVnd || 0),
       estimatedCostVnd: Number(r.estimatedCostVnd || 0),
       worstCaseCostVnd: Number(r.worstCaseCostVnd || 0),
       createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
@@ -1753,6 +1814,8 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
       estimatedGp: Number(quote.estimatedGp || 0),
       estimatedMarginPercent: Number(quote.estimatedMarginPercent || 0),
       paymentTermsDays: Number(quote.paymentTermsDays ?? 30),
+      pricingDate: quote.pricingDate || undefined,
+      validUntil: quote.validUntil || undefined,
       immutableLocked: Boolean(quote.immutableLocked),
       createdBy: quote.createdBy || "System",
       createdByUserId: quote.createdByUserId || undefined,

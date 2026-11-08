@@ -296,6 +296,7 @@ export interface PortRateLookupQuery {
   containerType?: string;
   cargoType?: string;
   pricingDate?: string;
+  validityDate?: string;
 }
 
 export interface PortRateLookupResult {
@@ -311,6 +312,8 @@ export interface PortRateLookupResult {
 export async function lookupPortRates(
   query: PortRateLookupQuery
 ): Promise<PortRateLookupResult> {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const allRates = await getPortRatesDetailedList({
     status: "ACTIVE",
     portCode: query.portCode,
@@ -331,6 +334,10 @@ export async function lookupPortRates(
       return false;
     }
     if (query.cargoType && r.cargoType !== query.cargoType) return false;
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
+    }
     return true;
   });
 

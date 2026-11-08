@@ -346,8 +346,11 @@ export async function lookupInsuranceRate(query: {
   commodityId?: string;
   commodityName?: string;
   validityDate?: string;
+  pricingDate?: string;
   invoiceValueVnd?: number;
 }) {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const rates = await getInsuranceRatesDetailedList({
     coverageType: query.coverageType,
     transportMode: query.transportMode,
@@ -356,9 +359,9 @@ export async function lookupInsuranceRate(query: {
 
   const matching = rates.filter((r) => {
     // 1. Kiểm tra thời hạn hiệu lực
-    if (query.validityDate) {
-      if (r.validFrom && query.validityDate < r.validFrom) return false;
-      if (r.validTo && query.validityDate >= r.validTo) return false;
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
     }
     // 2. Kiểm tra phương thức vận tải (MULTIMODAL chấp nhận cho mọi phương thức)
     if (

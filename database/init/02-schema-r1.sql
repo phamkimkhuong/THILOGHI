@@ -429,6 +429,7 @@ CREATE TABLE IF NOT EXISTS quotation_item_cost_components (
     original_currency VARCHAR(10) NOT NULL DEFAULT 'VND',
     original_rate NUMERIC(15, 2) NOT NULL DEFAULT 0,
     fx_rate_to_vnd NUMERIC(12, 4) NOT NULL DEFAULT 1.0000,
+    unit_cost_vnd NUMERIC(15, 2) NOT NULL DEFAULT 0,
     estimated_cost_vnd NUMERIC(15, 2) NOT NULL DEFAULT 0,
     worst_case_cost_vnd NUMERIC(15, 2) NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

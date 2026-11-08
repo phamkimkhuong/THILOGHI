@@ -305,18 +305,29 @@ function Workspace() {
         });
 
         if (res.candidates && res.candidates.length > 0) {
-          const candidates = res.candidates.map((c) => ({
-            rateId: c.rateId,
-            vendorId: c.portCode || "CHU_LAI",
-            vendorName: `${c.portName} [${c.chargeCode}] - ${c.serviceCategory} (${c.containerType})`,
-            buyRate: c.unitPrice,
-            currency: c.currency,
-            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
-            buyRateVnd: c.unitPriceVnd,
-            validityRange: `[${c.validFrom},${c.validTo})`,
-            validityStart: c.validFrom,
-            validityEnd: c.validTo,
-          }));
+          const isReefer = ["20HR", "40HR"].includes(item.equipmentType || "");
+          const thcCandidate = isReefer ? res.candidates.find((c) => c.chargeCode === "THC_PORT") : undefined;
+
+          const candidates = res.candidates.map((c) => {
+            const isLolo = c.chargeCode === "LOLO";
+            const addThc = isReefer && isLolo && thcCandidate;
+            const extraThcVnd = addThc ? thcCandidate.unitPriceVnd : 0;
+
+            return {
+              rateId: c.rateId,
+              vendorId: c.portCode || "CHU_LAI",
+              vendorName: addThc
+                ? `${c.portName} [LOLO + THC Cảng lạnh] (${c.containerType})`
+                : `${c.portName} [${c.chargeCode}] - ${c.serviceCategory} (${c.containerType})`,
+              buyRate: c.unitPrice + (addThc ? thcCandidate.unitPrice : 0),
+              currency: c.currency,
+              fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
+              buyRateVnd: c.unitPriceVnd + extraThcVnd,
+              validityRange: `[${c.validFrom},${c.validTo})`,
+              validityStart: c.validFrom,
+              validityEnd: c.validTo,
+            };
+          });
 
           const worstCase = Math.max(...candidates.map((c) => c.buyRateVnd));
           const bestCandidate = candidates[0];
@@ -340,7 +351,11 @@ function Workspace() {
                 : x
             )
           );
-          toast.success(`Tìm thấy ${candidates.length} biểu phí cảng phù hợp.`);
+          if (isReefer && !thcCandidate) {
+            toast.warning("Lưu ý: Không tìm thấy biểu phí THC cảng cho cont lạnh tại cảng này. Cần bổ sung biểu phí THC trước khi lưu.");
+          } else {
+            toast.success(`Tìm thấy ${candidates.length} biểu phí cảng phù hợp.`);
+          }
           setMessage("Chọn tác nghiệp cảng phù hợp từ bảng so sánh bên dưới.");
         } else {
           toast.error(res.message || "Không tìm thấy biểu phí cảng phù hợp.");
@@ -404,10 +419,15 @@ function Workspace() {
     // Phân hệ Vận tải biển (OCEAN)
     if (item.servicePackage === "OCEAN") {
       void perform(async () => {
+        const resolvedCommodityName = header.commodityId && master?.commodities
+          ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
+          : undefined;
+
         const res = await lookupOceanRatesAction({
           polId: item.originLocationId ? item.originLocationId : undefined,
           podId: item.destinationLocationId ? item.destinationLocationId : undefined,
           containerType: item.equipmentType ? item.equipmentType : undefined,
+          commodityName: resolvedCommodityName,
           pricingDate: pricingDateToUse,
         });
 
@@ -415,7 +435,7 @@ function Workspace() {
           const candidates = res.candidates.map((c) => ({
             rateId: c.rateId,
             vendorId: c.carrierId,
-            vendorName: `${c.carrierName} [${c.containerType} - ${c.polName} -> ${c.podName}]`,
+            vendorName: `${c.carrierName} [${c.containerType} - ${c.polName} -> ${c.podName}] (${c.commodityName})`,
             buyRate: c.totalChargesVnd,
             currency: "VND",
             fxRateToVnd: 1,

@@ -1124,6 +1124,7 @@ export async function lookupCustomsRatesAction(query: {
   commodityId?: string;
   commodityName?: string;
   validityDate?: string;
+  pricingDate?: string;
 }) {
   try {
     await requireAuth();
@@ -1243,6 +1244,7 @@ export async function lookupWarehouseRatesAction(query: {
   commodityId?: string;
   commodityName?: string;
   validityDate?: string;
+  pricingDate?: string;
 }) {
   try {
     await requireAuth();
@@ -1350,6 +1352,7 @@ export async function lookupInsuranceRatesAction(query: {
   commodityId?: string;
   commodityName?: string;
   validityDate?: string;
+  pricingDate?: string;
   invoiceValueVnd?: number;
 }) {
   try {
@@ -1455,6 +1458,7 @@ export async function deleteOtherRateAction(rateId: string) {
 export async function lookupOtherRatesAction(query: {
   serviceCode?: string;
   validityDate?: string;
+  pricingDate?: string;
 }) {
   try {
     await requireAuth();

@@ -300,16 +300,19 @@ export async function deleteOtherRateService(
 export async function lookupOtherRate(query: {
   serviceCode?: string;
   validityDate?: string;
+  pricingDate?: string;
 }) {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const rates = await getOtherRatesDetailedList({
     serviceCode: query.serviceCode,
     status: "ACTIVE",
   });
 
   const matching = rates.filter((r) => {
-    if (query.validityDate) {
-      if (r.validFrom && query.validityDate < r.validFrom) return false;
-      if (r.validTo && query.validityDate >= r.validTo) return false;
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
     }
     return true;
   });

@@ -412,6 +412,7 @@ export const quotationItemCostComponents = pgTable("quotation_item_cost_componen
   originalCurrency: varchar("original_currency", { length: 10 }).default("VND").notNull(),
   originalRate: numeric("original_rate", { precision: 15, scale: 2 }).default("0").notNull(),
   fxRateToVnd: numeric("fx_rate_to_vnd", { precision: 12, scale: 4 }).default("1.0000").notNull(),
+  unitCostVnd: numeric("unit_cost_vnd", { precision: 15, scale: 2 }).default("0").notNull(),
   estimatedCostVnd: numeric("estimated_cost_vnd", { precision: 15, scale: 2 }).default("0").notNull(),
   worstCaseCostVnd: numeric("worst_case_cost_vnd", { precision: 15, scale: 2 }).default("0").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

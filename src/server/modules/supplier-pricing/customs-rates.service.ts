@@ -352,7 +352,10 @@ export async function lookupCustomsRate(query: {
   commodityId?: string;
   commodityName?: string;
   validityDate?: string;
+  pricingDate?: string;
 }) {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const rates = await getCustomsRatesDetailedList({
     customsOfficeId: query.customsOfficeId,
     procedure: query.customsProcedure,
@@ -362,9 +365,9 @@ export async function lookupCustomsRate(query: {
 
   const matching = rates.filter((r) => {
     // Kiểm tra thời hạn hiệu lực của biểu phí
-    if (query.validityDate) {
-      if (r.validFrom && query.validityDate < r.validFrom) return false;
-      if (r.validTo && query.validityDate >= r.validTo) return false;
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
     }
     if (query.commodityName && r.commodityName !== "Tất cả loại hàng") {
       if (

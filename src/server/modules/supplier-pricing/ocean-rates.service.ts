@@ -451,6 +451,7 @@ export interface OceanRateLookupQuery {
   containerType?: string;
   commodityName?: string;
   pricingDate?: string;
+  validityDate?: string;
 }
 
 export interface OceanRateLookupResult {
@@ -466,6 +467,8 @@ export interface OceanRateLookupResult {
 export async function lookupOceanRates(
   query: OceanRateLookupQuery
 ): Promise<OceanRateLookupResult> {
+  const targetDate = query.pricingDate || query.validityDate;
+
   const allRates = await getOceanRatesDetailedList({
     status: "ACTIVE",
     carrierId: query.carrierId,
@@ -487,12 +490,16 @@ export async function lookupOceanRates(
     if (query.containerType && query.containerType !== "ALL" && r.containerType !== query.containerType) {
       return false;
     }
-    if (
-      query.commodityName &&
-      query.commodityName !== "ALL" &&
-      !r.commodityName.toLowerCase().includes(query.commodityName.toLowerCase())
-    ) {
-      return false;
+    if (targetDate) {
+      if (r.validFrom && targetDate < r.validFrom) return false;
+      if (r.validTo && targetDate >= r.validTo) return false;
+    }
+    if (query.commodityName && query.commodityName !== "ALL") {
+      const qComm = query.commodityName.toLowerCase().trim();
+      const rComm = (r.commodityName || "").toLowerCase().trim();
+      if (!rComm.includes(qComm) && !qComm.includes(rComm)) {
+        return false;
+      }
     }
     return true;
   });
@@ -500,7 +507,7 @@ export async function lookupOceanRates(
   if (matching.length === 0) {
     return {
       status: "MISSING_RATE",
-      message: "Không tìm thấy biểu cước vận tải biển phù hợp với tuyến cảng và hãng tàu đã chọn.",
+      message: "Không tìm thấy biểu cước vận tải biển phù hợp với tuyến cảng, loại cont và mặt hàng đã chọn.",
       candidates: [],
     };
   }
@@ -514,14 +521,15 @@ export async function lookupOceanRates(
     };
   }
 
-  // Kiểm tra xung đột: Cùng 1 hãng tàu có >1 biểu cước cho cùng điều kiện không?
-  const carrierCounts = new Map<string, number>();
+  // Kiểm tra xung đột: Chỉ coi là xung đột nếu cùng Hãng tàu, POL, POD, container VÀ cùng Mặt hàng có >1 biểu cước hiệu lực cùng lúc
+  const pricingKeyCounts = new Map<string, number>();
   for (const m of matching) {
-    carrierCounts.set(m.carrierId, (carrierCounts.get(m.carrierId) || 0) + 1);
-    if ((carrierCounts.get(m.carrierId) || 0) > 1) {
+    const key = `${m.carrierId}_${m.polId}_${m.podId}_${m.containerType}_${(m.commodityName || "").toLowerCase().trim()}`;
+    pricingKeyCounts.set(key, (pricingKeyCounts.get(key) || 0) + 1);
+    if ((pricingKeyCounts.get(key) || 0) > 1) {
       return {
         status: "CONFLICT_RATE",
-        message: `Phát hiện xung đột biểu cước trùng lặp của cùng Hãng tàu [${m.carrierName}].`,
+        message: `Phát hiện xung đột biểu cước trùng lặp của Hãng tàu [${m.carrierName}] cho mặt hàng [${m.commodityName}].`,
         candidates: matching,
       };
     }
@@ -529,7 +537,7 @@ export async function lookupOceanRates(
 
   return {
     status: "MULTIPLE_CANDIDATES",
-    message: `Tìm thấy ${matching.length} phương án hãng tàu khả dụng. Vui lòng chọn hãng tàu phù hợp.`,
+    message: `Tìm thấy ${matching.length} phương án hãng tàu/mặt hàng khả dụng. Vui lòng chọn phương án phù hợp.`,
     rate: matching[0],
     candidates: matching,
   };
