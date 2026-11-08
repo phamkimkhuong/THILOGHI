@@ -5,7 +5,6 @@ import {
   PageHeader,
   RefreshButton,
   useListFeedback,
-  TableFeedback,
 } from "@/components/ui/list-page";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -222,26 +221,18 @@ export default function OceanRatesPage() {
         onResetFilters={handleResetFilters}
       />
 
-      {/* 3. Phản hồi tải dữ liệu hoặc lỗi */}
-      <TableFeedback
-        columns={11}
+      {/* 3. Bảng biểu cước */}
+      <OceanRatesTable
+        rates={filteredRates}
         loading={loading}
         error={error}
         onRetry={loadData}
+        onView={(rate) => setSelectedDrawerItem(rate)}
+        onEdit={(rate) => handleOpenEditModal(rate)}
+        onToggleStatus={(rate) => setToggleTarget(rate)}
+        onDelete={(rate) => setDeleteTarget(rate)}
+        onResetFilters={handleResetFilters}
       />
-
-      {/* 4. Bảng biểu cước */}
-      {!loading && !error && (
-        <OceanRatesTable
-          rates={filteredRates}
-          loading={loading}
-          onView={(rate) => setSelectedDrawerItem(rate)}
-          onEdit={(rate) => handleOpenEditModal(rate)}
-          onToggleStatus={(rate) => setToggleTarget(rate)}
-          onDelete={(rate) => setDeleteTarget(rate)}
-          onResetFilters={handleResetFilters}
-        />
-      )}
 
       {/* 5. Slide-over Drawer xem chi tiết */}
       <OceanRateDetailDrawer

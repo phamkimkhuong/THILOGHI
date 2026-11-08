@@ -45,6 +45,7 @@ export function useListFeedback(cacheKey?: string) {
   return { loading, error, runLoad };
 }
 export function TableFeedback({ columns, loading, error, onRetry }: { columns: number; loading: boolean; error: string | null; onRetry: () => void }) {
+  if (!loading && !error) return null;
   return <tr><td colSpan={columns} className="py-12 text-center">
     {loading ? <div role="status" className="flex items-center justify-center gap-2 text-muted-foreground"><RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />Đang tải dữ liệu…</div>
       : <div role="alert" className="flex flex-col items-center gap-3 text-foreground"><AlertCircle className="h-5 w-5 text-amber-500" aria-hidden="true" />{error}<button type="button" onClick={onRetry} className="erp-button border border-border bg-surface hover:bg-surface-hover text-foreground">Thử lại</button></div>}

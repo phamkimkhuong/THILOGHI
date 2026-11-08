@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, Pencil, Power, Trash2, Calendar, Ship, ArrowRight } from "lucide-react";
-import { TableContainer } from "@/components/ui/list-page";
+import { TableContainer, TableFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import {
 interface OceanRatesTableProps {
   rates: OceanRateItem[];
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onView: (rate: OceanRateItem) => void;
   onEdit: (rate: OceanRateItem) => void;
   onToggleStatus: (rate: OceanRateItem) => void;
@@ -25,13 +27,15 @@ interface OceanRatesTableProps {
 export function OceanRatesTable({
   rates,
   loading = false,
+  error = null,
+  onRetry,
   onView,
   onEdit,
   onToggleStatus,
   onDelete,
   onResetFilters,
 }: OceanRatesTableProps) {
-  if (!loading && rates.length === 0) {
+  if (!loading && !error && rates.length === 0) {
     return (
       <EmptyState
         title="Không tìm thấy biểu cước vận tải biển nào"
@@ -66,7 +70,15 @@ export function OceanRatesTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {rates.map((item, index) => {
+          {loading || error ? (
+            <TableFeedback
+              columns={11}
+              loading={loading}
+              error={error}
+              onRetry={onRetry ?? (() => {})}
+            />
+          ) : (
+            rates.map((item, index) => {
             const contBadge = getContainerTypeBadge(item.containerType);
             const totalLocalCharges =
               item.thcFee +
@@ -210,7 +222,7 @@ export function OceanRatesTable({
                 </td>
               </tr>
             );
-          })}
+          }))}
         </tbody>
       </table>
     </TableContainer>

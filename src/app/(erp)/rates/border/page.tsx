@@ -5,7 +5,6 @@ import {
   PageHeader,
   RefreshButton,
   useListFeedback,
-  TableFeedback,
 } from "@/components/ui/list-page";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -227,23 +226,17 @@ export default function BorderRatesPage() {
       />
 
       {/* Bảng dữ liệu với loading/error feedback */}
-      <TableFeedback
-        columns={12}
+      <BorderRatesTable
+        rates={filteredRates}
         loading={loading}
         error={error}
         onRetry={loadData}
+        onView={handleView}
+        onEdit={handleEdit}
+        onToggleStatus={(rate) => setToggleTarget(rate)}
+        onDelete={(rate) => setDeleteTarget(rate)}
+        onResetFilters={handleResetFilters}
       />
-
-      {!loading && !error && (
-        <BorderRatesTable
-          rates={filteredRates}
-          onView={handleView}
-          onEdit={handleEdit}
-          onToggleStatus={(rate) => setToggleTarget(rate)}
-          onDelete={(rate) => setDeleteTarget(rate)}
-          onResetFilters={handleResetFilters}
-        />
-      )}
 
       {/* Drawer xem chi tiết */}
       <BorderRateDetailDrawer
