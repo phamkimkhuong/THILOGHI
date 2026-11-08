@@ -45,6 +45,13 @@ export async function verifySessionToken(token: string): Promise<CurrentActor | 
   }
 }
 
+export function isCookieSecure(): boolean {
+  if (process.env.COOKIE_SECURE === "true") return true;
+  if (process.env.COOKIE_SECURE === "false") return false;
+  // Mặc định: false để tương thích truy cập qua IP HTTP (tránh bị trình duyệt drop cookie khi chưa có SSL)
+  return false;
+}
+
 export async function getSessionActor(): Promise<CurrentActor | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -54,13 +61,19 @@ export async function getSessionActor(): Promise<CurrentActor | null> {
 export async function setSessionActor(actor: CurrentActor): Promise<void> {
   const token = await createSessionToken(actor);
   const cookieStore = await cookies();
+  const secure = isCookieSecure();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax",
     path: "/",
     maxAge: 7 * 24 * 60 * 60, // 7 days
   });
+  if (!secure && process.env.NODE_ENV === "production") {
+    console.warn(
+      `[AUTH NOTICE] Session cookie cho user [${actor.username}] đang chạy ở chế độ HTTP (Secure=false). Khi triển khai HTTPS domain, hãy đặt COOKIE_SECURE=true trong file .env.`
+    );
+  }
 }
 
 export async function switchSessionUser(userId: string): Promise<CurrentActor> {

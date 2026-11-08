@@ -31,6 +31,7 @@ export async function loginAction(_state: { error: string }, form: FormData) {
     );
     const user = rows[0];
     if (!user?.password_hash) {
+      console.warn(`[AUTH FAIL] Đăng nhập thất bại: Tài khoản [${username}] không tồn tại hoặc đã bị vô hiệu hóa.`);
       return { error: "Tên đăng nhập hoặc mật khẩu không đúng." };
     }
 
@@ -52,15 +53,17 @@ export async function loginAction(_state: { error: string }, form: FormData) {
     }
 
     if (!isPasswordValid) {
+      console.warn(`[AUTH FAIL] Đăng nhập thất bại: Tài khoản [${username}] nhập sai mật khẩu.`);
       return { error: "Tên đăng nhập hoặc mật khẩu không đúng." };
     }
 
     const actor = await findUserById(user.user_id);
     if (!actor) return { error: "Tài khoản không còn hoạt động." };
     await setSessionActor(actor);
+    console.log(`[AUTH SUCCESS] User [${actor.username} - ${actor.role}] (${actor.fullName}) đăng nhập thành công.`);
     attempts.delete(key);
   } catch (err) {
-    console.error("Lỗi đăng nhập:", err);
+    console.error(`[AUTH ERROR] Ngoại lệ khi đăng nhập cho user [${username}]:`, err);
     return {
       error:
         process.env.NODE_ENV === "development" && err instanceof Error
