@@ -95,10 +95,22 @@ import {
   type WarehouseRateItem,
   type SaveWarehouseRateInput,
 } from "@/server/modules/supplier-pricing/warehouse-rates.service";
+import {
+  getInsuranceRatesDetailedList,
+  getInsurersList,
+  saveInsuranceRateService,
+  toggleInsuranceRateStatusService,
+  deleteInsuranceRateService,
+  lookupInsuranceRate,
+  type InsuranceRateItem,
+  type SaveInsuranceRateInput,
+} from "@/server/modules/supplier-pricing/insurance-rates.service";
 
 export type {
   WarehouseRateItem,
   SaveWarehouseRateInput,
+  InsuranceRateItem,
+  SaveInsuranceRateInput,
 };
 
 export type {
@@ -1229,6 +1241,114 @@ export async function lookupWarehouseRatesAction(query: {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí dịch vụ Kho bãi",
+      candidates: [],
+    };
+  }
+}
+
+/* ====================================================================
+ * PHASE 11: BIỂU PHÍ BẢO HIỂM HÀNG HÓA (INSURANCE RATES)
+ * ==================================================================== */
+
+export async function getInsuranceRatesAction(filters?: {
+  insurerId?: string;
+  coverageType?: string;
+  transportMode?: string;
+  status?: string;
+  search?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getInsuranceRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh sách biểu phí Bảo hiểm",
+    };
+  }
+}
+
+export async function getInsurersAction() {
+  try {
+    await requireAuth();
+    const data = await getInsurersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục đơn vị bảo hiểm",
+    };
+  }
+}
+
+export async function saveInsuranceRateAction(input: SaveInsuranceRateInput): Promise<
+  | { success: true; message: string; rateId: string }
+  | { success: false; error: string }
+> {
+  try {
+    const actor = await requireAuth();
+    const result = await saveInsuranceRateService(input, actor);
+    return { success: true, message: result.message, rateId: result.rateId };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí Bảo hiểm hàng hóa",
+    };
+  }
+}
+
+export async function toggleInsuranceRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleInsuranceRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã ${status === "ACTIVE" ? "kích hoạt" : "tạm dừng"} biểu phí Bảo hiểm thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí Bảo hiểm",
+    };
+  }
+}
+
+export async function deleteInsuranceRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteInsuranceRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí Bảo hiểm thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí Bảo hiểm",
+    };
+  }
+}
+
+export async function lookupInsuranceRatesAction(query: {
+  transportMode?: string;
+  coverageType?: string;
+  commodityId?: string;
+  commodityName?: string;
+  validityDate?: string;
+  invoiceValueVnd?: number;
+}) {
+  try {
+    await requireAuth();
+    const res = await lookupInsuranceRate(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí Bảo hiểm hàng hóa",
       candidates: [],
     };
   }

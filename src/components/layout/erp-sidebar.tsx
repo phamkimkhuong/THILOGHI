@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, Ship, FileCheck, Warehouse, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, Ship, FileCheck, Warehouse, Shield, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 export const navigation = [
   {
     label: "Danh mục", items: [
@@ -20,6 +20,7 @@ export const navigation = [
       { label: "Biểu cước Vận tải biển", href: "/rates/ocean", icon: Ship },
       { label: "Biểu phí Hải quan", href: "/rates/customs", icon: FileCheck },
       { label: "Biểu phí Kho bãi", href: "/rates/warehousing", icon: Warehouse },
+      { label: "Biểu phí Bảo hiểm", href: "/rates/insurance", icon: Shield },
     ]
   },
   {
