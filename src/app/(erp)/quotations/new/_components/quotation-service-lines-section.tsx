@@ -79,6 +79,7 @@ export function QuotationServiceLinesSection({
           <thead>
             <tr>
               <th className="w-16 text-center">Dòng</th>
+              <th className="w-28">Gói dịch vụ</th>
               <th>Lộ trình (Điểm đi → Điểm đến)</th>
               <th className="text-center">Số lượng</th>
               <th className="text-right">Giá mua / Đơn vị</th>
@@ -132,6 +133,12 @@ export function QuotationServiceLinesSection({
                       #{i + 1}
                       {hasItemErr ? " (!)" : ""}
                     </button>
+                  </td>
+
+                  <td>
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-primary dark:bg-blue-950 dark:text-blue-300">
+                      {x.servicePackage || "TRUCKING"}
+                    </span>
                   </td>
 
                   <td>
@@ -199,6 +206,43 @@ export function QuotationServiceLinesSection({
           </div>
 
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Gói dịch vụ */}
+            <div className="space-y-1.5 font-sans">
+              <label className="block text-xs font-semibold text-foreground">
+                Gói dịch vụ thương mại <span className="text-red-500">*</span>
+                <select
+                  disabled={locked}
+                  className={cn(inputClass, "mt-1 font-semibold")}
+                  value={item.servicePackage || "TRUCKING"}
+                  onChange={(e) => {
+                    const selectedPkg = master?.services?.find((s) => s.serviceId === e.target.value);
+                    onUpdateItem({
+                      servicePackage: e.target.value,
+                      unit: selectedPkg?.defaultUnit || item.unit,
+                    });
+                  }}
+                >
+                  {(master?.services && master.services.length > 0
+                    ? master.services
+                    : [
+                        { serviceId: "TRUCKING", serviceName: "Vận tải đường bộ" },
+                        { serviceId: "OCEAN", serviceName: "Vận tải biển" },
+                        { serviceId: "PORT", serviceName: "Cảng & Depot" },
+                        { serviceId: "CUSTOMS", serviceName: "Hải quan & XNK" },
+                        { serviceId: "BORDER_GATE", serviceName: "Cửa khẩu & Bãi kiểm hóa" },
+                        { serviceId: "WAREHOUSING", serviceName: "Kho bãi & Lưu trữ" },
+                        { serviceId: "INSURANCE", serviceName: "Bảo hiểm hàng hóa" },
+                        { serviceId: "OTHER", serviceName: "Dịch vụ khác có kiểm soát" },
+                      ]
+                  ).map((s) => (
+                    <option key={s.serviceId} value={s.serviceId}>
+                      [{s.serviceId}] {s.serviceName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             {/* Điểm đi */}
             <ChoiceSelect
               label="Điểm đi (Origin)"

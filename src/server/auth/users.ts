@@ -1,25 +1,34 @@
-import { pool } from "@/server/db";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq, and, asc } from "drizzle-orm";
 import { CurrentActor, UserRole } from "./types";
 
 /**
- * Tìm người dùng theo mã định danh (user_id) trực tiếp từ PostgreSQL
+ * Tìm người dùng theo mã định danh (user_id) trực tiếp từ PostgreSQL qua Drizzle ORM
  */
 export async function findUserById(userId: string): Promise<CurrentActor | null> {
   try {
-    const { rows } = await pool.query(
-      `SELECT user_id, username, full_name, role, region_scopes, email 
-       FROM users 
-       WHERE user_id = $1 AND is_active = true`,
-      [userId]
-    );
+    const rows = await db
+      .select({
+        userId: users.userId,
+        username: users.username,
+        fullName: users.fullName,
+        role: users.role,
+        regionScopes: users.regionScopes,
+        email: users.email,
+      })
+      .from(users)
+      .where(and(eq(users.userId, userId), eq(users.isActive, true)))
+      .limit(1);
+
     if (rows.length > 0) {
       const r = rows[0];
       return {
-        userId: r.user_id,
+        userId: r.userId,
         username: r.username,
-        fullName: r.full_name,
+        fullName: r.fullName,
         role: r.role as UserRole,
-        regionScopes: Array.isArray(r.region_scopes) ? r.region_scopes : [r.region_scopes],
+        regionScopes: Array.isArray(r.regionScopes) ? r.regionScopes : [r.regionScopes],
         email: r.email || undefined,
       };
     }
@@ -30,26 +39,31 @@ export async function findUserById(userId: string): Promise<CurrentActor | null>
 }
 
 /**
- * Lấy danh sách toàn bộ tài khoản người dùng hoạt động từ PostgreSQL
+ * Lấy danh sách toàn bộ tài khoản người dùng hoạt động từ PostgreSQL qua Drizzle ORM
  */
 export async function getActiveUsersList(): Promise<CurrentActor[]> {
   try {
-    const { rows } = await pool.query(
-      `SELECT user_id, username, full_name, role, region_scopes, email 
-       FROM users 
-       WHERE is_active = true 
-       ORDER BY role ASC, full_name ASC`
-    );
-    if (rows.length > 0) {
-      return rows.map((r) => ({
-        userId: r.user_id,
-        username: r.username,
-        fullName: r.full_name,
-        role: r.role as UserRole,
-        regionScopes: Array.isArray(r.region_scopes) ? r.region_scopes : [r.region_scopes],
-        email: r.email || undefined,
-      }));
-    }
+    const rows = await db
+      .select({
+        userId: users.userId,
+        username: users.username,
+        fullName: users.fullName,
+        role: users.role,
+        regionScopes: users.regionScopes,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.isActive, true))
+      .orderBy(asc(users.role), asc(users.fullName));
+
+    return rows.map((r) => ({
+      userId: r.userId,
+      username: r.username,
+      fullName: r.fullName,
+      role: r.role as UserRole,
+      regionScopes: Array.isArray(r.regionScopes) ? r.regionScopes : [r.regionScopes],
+      email: r.email || undefined,
+    }));
   } catch (err) {
     console.warn("Lỗi khi lấy danh sách users từ database:", err);
   }

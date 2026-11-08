@@ -17,3 +17,4 @@ export * from "./location.service";
 export * from "./commodity.service";
 export * from "./fleet.service";
 export * from "./road-rates.service";
+export * from "./service-package.service";

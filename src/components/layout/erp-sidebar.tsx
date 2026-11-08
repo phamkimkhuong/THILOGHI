@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPin, Package, Truck, Receipt, FileText, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Building2, MapPin, Package, Truck, Layers, Receipt, FileText, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 export const navigation = [
   { label: "Danh mục", items: [
     { label: "Đối tác", href: "/master/customers", icon: Building2 },
     { label: "Địa điểm", href: "/master/locations", icon: MapPin },
     { label: "Hàng hóa", href: "/master/commodities", icon: Package },
     { label: "Đội xe", href: "/master/fleet", icon: Truck },
+    { label: "Dịch vụ", href: "/master/services", icon: Layers },
   ] },
   { label: "Giá mua", items: [{ label: "Giá mua đường bộ", href: "/rates", icon: Receipt }] },
   { label: "Báo giá", items: [

@@ -30,6 +30,7 @@ import { QuotationFinancialSummary } from "./_components/quotation-financial-sum
 import { QuotationApprovalSection } from "./_components/quotation-approval-section";
 import { QuotationApprovalDialog } from "./_components/quotation-approval-dialog";
 import { QuotationMobileActionBar } from "./_components/quotation-mobile-action-bar";
+import { WorkspaceSkeleton } from "@/components/ui/workspace-skeleton";
 import {
   BLANK_HEADER,
   type FieldErrors,
@@ -485,6 +486,10 @@ function Workspace() {
     }
   };
 
+  if (loading) {
+    return <WorkspaceSkeleton />;
+  }
+
   return (
     <div className="space-y-5 text-foreground font-sans pb-20 lg:pb-6">
       {/* 1. Header Bar: Tiêu đề, Trạng thái & Các nút tác vụ */}
@@ -499,13 +504,7 @@ function Workspace() {
         onCreateVersion={handleCreateVersion}
       />
 
-      {/* Thông báo trạng thái & Thông báo lỗi */}
-      {loading && (
-        <div className="p-4 rounded-xl bg-surface border border-border text-xs text-muted-foreground animate-pulse">
-          Đang nạp hồ sơ báo giá và danh mục hệ thống...
-        </div>
-      )}
-
+      {/* Thông báo lỗi khi tải dữ liệu */}
       {loadError && (
         <div
           role="alert"
@@ -640,13 +639,7 @@ function Workspace() {
 
 export default function QuotationWorkspacePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="p-8 text-center text-xs text-muted-foreground">
-          Đang khởi tạo không gian soạn thảo báo giá...
-        </div>
-      }
-    >
+    <Suspense fallback={<WorkspaceSkeleton />}>
       <Workspace />
     </Suspense>
   );

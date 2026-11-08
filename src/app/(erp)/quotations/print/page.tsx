@@ -6,6 +6,7 @@ import { FileSpreadsheet, Printer, ArrowLeft } from "lucide-react";
 import { getCommercialSheetAction } from "@/features/quotation/phase4-actions";
 import { exportQuotationToExcel } from "@/shared/utils/excel";
 import { useDocumentTitle } from "@/shared/hooks/use-document-title";
+import { PrintSkeleton } from "@/components/ui/print-skeleton";
 
 const money = (n: number) => new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(n);
 const inclusions: Record<string,string> = {INCLUDED:"Trong giá chào",SEPARATELY_BILLED:"Thu riêng",PASS_THROUGH_ACTUAL:"Thu theo thực tế · tạm tính"};
@@ -23,7 +24,7 @@ function PrintSheet() {
     },0);
     return ()=>{current=false;clearTimeout(timer);};
   },[id,retry]);
-  if (!result) return <p role="status">Đang tải bản in…</p>;
+  if (!result) return <PrintSkeleton />;
   if (!result.success) return <div role="alert" className="space-y-3"><p>{result.error}</p><button className="erp-button" onClick={()=>setRetry(n=>n+1)}>Thử lại</button><Link className="erp-button" href="/quotations">Danh sách báo giá</Link></div>;
   const {sheet} = result;
   return <div className="space-y-4">
@@ -70,4 +71,10 @@ function PrintSheet() {
     </article>
   </div>;
 }
-export default function QuotationPrintPage(){return <Suspense fallback={<p>Đang tải…</p>}><PrintSheet /></Suspense>;}
+export default function QuotationPrintPage() {
+  return (
+    <Suspense fallback={<PrintSkeleton />}>
+      <PrintSheet />
+    </Suspense>
+  );
+}

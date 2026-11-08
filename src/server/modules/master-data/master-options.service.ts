@@ -1,4 +1,13 @@
-import { pool } from "@/server/db";
+import { db } from "@/server/db";
+import {
+  regions,
+  customers,
+  partners,
+  locations,
+  commodities,
+  vendors,
+} from "@/server/db/schema";
+import { eq, and, asc, ilike, or } from "drizzle-orm";
 
 export interface MasterOption {
   id: string;
@@ -19,38 +28,61 @@ export const EQUIPMENT_TYPES = [
 ];
 
 /**
- * Lấy danh sách Phân vùng nghiệp vụ thực tế từ PostgreSQL (regions)
+ * Lấy danh sách Phân vùng nghiệp vụ thực tế từ PostgreSQL (regions) qua Drizzle ORM
  * Fail-Closed: Tuyệt đối không dùng dữ liệu giả/fallback
  */
 export async function getMasterRegions(): Promise<MasterOption[]> {
-  const { rows } = await pool.query(
-    "SELECT region_id as id, name, scope as code FROM regions ORDER BY region_id ASC"
-  );
+  const rows = await db
+    .select({
+      id: regions.regionId,
+      name: regions.name,
+      code: regions.scope,
+    })
+    .from(regions)
+    .orderBy(asc(regions.regionId));
+
   return rows;
 }
 
 /**
- * Lấy danh sách Khách hàng thực tế từ PostgreSQL (customers role + partners identity)
- * Chỉ hiển thị đối tác có Customer Role ACTIVE
+ * Lấy danh sách Khách hàng thực tế từ PostgreSQL (customers role + partners identity) qua Drizzle ORM
+ * Chỉ hiển thị đối tác có Customer Role ACTIVE và Partner ACTIVE
  */
 export async function getMasterCustomers(): Promise<MasterOption[]> {
-  const { rows } = await pool.query(
-    `SELECT c.customer_id as id, p.partner_name as name, p.tax_code as code
-     FROM customers c
-     JOIN partners p ON c.customer_id = p.partner_id
-     WHERE c.role_status = 'ACTIVE' AND p.status = 'ACTIVE'
-     ORDER BY p.partner_name ASC`
-  );
-  return rows;
+  const rows = await db
+    .select({
+      id: customers.customerId,
+      name: partners.partnerName,
+      code: partners.taxCode,
+    })
+    .from(customers)
+    .innerJoin(partners, eq(customers.customerId, partners.partnerId))
+    .where(and(eq(customers.roleStatus, "ACTIVE"), eq(partners.status, "ACTIVE")))
+    .orderBy(asc(partners.partnerName));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    code: r.code || undefined,
+  }));
 }
 
 /**
- * Lấy danh sách Địa điểm, Cảng, Depot, Cửa khẩu thực tế từ PostgreSQL (locations)
+ * Lấy danh sách Địa điểm, Cảng, Depot, Cửa khẩu thực tế từ PostgreSQL (locations) qua Drizzle ORM
  */
 export async function getMasterLocations(): Promise<MasterOption[]> {
-  const { rows } = await pool.query(
-    "SELECT location_id as id, name, code, location_type as type, region_id as \"regionId\" FROM locations WHERE is_active = true ORDER BY name ASC"
-  );
+  const rows = await db
+    .select({
+      id: locations.locationId,
+      name: locations.name,
+      code: locations.code,
+      type: locations.locationType,
+      regionId: locations.regionId,
+    })
+    .from(locations)
+    .where(eq(locations.isActive, true))
+    .orderBy(asc(locations.name));
+
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -60,91 +92,121 @@ export async function getMasterLocations(): Promise<MasterOption[]> {
 }
 
 /**
- * Lấy danh sách Mặt hàng thực tế từ PostgreSQL (commodities)
+ * Lấy danh sách Mặt hàng thực tế từ PostgreSQL (commodities) qua Drizzle ORM
  */
 export async function getMasterCommodities(): Promise<MasterOption[]> {
-  const { rows } = await pool.query(
-    "SELECT commodity_id as id, name, category as code FROM commodities ORDER BY name ASC"
-  );
-  return rows;
-}
+  const rows = await db
+    .select({
+      id: commodities.commodityId,
+      name: commodities.name,
+      code: commodities.category,
+    })
+    .from(commodities)
+    .orderBy(asc(commodities.name));
 
-/**
- * Lấy danh sách Nhà cung cấp / Đội xe thực tế từ PostgreSQL (vendors role + partners identity)
- * Chỉ hiển thị đối tác có Vendor Role ACTIVE
- */
-export async function getMasterVendors(): Promise<MasterOption[]> {
-  const { rows } = await pool.query(
-    `SELECT v.vendor_id as id, p.partner_name as name, p.tax_code as code, v.vendor_type as type
-     FROM vendors v
-     JOIN partners p ON v.vendor_id = p.partner_id
-     WHERE v.role_status = 'ACTIVE' AND p.status = 'ACTIVE'
-     ORDER BY p.partner_name ASC`
-  );
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
-    code: r.code,
+    code: r.code || undefined,
+  }));
+}
+
+/**
+ * Lấy danh sách Nhà cung cấp / Đội xe thực tế từ PostgreSQL (vendors role + partners identity) qua Drizzle ORM
+ * Chỉ hiển thị đối tác có Vendor Role ACTIVE và Partner ACTIVE
+ */
+export async function getMasterVendors(): Promise<MasterOption[]> {
+  const rows = await db
+    .select({
+      id: vendors.vendorId,
+      name: partners.partnerName,
+      code: partners.taxCode,
+      type: vendors.vendorType,
+    })
+    .from(vendors)
+    .innerJoin(partners, eq(vendors.vendorId, partners.partnerId))
+    .where(and(eq(vendors.roleStatus, "ACTIVE"), eq(partners.status, "ACTIVE")))
+    .orderBy(asc(partners.partnerName));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    code: r.code || undefined,
     extra: { type: r.type },
   }));
 }
 
 /**
- * Lấy danh sách khách hàng từ customers (role) JOIN partners (identity)
+ * Lấy danh sách khách hàng từ customers (role) JOIN partners (identity) qua Drizzle ORM
  */
 export async function getCustomersDetailedList(filters?: { search?: string }) {
-  let query = `
-    SELECT 
-      c.customer_id as "customerId",
-      p.partner_name as "customerName",
-      p.short_name as "shortName",
-      p.tax_code as "taxCode",
-      p.address,
-      p.phone,
-      p.email,
-      c.payment_terms_days as "paymentTermsDays",
-      c.credit_limit_vnd as "creditLimit",
-      c.role_status as "status",
-      c.created_at as "createdAt"
-    FROM customers c
-    JOIN partners p ON c.customer_id = p.partner_id
-    WHERE 1=1
-  `;
-  const params: unknown[] = [];
-  if (filters?.search) {
-    params.push(`%${filters.search}%`);
-    query += ` AND (p.partner_name ILIKE $1 OR p.short_name ILIKE $1 OR p.tax_code ILIKE $1)`;
+  const baseQuery = db
+    .select({
+      customerId: customers.customerId,
+      customerName: partners.partnerName,
+      shortName: partners.shortName,
+      taxCode: partners.taxCode,
+      address: partners.address,
+      phone: partners.phone,
+      email: partners.email,
+      paymentTermsDays: customers.paymentTermsDays,
+      creditLimit: customers.creditLimitVnd,
+      status: customers.roleStatus,
+      createdAt: customers.createdAt,
+    })
+    .from(customers)
+    .innerJoin(partners, eq(customers.customerId, partners.partnerId));
+
+  const trimmed = filters?.search?.trim();
+  if (trimmed) {
+    const pattern = `%${trimmed}%`;
+    return await baseQuery
+      .where(
+        or(
+          ilike(partners.partnerName, pattern),
+          ilike(partners.shortName, pattern),
+          ilike(partners.taxCode, pattern)
+        )
+      )
+      .orderBy(asc(partners.partnerName))
+      .limit(300);
   }
-  query += ` ORDER BY p.partner_name ASC LIMIT 300`;
-  const { rows } = await pool.query(query, params);
-  return rows;
+
+  return await baseQuery.orderBy(asc(partners.partnerName)).limit(300);
 }
 
 /**
- * Lấy danh sách nhà cung cấp từ vendors (role) JOIN partners (identity)
+ * Lấy danh sách nhà cung cấp từ vendors (role) JOIN partners (identity) qua Drizzle ORM
  */
 export async function getVendorsDetailedList(filters?: { search?: string }) {
-  let query = `
-    SELECT 
-      v.vendor_id as "vendorId",
-      p.partner_name as "vendorName",
-      v.vendor_type as "vendorType",
-      p.tax_code as "taxCode",
-      p.phone,
-      p.email,
-      v.role_status as "status",
-      v.created_at as "createdAt"
-    FROM vendors v
-    JOIN partners p ON v.vendor_id = p.partner_id
-    WHERE 1=1
-  `;
-  const params: unknown[] = [];
-  if (filters?.search) {
-    params.push(`%${filters.search}%`);
-    query += ` AND (p.partner_name ILIKE $1 OR p.tax_code ILIKE $1 OR v.vendor_type ILIKE $1)`;
-  }
-  query += ` ORDER BY p.partner_name ASC LIMIT 200`;
-  const { rows } = await pool.query(query, params);
-  return rows;
-}
+  const baseQuery = db
+    .select({
+      vendorId: vendors.vendorId,
+      vendorName: partners.partnerName,
+      vendorType: vendors.vendorType,
+      taxCode: partners.taxCode,
+      phone: partners.phone,
+      email: partners.email,
+      status: vendors.roleStatus,
+      createdAt: vendors.createdAt,
+    })
+    .from(vendors)
+    .innerJoin(partners, eq(vendors.vendorId, partners.partnerId));
 
+  const trimmed = filters?.search?.trim();
+  if (trimmed) {
+    const pattern = `%${trimmed}%`;
+    return await baseQuery
+      .where(
+        or(
+          ilike(partners.partnerName, pattern),
+          ilike(partners.taxCode, pattern),
+          ilike(vendors.vendorType, pattern)
+        )
+      )
+      .orderBy(asc(partners.partnerName))
+      .limit(200);
+  }
+
+  return await baseQuery.orderBy(asc(partners.partnerName)).limit(200);
+}

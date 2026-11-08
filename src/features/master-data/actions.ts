@@ -35,7 +35,17 @@ import {
   type SaveDriverInput,
   getFleetVendorsService,
   getMasterRegions,
+  getMasterServicesList,
+  saveServicePackage,
+  toggleServiceStatus,
+  type MasterServicePackage,
+  type SaveServicePackageInput,
 } from "@/server/modules/master-data/master-data.service";
+
+export type {
+  MasterServicePackage,
+  SaveServicePackageInput,
+};
 
 export type {
   TractorFleetItem,
@@ -561,6 +571,53 @@ export async function bulkImportRoadRatesAction(rows: Array<{
     return {
       success: false,
       error: err instanceof Error ? err.message : "Lỗi khi import bảng giá",
+    };
+  }
+}
+
+export async function getMasterServicesAction(filters?: {
+  search?: string;
+  category?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getMasterServicesList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục dịch vụ",
+    };
+  }
+}
+
+export async function saveServicePackageAction(input: SaveServicePackageInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveServicePackage(input, actor);
+    return { success: true, data: res, message: `Đã lưu gói dịch vụ [${res.serviceName}] thành công.` };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu gói dịch vụ",
+    };
+  }
+}
+
+export async function toggleServiceStatusAction(serviceId: string, isActive: boolean) {
+  try {
+    const actor = await requireAuth();
+    await toggleServiceStatus(serviceId, isActive, actor);
+    return {
+      success: true,
+      message: `Đã ${isActive ? "kích hoạt" : "tạm dừng"} gói dịch vụ [${serviceId}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái gói dịch vụ",
     };
   }
 }

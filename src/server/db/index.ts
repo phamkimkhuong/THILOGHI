@@ -1,11 +1,13 @@
 import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
+
+export type ThilogiDatabase = NodePgDatabase<typeof schema>;
 
 // Cấu hình Singleton Pool lazy để tránh lỗi trong quá trình Docker build và tránh tràn kết nối khi Next.js chạy dev hot-reload
 const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
-  drizzleDb: ReturnType<typeof drizzle> | undefined;
+  drizzleDb: ThilogiDatabase | undefined;
 };
 
 export function getDbPool(): Pool {
@@ -51,14 +53,14 @@ export const pool = new Proxy({} as Pool, {
   },
 });
 
-export function getDrizzleDb() {
+export function getDrizzleDb(): ThilogiDatabase {
   if (!globalForDb.drizzleDb) {
     globalForDb.drizzleDb = drizzle(pool, { schema });
   }
   return globalForDb.drizzleDb;
 }
 
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+export const db = new Proxy({} as ThilogiDatabase, {
   get(_target, prop) {
     const d = getDrizzleDb();
     const val = (d as unknown as Record<string, unknown>)[prop as string];

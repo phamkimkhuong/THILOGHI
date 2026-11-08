@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { pgTable, varchar, numeric, text, boolean, timestamp, integer, uuid, pgEnum, date, customType, jsonb } from "drizzle-orm/pg-core";
 
 export const daterange = customType<{ data: string; driverData: string }>({
@@ -530,3 +531,216 @@ export const vendorInvoiceAllocations = pgTable("vendor_invoice_allocations", {
   allocatedAmountVnd: numeric("allocated_amount_vnd", { precision: 15, scale: 2 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+// --------------------------------------------------------------------
+// 7. Drizzle Table Relations (Relational Query API)
+// --------------------------------------------------------------------
+export const regionsRelations = relations(regions, ({ many }) => ({
+  locations: many(locations),
+  partners: many(partners),
+  customerQuotations: many(customerQuotations),
+  orders: many(orders),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  activatedCustomers: many(customers),
+  activatedVendors: many(vendors),
+  quotationApprovalLogs: many(quotationApprovalLog),
+}));
+
+export const locationsRelations = relations(locations, ({ one, many }) => ({
+  region: one(regions, { fields: [locations.regionId], references: [regions.regionId] }),
+  pickupRoadRates: many(roadRates, { relationName: "roadRatePickupLocation" }),
+  deliveryRoadRates: many(roadRates, { relationName: "roadRateDeliveryLocation" }),
+}));
+
+export const partnersRelations = relations(partners, ({ one, many }) => ({
+  region: one(regions, { fields: [partners.regionId], references: [regions.regionId] }),
+  customer: one(customers, { fields: [partners.partnerId], references: [customers.customerId] }),
+  vendor: one(vendors, { fields: [partners.partnerId], references: [vendors.vendorId] }),
+  auditLogs: many(partnerRoleAuditLog),
+}));
+
+export const customersRelations = relations(customers, ({ one, many }) => ({
+  partner: one(partners, { fields: [customers.customerId], references: [partners.partnerId] }),
+  activatedByUser: one(users, { fields: [customers.activatedBy], references: [users.userId] }),
+  quotations: many(customerQuotations),
+  orders: many(orders),
+  invoices: many(customerInvoices),
+}));
+
+export const vendorsRelations = relations(vendors, ({ one, many }) => ({
+  partner: one(partners, { fields: [vendors.vendorId], references: [partners.partnerId] }),
+  activatedByUser: one(users, { fields: [vendors.activatedBy], references: [users.userId] }),
+  roadRates: many(roadRates),
+  shippingOrders: many(shippingOrders),
+  invoices: many(vendorInvoices),
+}));
+
+export const partnerRoleAuditLogRelations = relations(partnerRoleAuditLog, ({ one }) => ({
+  partner: one(partners, { fields: [partnerRoleAuditLog.partnerId], references: [partners.partnerId] }),
+}));
+
+export const commoditiesRelations = relations(commodities, ({ many }) => ({
+  quotations: many(customerQuotations),
+}));
+
+export const roadRatesRelations = relations(roadRates, ({ one }) => ({
+  vendor: one(vendors, { fields: [roadRates.vendorId], references: [vendors.vendorId] }),
+  pickupLocation: one(locations, {
+    fields: [roadRates.pickupLocationId],
+    references: [locations.locationId],
+    relationName: "roadRatePickupLocation",
+  }),
+  deliveryLocation: one(locations, {
+    fields: [roadRates.deliveryLocationId],
+    references: [locations.locationId],
+    relationName: "roadRateDeliveryLocation",
+  }),
+}));
+
+export const customerQuotationsRelations = relations(customerQuotations, ({ one, many }) => ({
+  customer: one(customers, { fields: [customerQuotations.customerId], references: [customers.customerId] }),
+  region: one(regions, { fields: [customerQuotations.regionId], references: [regions.regionId] }),
+  commodity: one(commodities, { fields: [customerQuotations.commodityId], references: [commodities.commodityId] }),
+  serviceItems: many(quotationServiceItems),
+  buySnapshots: many(quotationBuySnapshots),
+  approvalLogs: many(quotationApprovalLog),
+  orders: many(orders),
+}));
+
+export const quotationServiceItemsRelations = relations(quotationServiceItems, ({ one, many }) => ({
+  quotation: one(customerQuotations, { fields: [quotationServiceItems.quotationId], references: [customerQuotations.quotationId] }),
+  buySnapshots: many(quotationBuySnapshots),
+}));
+
+export const quotationBuySnapshotsRelations = relations(quotationBuySnapshots, ({ one }) => ({
+  quotation: one(customerQuotations, { fields: [quotationBuySnapshots.quotationId], references: [customerQuotations.quotationId] }),
+  serviceItem: one(quotationServiceItems, { fields: [quotationBuySnapshots.itemId], references: [quotationServiceItems.itemId] }),
+  vendor: one(vendors, { fields: [quotationBuySnapshots.vendorId], references: [vendors.vendorId] }),
+}));
+
+export const quotationApprovalLogRelations = relations(quotationApprovalLog, ({ one }) => ({
+  quotation: one(customerQuotations, { fields: [quotationApprovalLog.quotationId], references: [customerQuotations.quotationId] }),
+  approver: one(users, { fields: [quotationApprovalLog.actorId], references: [users.userId] }),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  quotation: one(customerQuotations, { fields: [orders.quotationId], references: [customerQuotations.quotationId] }),
+  customer: one(customers, { fields: [orders.customerId], references: [customers.customerId] }),
+  region: one(regions, { fields: [orders.regionId], references: [regions.regionId] }),
+  serviceItems: many(orderServiceItems),
+  shippingOrders: many(shippingOrders),
+  customerAllocations: many(customerInvoiceAllocations),
+  vendorAllocations: many(vendorInvoiceAllocations),
+}));
+
+export const orderServiceItemsRelations = relations(orderServiceItems, ({ one, many }) => ({
+  order: one(orders, { fields: [orderServiceItems.orderId], references: [orders.orderId] }),
+  originLocation: one(locations, { fields: [orderServiceItems.originLocationId], references: [locations.locationId] }),
+  destinationLocation: one(locations, { fields: [orderServiceItems.destinationLocationId], references: [locations.locationId] }),
+  shippingOrders: many(shippingOrders),
+}));
+
+export const shippingOrdersRelations = relations(shippingOrders, ({ one }) => ({
+  order: one(orders, { fields: [shippingOrders.orderId], references: [orders.orderId] }),
+  orderItem: one(orderServiceItems, { fields: [shippingOrders.orderItemId], references: [orderServiceItems.orderItemId] }),
+  vendor: one(vendors, { fields: [shippingOrders.vendorId], references: [vendors.vendorId] }),
+}));
+
+export const customerInvoicesRelations = relations(customerInvoices, ({ one, many }) => ({
+  customer: one(customers, { fields: [customerInvoices.customerId], references: [customers.customerId] }),
+  allocations: many(customerInvoiceAllocations),
+}));
+
+export const customerInvoiceAllocationsRelations = relations(customerInvoiceAllocations, ({ one }) => ({
+  invoice: one(customerInvoices, { fields: [customerInvoiceAllocations.invoiceId], references: [customerInvoices.invoiceId] }),
+  order: one(orders, { fields: [customerInvoiceAllocations.orderId], references: [orders.orderId] }),
+}));
+
+export const vendorInvoicesRelations = relations(vendorInvoices, ({ one, many }) => ({
+  vendor: one(vendors, { fields: [vendorInvoices.vendorId], references: [vendors.vendorId] }),
+  allocations: many(vendorInvoiceAllocations),
+}));
+
+export const vendorInvoiceAllocationsRelations = relations(vendorInvoiceAllocations, ({ one }) => ({
+  invoice: one(vendorInvoices, { fields: [vendorInvoiceAllocations.invoiceId], references: [vendorInvoices.invoiceId] }),
+  order: one(orders, { fields: [vendorInvoiceAllocations.orderId], references: [orders.orderId] }),
+  shippingOrder: one(shippingOrders, { fields: [vendorInvoiceAllocations.shippingOrderId], references: [shippingOrders.shippingOrderId] }),
+}));
+
+// --------------------------------------------------------------------
+// 8. Inferred Model Types (Single Source of Truth)
+// --------------------------------------------------------------------
+export type Region = typeof regions.$inferSelect;
+export type NewRegion = typeof regions.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Location = typeof locations.$inferSelect;
+export type NewLocation = typeof locations.$inferInsert;
+
+export type Partner = typeof partners.$inferSelect;
+export type NewPartner = typeof partners.$inferInsert;
+
+export type Customer = typeof customers.$inferSelect;
+export type NewCustomer = typeof customers.$inferInsert;
+
+export type Vendor = typeof vendors.$inferSelect;
+export type NewVendor = typeof vendors.$inferInsert;
+
+export type PartnerRoleAuditLog = typeof partnerRoleAuditLog.$inferSelect;
+export type NewPartnerRoleAuditLog = typeof partnerRoleAuditLog.$inferInsert;
+
+export type Commodity = typeof commodities.$inferSelect;
+export type NewCommodity = typeof commodities.$inferInsert;
+
+export type RoadRate = typeof roadRates.$inferSelect;
+export type NewRoadRate = typeof roadRates.$inferInsert;
+
+export type MasterDataAudit = typeof masterDataAudit.$inferSelect;
+export type NewMasterDataAudit = typeof masterDataAudit.$inferInsert;
+
+export type CustomerQuotation = typeof customerQuotations.$inferSelect;
+export type NewCustomerQuotation = typeof customerQuotations.$inferInsert;
+
+export type QuotationServiceItem = typeof quotationServiceItems.$inferSelect;
+export type NewQuotationServiceItem = typeof quotationServiceItems.$inferInsert;
+
+export type QuotationBuySnapshot = typeof quotationBuySnapshots.$inferSelect;
+export type NewQuotationBuySnapshot = typeof quotationBuySnapshots.$inferInsert;
+
+export type QuotationApprovalLog = typeof quotationApprovalLog.$inferSelect;
+export type NewQuotationApprovalLog = typeof quotationApprovalLog.$inferInsert;
+
+export type Order = typeof orders.$inferSelect;
+export type NewOrder = typeof orders.$inferInsert;
+
+export type OrderServiceItem = typeof orderServiceItems.$inferSelect;
+export type NewOrderServiceItem = typeof orderServiceItems.$inferInsert;
+
+export type ShippingOrder = typeof shippingOrders.$inferSelect;
+export type NewShippingOrder = typeof shippingOrders.$inferInsert;
+
+export type CustomerInvoice = typeof customerInvoices.$inferSelect;
+export type NewCustomerInvoice = typeof customerInvoices.$inferInsert;
+
+export type CustomerInvoiceAllocation = typeof customerInvoiceAllocations.$inferSelect;
+export type NewCustomerInvoiceAllocation = typeof customerInvoiceAllocations.$inferInsert;
+
+export type VendorInvoice = typeof vendorInvoices.$inferSelect;
+export type NewVendorInvoice = typeof vendorInvoices.$inferInsert;
+
+export type VendorInvoiceAllocation = typeof vendorInvoiceAllocations.$inferSelect;
+export type NewVendorInvoiceAllocation = typeof vendorInvoiceAllocations.$inferInsert;
+
+export type Tractor = typeof tractors.$inferSelect;
+export type NewTractor = typeof tractors.$inferInsert;
+
+export type Trailer = typeof trailers.$inferSelect;
+export type NewTrailer = typeof trailers.$inferInsert;
+
+export type Driver = typeof drivers.$inferSelect;
+export type NewDriver = typeof drivers.$inferInsert;
+

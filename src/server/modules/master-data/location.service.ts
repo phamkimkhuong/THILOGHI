@@ -1,48 +1,60 @@
-import { pool } from "@/server/db";
+import { pool, db } from "@/server/db";
+import { locations, regions } from "@/server/db/schema";
+import { eq, and, asc, ilike, or } from "drizzle-orm";
 import { requireRole, requireRegionScope } from "@/server/auth/authorize";
 import type { CurrentActor } from "@/server/auth/types";
 
 /**
- * Lấy danh sách 160 địa điểm, cảng biển, depot, ICD
+ * Lấy danh sách 160 địa điểm, cảng biển, depot, ICD qua Drizzle ORM
  */
 export async function getLocationsDetailedList(filters?: { search?: string; regionId?: string }) {
-  let query = `
-    SELECT 
-      l.location_id as "locationId",
-      l.code,
-      l.name,
-      l.location_type as "locationType",
-      l.region_id as "regionId",
-      r.name as "regionName",
-      l.country_code as "countryCode",
-      l.province,
-      l.address,
-      l.gps_coordinates as "gpsCoordinates",
-      l.company,
-      l.contact,
-      l.note,
-      l.commodities,
-      l.created_by as "createdBy",
-      l.updated_by as "updatedBy",
-      l.status,
-      l.is_active as "isActive",
-      l.created_at as "createdAt"
-    FROM locations l
-    LEFT JOIN regions r ON l.region_id = r.region_id
-    WHERE 1=1
-  `;
-  const params: unknown[] = [];
+  const base = db
+    .select({
+      locationId: locations.locationId,
+      code: locations.code,
+      name: locations.name,
+      locationType: locations.locationType,
+      regionId: locations.regionId,
+      regionName: regions.name,
+      countryCode: locations.countryCode,
+      province: locations.province,
+      address: locations.address,
+      gpsCoordinates: locations.gpsCoordinates,
+      company: locations.company,
+      contact: locations.contact,
+      note: locations.note,
+      commodities: locations.commodities,
+      createdBy: locations.createdBy,
+      updatedBy: locations.updatedBy,
+      status: locations.status,
+      isActive: locations.isActive,
+      createdAt: locations.createdAt,
+    })
+    .from(locations)
+    .leftJoin(regions, eq(locations.regionId, regions.regionId));
+
+  const conditions = [];
   if (filters?.regionId && filters.regionId !== "ALL") {
-    params.push(filters.regionId);
-    query += ` AND l.region_id = $${params.length}`;
+    conditions.push(eq(locations.regionId, filters.regionId));
   }
-  if (filters?.search) {
-    params.push(`%${filters.search}%`);
-    query += ` AND (l.name ILIKE $${params.length} OR l.code ILIKE $${params.length} OR l.address ILIKE $${params.length} OR l.province ILIKE $${params.length} OR l.company ILIKE $${params.length} OR l.contact ILIKE $${params.length} OR l.note ILIKE $${params.length} OR l.commodities ILIKE $${params.length})`;
+  if (filters?.search?.trim()) {
+    const pattern = `%${filters.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(locations.name, pattern),
+        ilike(locations.code, pattern),
+        ilike(locations.address, pattern),
+        ilike(locations.province, pattern),
+        ilike(locations.company, pattern),
+        ilike(locations.contact, pattern),
+        ilike(locations.note, pattern),
+        ilike(locations.commodities, pattern)
+      )
+    );
   }
-  query += ` ORDER BY l.name ASC LIMIT 500`;
-  const { rows } = await pool.query(query, params);
-  return rows;
+
+  const query = conditions.length > 0 ? base.where(and(...conditions)) : base;
+  return await query.orderBy(asc(locations.name)).limit(500);
 }
 
 export interface SaveLocationInput {

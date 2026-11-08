@@ -6,6 +6,7 @@ import {
   getMasterLocations,
   getMasterCommodities,
   EQUIPMENT_TYPES,
+  getMasterServicesList,
 } from "@/server/modules/master-data/master-data.service";
 import {
   lookupRoadRates,
@@ -48,11 +49,12 @@ export async function getQuotationRegionsAction() {
 export async function getQuotationMasterDataAction() {
   try {
     const actor = await requireAuth();
-    const [customers, regions, locations, commodities] = await Promise.all([
+    const [customers, regions, locations, commodities, services] = await Promise.all([
       getMasterCustomers(),
       getMasterRegions(),
       getMasterLocations(),
       getMasterCommodities(),
+      getMasterServicesList({ status: "ACTIVE" }),
     ]);
 
     return {
@@ -68,6 +70,7 @@ export async function getQuotationMasterDataAction() {
       locations,
       commodities,
       equipmentTypes: EQUIPMENT_TYPES,
+      services,
       error: null,
     };
   } catch (error) {
@@ -78,6 +81,7 @@ export async function getQuotationMasterDataAction() {
       locations: [],
       commodities: [],
       equipmentTypes: EQUIPMENT_TYPES,
+      services: [],
       error: error instanceof Error ? error.message : "Lỗi kết nối cơ sở dữ liệu khi tải danh mục",
     };
   }
