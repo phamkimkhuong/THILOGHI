@@ -2,6 +2,11 @@ import type { OceanRateItem, SaveOceanRateInput } from "@/features/master-data/a
 
 export type { OceanRateItem, SaveOceanRateInput };
 
+/**
+ * Tỷ giá quy đổi chuẩn USD -> VND cho vận tải biển
+ */
+export const OCEAN_FX_RATE_USD_VND = 25700;
+
 export type ContainerTypeFilter = "ALL" | "40HR" | "20HR" | "40HC" | "20GP";
 export type OceanRateStatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 

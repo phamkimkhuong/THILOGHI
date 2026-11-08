@@ -9,8 +9,8 @@ import {
   formatCurrency,
   formatUsd,
   getContainerTypeBadge,
+  OCEAN_FX_RATE_USD_VND,
 } from "./types";
-import { OCEAN_FX_RATE_USD_VND } from "@/server/modules/supplier-pricing/ocean-rates.service";
 
 interface OceanRateDetailDrawerProps {
   rate: OceanRateItem | null;

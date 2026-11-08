@@ -14,9 +14,9 @@ import {
   STANDARD_COMMODITIES,
   formatCurrency,
   formatUsd,
+  OCEAN_FX_RATE_USD_VND,
 } from "./types";
 import { saveOceanRateAction } from "@/features/master-data/actions";
-import { OCEAN_FX_RATE_USD_VND } from "@/server/modules/supplier-pricing/ocean-rates.service";
 
 interface OceanRateFormDialogProps {
   open: boolean;
