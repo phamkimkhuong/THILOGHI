@@ -79,22 +79,75 @@ export async function saveQuotationDraft(
 
       // PR-04 & Blocker 4: Server tra cứu lại giá gốc từ PostgreSQL theo đúng ngữ cảnh, không tin client
       if (item.selectedBuyRateId) {
-        const result = await lookupRoadRates({
-          pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,
-          equipmentType: item.equipmentType, pricingDate,
-        }, client);
-        if (result.status === "CONFLICT_RATE") throw new Error(result.message);
-        const selected = result.candidates.find((candidate) => candidate.rateId === item.selectedBuyRateId);
-        if (!selected) throw new Error("Giá mua không còn hợp lệ cho tuyến/thiết bị/ngày hiện tại. Vui lòng tra cứu lại.");
-        verifiedOriginalRate = new Decimal(selected.buyRate);
-        verifiedOriginalCurrency = selected.currency;
-        verifiedFxRate = selected.fxRateToVnd;
-        verifiedBuyRateVnd = new Decimal(selected.buyRateVnd);
-        verifiedVendorId = selected.vendorId;
-        verifiedVendorName = selected.vendorName;
-        validityStart = selected.validityStart;
-        validityEnd = selected.validityEnd;
-        verifiedWorstBuyVnd = new Decimal(result.worstCaseBuy ?? selected.buyRateVnd);
+        if (item.servicePackage === "PORT") {
+          const portRes = await client.query(
+            `SELECT rate_id, port_code, port_name, charge_code, unit_price, currency,
+                    lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM port_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (portRes.rows.length === 0) {
+            throw new Error("Biểu phí cảng đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const pRow = portRes.rows[0];
+          const unitPrice = Number(pRow.unit_price);
+          const fxRate = pRow.currency === "USD" ? 25700 : 1.0;
+          const priceVnd = pRow.currency === "USD" ? roundVnd(unitPrice * fxRate).toNumber() : unitPrice;
+
+          verifiedOriginalRate = new Decimal(unitPrice);
+          verifiedOriginalCurrency = pRow.currency;
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedVendorId = pRow.port_code;
+          verifiedVendorName = `${pRow.port_name} [${pRow.charge_code}]`;
+          validityStart = pRow.validity_start;
+          validityEnd = pRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else if (item.servicePackage === "BORDER_GATE") {
+          const borderRes = await client.query(
+            `SELECT rate_id, border_pair_id, border_pair_name, commodity_name,
+                    infrastructure_fee, entry_exit_fee, customs_fee, total_fee, currency,
+                    lower(validity_range)::text as validity_start, upper(validity_range)::text as validity_end, status
+             FROM border_rates
+             WHERE rate_id = $1 AND status = 'ACTIVE' AND validity_range @> $2::date`,
+            [item.selectedBuyRateId, pricingDate]
+          );
+          if (borderRes.rows.length === 0) {
+            throw new Error("Biểu phí cửa khẩu đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
+          }
+          const bRow = borderRes.rows[0];
+          const totalFee = Number(bRow.total_fee);
+          const fxRate = 1.0;
+          const priceVnd = totalFee;
+
+          verifiedOriginalRate = new Decimal(totalFee);
+          verifiedOriginalCurrency = bRow.currency || "VND";
+          verifiedFxRate = fxRate;
+          verifiedBuyRateVnd = new Decimal(priceVnd);
+          verifiedVendorId = bRow.border_pair_id;
+          verifiedVendorName = `${bRow.border_pair_name} [${bRow.commodity_name}]`;
+          validityStart = bRow.validity_start;
+          validityEnd = bRow.validity_end;
+          verifiedWorstBuyVnd = verifiedBuyRateVnd;
+        } else {
+          const result = await lookupRoadRates({
+            pickupLocationId: item.originLocationId, deliveryLocationId: item.destinationLocationId,
+            equipmentType: item.equipmentType, pricingDate,
+          }, client);
+          if (result.status === "CONFLICT_RATE") throw new Error(result.message);
+          const selected = result.candidates.find((candidate) => candidate.rateId === item.selectedBuyRateId);
+          if (!selected) throw new Error("Giá mua không còn hợp lệ cho tuyến/thiết bị/ngày hiện tại. Vui lòng tra cứu lại.");
+          verifiedOriginalRate = new Decimal(selected.buyRate);
+          verifiedOriginalCurrency = selected.currency;
+          verifiedFxRate = selected.fxRateToVnd;
+          verifiedBuyRateVnd = new Decimal(selected.buyRateVnd);
+          verifiedVendorId = selected.vendorId;
+          verifiedVendorName = selected.vendorName;
+          validityStart = selected.validityStart;
+          validityEnd = selected.validityEnd;
+          verifiedWorstBuyVnd = new Decimal(result.worstCaseBuy ?? selected.buyRateVnd);
+        }
       }
 
       const itemBuyTotal = roundVnd(verifiedBuyRateVnd.mul(itemQty));

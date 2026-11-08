@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 export const navigation = [
   { label: "Danh mục", items: [
     { label: "Đối tác", href: "/master/customers", icon: Building2 },
@@ -13,6 +13,7 @@ export const navigation = [
   { label: "Giá mua", items: [
     { label: "Giá mua đường bộ", href: "/rates", icon: Receipt },
     { label: "Biểu phí Cảng & Depot", href: "/rates/port", icon: Anchor },
+    { label: "Biểu phí Cửa khẩu", href: "/rates/border", icon: ShieldCheck },
   ] },
   { label: "Báo giá", items: [
     { label: "Danh sách báo giá", href: "/quotations", icon: FileText },

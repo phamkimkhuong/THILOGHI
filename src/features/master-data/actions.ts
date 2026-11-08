@@ -51,11 +51,25 @@ import {
   type SavePortRateInput,
   type PortRateLookupQuery,
 } from "@/server/modules/supplier-pricing/port-rates.service";
+import {
+  getBorderRatesDetailedList,
+  saveBorderRateService,
+  toggleBorderRateStatusService,
+  deleteBorderRateService,
+  lookupBorderRates,
+  type BorderRateItem,
+  type SaveBorderRateInput,
+  type BorderRateLookupQuery,
+} from "@/server/modules/supplier-pricing/border-rates.service";
 
 export type {
   PortRateItem,
   SavePortRateInput,
   PortRateLookupQuery,
+  BorderRateItem,
+  SaveBorderRateInput,
+  BorderRateLookupQuery,
+  PortDepotPartnerOption,
 };
 
 export type {
@@ -388,7 +402,9 @@ import {
   updateCustomerRoleTerms,
   getPartnerRoleAuditHistory,
   savePartner,
+  getPortDepotPartnersList,
   type SavePartnerInput,
+  type PortDepotPartnerOption,
 } from "@/server/modules/master-data/partner-lifecycle.service";
 import { requireAuth, requireRole } from "@/server/auth/authorize";
 
@@ -407,6 +423,20 @@ export async function getPartnersDirectoryAction(filters?: {
       success: false,
       data: [],
       error: err instanceof Error ? err.message : "Lỗi khi tải danh mục đối tác",
+    };
+  }
+}
+
+export async function getPortDepotPartnersAction() {
+  try {
+    await requireAuth();
+    const data = await getPortDepotPartnersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi khi tải danh mục đối tác Cảng/Depot",
     };
   }
 }
@@ -717,6 +747,89 @@ export async function lookupPortRatesAction(query: PortRateLookupQuery) {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí cảng",
+      candidates: [],
+    };
+  }
+}
+
+export async function getBorderRatesAction(filters?: {
+  search?: string;
+  borderPairId?: string;
+  countryPair?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getBorderRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải biểu phí cửa khẩu",
+    };
+  }
+}
+
+export async function saveBorderRateAction(input: SaveBorderRateInput) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveBorderRateService(input, actor);
+    return {
+      success: true,
+      data: res,
+      message: `Đã lưu biểu phí cửa khẩu [${res.borderPairName} - ${res.commodityName}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí cửa khẩu",
+    };
+  }
+}
+
+export async function toggleBorderRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleBorderRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã đổi trạng thái sang [${status}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí cửa khẩu",
+    };
+  }
+}
+
+export async function deleteBorderRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteBorderRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí cửa khẩu thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí cửa khẩu",
+    };
+  }
+}
+
+export async function lookupBorderRatesAction(query: BorderRateLookupQuery) {
+  try {
+    await requireAuth();
+    const res = await lookupBorderRates(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí cửa khẩu",
       candidates: [],
     };
   }

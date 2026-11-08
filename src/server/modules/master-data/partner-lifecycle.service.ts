@@ -631,3 +631,46 @@ export async function savePartner(input: SavePartnerInput, actor: CurrentActor) 
     client.release();
   }
 }
+
+export interface PortDepotPartnerOption {
+  partnerId: string;
+  partnerName: string;
+  shortName?: string;
+  sourcePartnerType?: string;
+  address?: string;
+}
+
+/**
+ * Lấy danh sách Đối tác Cảng biển & Depot từ bảng partners phục vụ thiết lập biểu phí
+ */
+export async function getPortDepotPartnersList(): Promise<PortDepotPartnerOption[]> {
+  const query = `
+    SELECT 
+      p.partner_id as "partnerId",
+      p.partner_name as "partnerName",
+      p.short_name as "shortName",
+      p.source_partner_type as "sourcePartnerType",
+      p.address
+    FROM partners p
+    WHERE p.status = 'ACTIVE'
+      AND (
+        p.source_partner_type IN ('Port', 'Depot', 'Dịch vụ cảng')
+        OR p.partner_name ILIKE '%Cảng%'
+        OR p.partner_name ILIKE '%Port%'
+        OR p.partner_name ILIKE '%Depot%'
+        OR p.short_name ILIKE '%Port%'
+        OR p.short_name ILIKE '%Depot%'
+      )
+    ORDER BY 
+      CASE WHEN p.partner_id IN ('VNTAP', 'CHU_LAI') THEN 0 ELSE 1 END,
+      COALESCE(p.short_name, p.partner_name) ASC
+  `;
+  const { rows } = await pool.query(query);
+  return rows.map((r) => ({
+    partnerId: r.partnerId,
+    partnerName: r.partnerName,
+    shortName: r.shortName || undefined,
+    sourcePartnerType: r.sourcePartnerType || undefined,
+    address: r.address || undefined,
+  }));
+}

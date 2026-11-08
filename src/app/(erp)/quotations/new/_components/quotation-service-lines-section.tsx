@@ -379,19 +379,25 @@ export function QuotationServiceLinesSection({
               <Search className="w-3.5 h-3.5" />
               {item.servicePackage === "PORT"
                 ? "Tra cứu biểu phí Cảng Chu Lai"
+                : item.servicePackage === "BORDER_GATE"
+                ? "Tra cứu biểu phí Cửa khẩu"
                 : "Tra và so sánh giá mua NCC"}
             </Button>
           </div>
         </fieldset>
       )}
 
-      {/* Nhà xe đã chọn cho dòng này */}
+      {/* Nhà xe / Đơn vị cung cấp đã chọn cho dòng này */}
       {item?.selectedCandidate && (
         <div className="rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 p-3.5 text-xs text-foreground flex items-start gap-2.5">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p>
-              Nhà cung cấp đã chọn:{" "}
+              {item.servicePackage === "PORT"
+                ? "Biểu phí cảng đã chọn: "
+                : item.servicePackage === "BORDER_GATE"
+                ? "Biểu phí cửa khẩu đã chọn: "
+                : "Nhà cung cấp đã chọn: "}
               <strong className="text-emerald-900 dark:text-emerald-200">
                 {item.selectedCandidate.vendorName}
               </strong>{" "}
@@ -410,13 +416,15 @@ export function QuotationServiceLinesSection({
         </div>
       )}
 
-      {/* Bảng so sánh các nhà xe / biểu phí cảng khả dụng */}
+      {/* Bảng so sánh các nhà xe / biểu phí cảng / cửa khẩu khả dụng */}
       {!!item?.lookupResult?.candidates.length && (
         <div className="space-y-2 pt-2">
           <p className="text-xs text-muted-foreground flex items-center justify-between">
             <span>
               {item.servicePackage === "PORT"
                 ? "Danh sách biểu phí Cảng Chu Lai khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
+                : item.servicePackage === "BORDER_GATE"
+                ? "Danh sách biểu phí Cửa khẩu khả dụng (quy đổi VND). Bấm \"Áp dụng\" để đưa vào giá vốn báo giá."
                 : "So sánh các nhà cung cấp khả dụng (quy đổi VND). Bấm \"Chọn NCC\" để áp giá vào báo giá."}
             </span>
           </p>
@@ -424,7 +432,13 @@ export function QuotationServiceLinesSection({
             <table className="erp-table w-full text-xs">
               <thead>
                 <tr>
-                  <th>{item.servicePackage === "PORT" ? "Tác nghiệp & Cảng" : "Nhà cung cấp"}</th>
+                  <th>
+                    {item.servicePackage === "PORT"
+                      ? "Tác nghiệp & Cảng"
+                      : item.servicePackage === "BORDER_GATE"
+                      ? "Cặp cửa khẩu & Mặt hàng"
+                      : "Nhà cung cấp"}
+                  </th>
                   <th className="text-right">Đơn giá gốc</th>
                   <th className="text-center">Tỷ giá</th>
                   <th className="text-right">Quy đổi VND</th>

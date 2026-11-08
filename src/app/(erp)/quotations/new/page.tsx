@@ -14,7 +14,7 @@ import {
   rejectQuotationAction,
   returnQuotationToDraftAction,
 } from "@/features/quotation/actions";
-import { lookupPortRatesAction } from "@/features/master-data/actions";
+import { lookupPortRatesAction, lookupBorderRatesAction } from "@/features/master-data/actions";
 import { createQuotationVersionAction } from "@/features/quotation/phase4-actions";
 import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
 import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
@@ -331,6 +331,58 @@ function Workspace() {
           setMessage("Chọn tác nghiệp cảng phù hợp từ bảng so sánh bên dưới.");
         } else {
           toast.error(res.message || "Không tìm thấy biểu phí cảng phù hợp.");
+        }
+      });
+      return;
+    }
+
+    // Phân hệ Cửa khẩu & Bãi kiểm hóa (BORDER_GATE)
+    if (item.servicePackage === "BORDER_GATE") {
+      void perform(async () => {
+        const res = await lookupBorderRatesAction({
+          pricingDate: getBusinessDate(),
+        });
+
+        if (res.candidates && res.candidates.length > 0) {
+          const candidates = res.candidates.map((c) => ({
+            rateId: c.rateId,
+            vendorId: c.borderPairId,
+            vendorName: `${c.borderPairName} (${c.countryPair}) - ${c.commodityName}`,
+            buyRate: c.totalFee,
+            currency: c.currency,
+            fxRateToVnd: 1,
+            buyRateVnd: c.totalFee,
+            validityRange: `[${c.validFrom},${c.validTo})`,
+            validityStart: c.validFrom,
+            validityEnd: c.validTo,
+          }));
+
+          const worstCase = Math.max(...candidates.map((c) => c.buyRateVnd));
+          const bestCandidate = candidates[0];
+
+          setItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id
+                ? {
+                    ...x,
+                    lookupResult: {
+                      status: (candidates.length === 1 ? "APPLY" : "MULTIPLE_CANDIDATES") as "APPLY" | "MULTIPLE_CANDIDATES",
+                      candidates,
+                      worstCaseBuy: worstCase,
+                      message: `Tìm thấy ${candidates.length} biểu phí cửa khẩu phù hợp.`,
+                    },
+                    selectedBuyRateId: candidates.length === 1 ? bestCandidate.rateId : undefined,
+                    selectedCandidate: candidates.length === 1 ? bestCandidate : undefined,
+                    unitBuyPrice: candidates.length === 1 ? bestCandidate.buyRateVnd : 0,
+                    worstCaseBuyPrice: worstCase,
+                  }
+                : x
+            )
+          );
+          toast.success(`Tìm thấy ${candidates.length} biểu phí cửa khẩu phù hợp.`);
+          setMessage("Chọn cặp cửa khẩu và dịch vụ kiểm hóa phù hợp từ bảng bên dưới.");
+        } else {
+          toast.error(res.message || "Không tìm thấy biểu phí cửa khẩu phù hợp.");
         }
       });
       return;
