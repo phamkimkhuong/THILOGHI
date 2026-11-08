@@ -293,6 +293,7 @@ async function ensurePortRatesTable(): Promise<void> {
  */
 export async function getPortRatesDetailedList(filters?: {
   search?: string;
+  portCode?: string;
   chargeCode?: string;
   containerType?: string;
   status?: string;
@@ -323,6 +324,11 @@ export async function getPortRatesDetailedList(filters?: {
     `;
     const params: unknown[] = [];
 
+    if (filters?.portCode && filters.portCode !== "ALL") {
+      params.push(filters.portCode);
+      query += ` AND port_code = $${params.length}`;
+    }
+
     if (filters?.chargeCode && filters.chargeCode !== "ALL") {
       params.push(filters.chargeCode);
       query += ` AND charge_code = $${params.length}`;
@@ -340,7 +346,7 @@ export async function getPortRatesDetailedList(filters?: {
 
     if (filters?.search) {
       params.push(`%${filters.search}%`);
-      query += ` AND (service_category ILIKE $${params.length} OR charge_code ILIKE $${params.length} OR container_type ILIKE $${params.length} OR notes ILIKE $${params.length})`;
+      query += ` AND (port_code ILIKE $${params.length} OR port_name ILIKE $${params.length} OR service_category ILIKE $${params.length} OR charge_code ILIKE $${params.length} OR container_type ILIKE $${params.length} OR notes ILIKE $${params.length})`;
     }
 
     query += ` ORDER BY charge_code ASC, container_type ASC, cargo_type ASC`;
@@ -351,7 +357,9 @@ export async function getPortRatesDetailedList(filters?: {
       return rows.map((r) => {
         const price = Number(r.unitPrice);
         const priceVnd =
-          r.currency === "USD" ? roundVnd(price * STANDARD_USD_FX_RATE) : price;
+          r.currency === "USD"
+            ? roundVnd(price * STANDARD_USD_FX_RATE).toNumber()
+            : price;
 
         return {
           rateId: r.rateId,
@@ -488,7 +496,7 @@ export async function savePortRateService(
       currency: r.currency,
       unitPriceVnd:
         r.currency === "USD"
-          ? roundVnd(Number(r.unit_price) * STANDARD_USD_FX_RATE)
+          ? roundVnd(Number(r.unit_price) * STANDARD_USD_FX_RATE).toNumber()
           : Number(r.unit_price),
       validFrom,
       validTo,
@@ -534,7 +542,7 @@ export async function savePortRateService(
     currency: r.currency,
     unitPriceVnd:
       r.currency === "USD"
-        ? roundVnd(Number(r.unit_price) * STANDARD_USD_FX_RATE)
+        ? roundVnd(Number(r.unit_price) * STANDARD_USD_FX_RATE).toNumber()
         : Number(r.unit_price),
     validFrom,
     validTo,

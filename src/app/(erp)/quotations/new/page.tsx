@@ -286,7 +286,7 @@ function Workspace() {
 
       void perform(async () => {
         const res = await lookupPortRatesAction({
-          portCode: "CHU_LAI",
+          portCode: item.originLocationId ? item.originLocationId : undefined,
           containerType: item.equipmentType,
           pricingDate: getBusinessDate(),
         });
@@ -317,7 +317,7 @@ function Workspace() {
                       status: (candidates.length === 1 ? "APPLY" : "MULTIPLE_CANDIDATES") as "APPLY" | "MULTIPLE_CANDIDATES",
                       candidates,
                       worstCaseBuy: worstCase,
-                      message: `Tìm thấy ${candidates.length} biểu phí Cảng Chu Lai phù hợp.`,
+                      message: `Tìm thấy ${candidates.length} biểu phí cảng phù hợp.`,
                     },
                     selectedBuyRateId: candidates.length === 1 ? bestCandidate.rateId : undefined,
                     selectedCandidate: candidates.length === 1 ? bestCandidate : undefined,
@@ -327,7 +327,7 @@ function Workspace() {
                 : x
             )
           );
-          toast.success(`Tìm thấy ${candidates.length} biểu phí Cảng Chu Lai.`);
+          toast.success(`Tìm thấy ${candidates.length} biểu phí cảng phù hợp.`);
           setMessage("Chọn tác nghiệp cảng phù hợp từ bảng so sánh bên dưới.");
         } else {
           toast.error(res.message || "Không tìm thấy biểu phí cảng phù hợp.");

@@ -640,6 +640,7 @@ export async function toggleServiceStatusAction(serviceId: string, isActive: boo
 
 export async function getPortRatesAction(filters?: {
   search?: string;
+  portCode?: string;
   chargeCode?: string;
   containerType?: string;
   status?: string;

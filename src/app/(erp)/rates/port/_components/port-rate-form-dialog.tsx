@@ -14,6 +14,20 @@ import {
 } from "./types";
 import { savePortRateAction } from "@/features/master-data/actions";
 
+export const POPULAR_PORTS = [
+  { code: "CHU_LAI", name: "Cảng Chu Lai (Quảng Nam)" },
+  { code: "DEPOT_CL", name: "Depot Chu Lai" },
+  { code: "DA_NANG", name: "Cảng Đà Nẵng / Tiên Sa" },
+  { code: "QUY_NHON", name: "Cảng Quy Nhơn (Bình Định)" },
+  { code: "DUNG_QUAT", name: "Cảng Dung Quất (Quảng Ngãi)" },
+  { code: "CAT_LAI", name: "Cảng Cát Lái (TP. Hồ Chí Minh)" },
+  { code: "CAI_MEP", name: "Cảng Quốc tế Cái Mép (Bà Rịa - Vũng Tàu)" },
+  { code: "HAI_PHONG", name: "Cảng Hải Phòng / Đình Vũ" },
+  { code: "VUNG_ANG", name: "Cảng Vũng Áng (Hà Tĩnh)" },
+  { code: "CHAN_MAY", name: "Cảng Chân Mây (Huế)" },
+  { code: "CUSTOM", name: "Khác (Nhập mã & tên cảng tùy chọn...)" },
+];
+
 interface PortRateFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,12 +106,20 @@ function PortRateFormDialogContent({
 }) {
   const isEditing = Boolean(rate);
   const [formData, setFormData] = useState<SavePortRateInput>(() => getInitialForm(rate));
+  const isPredefined = POPULAR_PORTS.some((p) => p.code === formData.portCode);
+  const [isCustomPort, setIsCustomPort] = useState(!isPredefined && formData.portCode !== "");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!formData.chargeCode.trim()) {
+    if (!formData.portCode?.trim()) {
+      errs.portCode = "Mã cảng là bắt buộc.";
+    }
+    if (!formData.portName?.trim()) {
+      errs.portName = "Tên cảng là bắt buộc.";
+    }
+    if (!formData.chargeCode?.trim()) {
       errs.chargeCode = "Mã tác nghiệp là bắt buộc.";
     }
     if (!formData.unitPrice || formData.unitPrice <= 0) {
@@ -159,23 +181,96 @@ function PortRateFormDialogContent({
         {/* Hàng 1: Cảng & Nhóm tác nghiệp */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block font-medium text-foreground mb-1">
-              Cảng / Depot <span className="text-destructive">*</span>
-            </label>
-            <select
-              value={formData.portCode}
-              onChange={(e) => {
-                const portCode = e.target.value;
-                const portName = portCode === "CHU_LAI" ? "Cảng Chu Lai" : portCode;
-                setFormData((prev) => ({ ...prev, portCode, portName }));
-              }}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="CHU_LAI">Cảng Chu Lai (CHU_LAI)</option>
-              <option value="DEPOT_CL">Depot Chu Lai (DEPOT_CL)</option>
-              <option value="DA_NANG">Cảng Đà Nẵng (DA_NANG)</option>
-              <option value="QUY_NHON">Cảng Quy Nhơn (QUY_NHON)</option>
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-medium text-foreground">
+                Cảng / Depot <span className="text-destructive">*</span>
+              </label>
+              {!isCustomPort ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomPort(true);
+                    setFormData((prev) => ({ ...prev, portCode: "", portName: "" }));
+                  }}
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  + Nhập cảng khác
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomPort(false);
+                    setFormData((prev) => ({
+                      ...prev,
+                      portCode: "CHU_LAI",
+                      portName: "Cảng Chu Lai",
+                    }));
+                  }}
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  ← Chọn cảng có sẵn
+                </button>
+              )}
+            </div>
+
+            {!isCustomPort ? (
+              <select
+                value={formData.portCode}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "CUSTOM") {
+                    setIsCustomPort(true);
+                    setFormData((prev) => ({ ...prev, portCode: "", portName: "" }));
+                  } else {
+                    const matched = POPULAR_PORTS.find((p) => p.code === val);
+                    setFormData((prev) => ({
+                      ...prev,
+                      portCode: val,
+                      portName: matched ? matched.name.split(" (")[0] : val,
+                    }));
+                  }
+                }}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {POPULAR_PORTS.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={formData.portCode}
+                    onChange={(e) => {
+                      const code = e.target.value.toUpperCase().replace(/\s+/g, "_");
+                      setFormData((prev) => ({ ...prev, portCode: code }));
+                      setErrors((prev) => ({ ...prev, portCode: "" }));
+                    }}
+                    placeholder="Mã cảng (VD: CAT_LAI)"
+                    className="w-full bg-background border border-border rounded-lg px-2.5 py-2 text-foreground font-mono uppercase focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={formData.portName}
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, portName: e.target.value }));
+                      setErrors((prev) => ({ ...prev, portName: "" }));
+                    }}
+                    placeholder="Tên cảng (VD: Cảng Cát Lái)"
+                    className="w-full bg-background border border-border rounded-lg px-2.5 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                {(errors.portCode || errors.portName) && (
+                  <p className="text-destructive text-[11px]">
+                    {errors.portCode || errors.portName}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

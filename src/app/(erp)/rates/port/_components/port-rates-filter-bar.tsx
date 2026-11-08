@@ -14,6 +14,9 @@ import {
 interface PortRatesFilterBarProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  selectedPort: string;
+  onPortChange: (port: string) => void;
+  portOptions: { code: string; name: string }[];
   selectedChargeCode: ChargeCodeFilter;
   onChargeCodeChange: (code: ChargeCodeFilter) => void;
   selectedContainerType: ContainerTypeFilter;
@@ -29,6 +32,9 @@ interface PortRatesFilterBarProps {
 export function PortRatesFilterBar({
   searchTerm,
   onSearchChange,
+  selectedPort,
+  onPortChange,
+  portOptions,
   selectedChargeCode,
   onChargeCodeChange,
   selectedContainerType,
@@ -42,6 +48,7 @@ export function PortRatesFilterBar({
 }: PortRatesFilterBarProps) {
   const isFiltered = Boolean(
     searchTerm ||
+      selectedPort !== "ALL" ||
       selectedChargeCode !== "ALL" ||
       selectedContainerType !== "ALL" ||
       selectedStatus !== "ALL"
@@ -54,12 +61,32 @@ export function PortRatesFilterBar({
         <SearchInput
           value={searchTerm}
           onChange={onSearchChange}
-          placeholder="Tìm theo tác nghiệp (LOLO, POWER...), loại cont (20GP, 40HC), ghi chú..."
+          placeholder="Tìm theo cảng (Chu Lai, Đà Nẵng...), tác nghiệp, loại cont, ghi chú..."
           className="max-w-lg"
         />
 
         {/* Dropdowns & Reset */}
         <div className="flex flex-wrap items-center gap-2 shrink-0 text-xs">
+          {/* Dropdown Cảng / Depot */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground font-medium flex items-center gap-1 shrink-0">
+              <Anchor className="w-3.5 h-3.5" /> Cảng:
+            </span>
+            <select
+              aria-label="Chọn cảng hoặc depot"
+              value={selectedPort}
+              onChange={(e) => onPortChange(e.target.value)}
+              className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[160px] truncate"
+            >
+              <option value="ALL">Tất cả cảng ({portOptions.length})</option>
+              {portOptions.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Dropdown Loại Cont */}
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground font-medium flex items-center gap-1 shrink-0">

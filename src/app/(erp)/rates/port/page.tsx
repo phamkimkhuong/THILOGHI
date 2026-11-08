@@ -36,6 +36,7 @@ export default function PortRatesPage() {
 
   const [rates, setRates] = useState<PortRateItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPort, setSelectedPort] = useState("ALL");
   const [selectedChargeCode, setSelectedChargeCode] = useState<ChargeCodeFilter>("ALL");
   const [selectedContainerType, setSelectedContainerType] = useState<ContainerTypeFilter>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<PortRateStatusFilter>("ALL");
@@ -63,6 +64,17 @@ export default function PortRatesPage() {
     loadData();
   }, [loadData]);
 
+  // Danh sách cảng khả dụng
+  const portOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rates) {
+      if (!map.has(r.portCode)) {
+        map.set(r.portCode, r.portName);
+      }
+    }
+    return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
+  }, [rates]);
+
   // Bộ đếm theo từng loại tác nghiệp
   const chargeCodeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -75,6 +87,11 @@ export default function PortRatesPage() {
   // Lọc dữ liệu client-side với Accent-Insensitive
   const filteredRates = useMemo(() => {
     return rates.filter((item) => {
+      // 0. Lọc theo cảng / depot
+      if (selectedPort !== "ALL" && item.portCode !== selectedPort) {
+        return false;
+      }
+
       // 1. Lọc theo tác nghiệp
       if (selectedChargeCode !== "ALL" && item.chargeCode !== selectedChargeCode) {
         return false;
@@ -110,7 +127,7 @@ export default function PortRatesPage() {
 
       return true;
     });
-  }, [rates, selectedChargeCode, selectedContainerType, selectedStatus, searchTerm]);
+  }, [rates, selectedPort, selectedChargeCode, selectedContainerType, selectedStatus, searchTerm]);
 
   // Handlers
   const handleToggleStatusConfirm = async () => {
@@ -167,6 +184,7 @@ export default function PortRatesPage() {
 
   const handleResetFilters = () => {
     setSearchTerm("");
+    setSelectedPort("ALL");
     setSelectedChargeCode("ALL");
     setSelectedContainerType("ALL");
     setSelectedStatus("ALL");
@@ -199,6 +217,9 @@ export default function PortRatesPage() {
       <PortRatesFilterBar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
+        selectedPort={selectedPort}
+        onPortChange={setSelectedPort}
+        portOptions={portOptions}
         selectedChargeCode={selectedChargeCode}
         onChargeCodeChange={setSelectedChargeCode}
         selectedContainerType={selectedContainerType}
