@@ -142,11 +142,18 @@ export function QuotationServiceLinesSection({
                   </td>
 
                   <td>
-                    <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <span>{originName || "Chưa chọn điểm đi"}</span>
-                      <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                      <span>{destName || "Chưa chọn điểm đến"}</span>
-                    </div>
+                    {x.servicePackage === "TRUCKING" || x.servicePackage === "OCEAN" || x.servicePackage === "BORDER_GATE" ? (
+                      <div className="flex items-center gap-1.5 font-medium text-foreground">
+                        <span>{originName || "Chưa chọn điểm đi"}</span>
+                        <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <span>{destName || "Chưa chọn điểm đến"}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 font-medium text-foreground">
+                        <span>{originName || "Chưa chọn địa điểm tác nghiệp"}</span>
+                        <span className="text-[11px] text-muted-foreground font-normal">(Nội bộ cơ sở)</span>
+                      </div>
+                    )}
                     {warningText && (
                       <span className="block text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
                         {warningText}
@@ -215,10 +222,13 @@ export function QuotationServiceLinesSection({
                   className={cn(inputClass, "mt-1 font-semibold")}
                   value={item.servicePackage || "TRUCKING"}
                   onChange={(e) => {
-                    const selectedPkg = master?.services?.find((s) => s.serviceId === e.target.value);
+                    const newPkg = e.target.value;
+                    const selectedPkg = master?.services?.find((s) => s.serviceId === newPkg);
+                    const isRoute = newPkg === "TRUCKING" || newPkg === "OCEAN" || newPkg === "BORDER_GATE";
                     onUpdateItem({
-                      servicePackage: e.target.value,
+                      servicePackage: newPkg,
                       unit: selectedPkg?.defaultUnit || item.unit,
+                      ...(!isRoute && item.originLocationId ? { destinationLocationId: item.originLocationId } : {}),
                     });
                   }}
                 >
@@ -243,27 +253,61 @@ export function QuotationServiceLinesSection({
               </label>
             </div>
 
-            {/* Điểm đi */}
+            {/* Điểm đi / Cơ sở tác nghiệp */}
             <ChoiceSelect
-              label="Điểm đi (Origin)"
+              label={
+                item.servicePackage === "PORT"
+                  ? "Cảng / Depot tác nghiệp"
+                  : item.servicePackage === "CUSTOMS"
+                  ? "Chi cục Hải quan / Điểm kiểm hóa"
+                  : item.servicePackage === "WAREHOUSING"
+                  ? "Kho bãi lưu giữ"
+                  : item.servicePackage === "INSURANCE"
+                  ? "Địa bàn áp dụng bảo hiểm"
+                  : item.servicePackage === "OTHER"
+                  ? "Địa điểm cung cấp dịch vụ"
+                  : "Điểm đi (Origin / POL)"
+              }
               required
               value={item.originLocationId}
               options={master?.locations ?? []}
               disabled={locked}
               error={activeItemErrors?.originLocationId}
-              onChange={(v) => onUpdateItem({ originLocationId: v }, true)}
+              onChange={(v) => {
+                const isRoute = item.servicePackage === "TRUCKING" || item.servicePackage === "OCEAN" || item.servicePackage === "BORDER_GATE";
+                if (!isRoute) {
+                  onUpdateItem({ originLocationId: v, destinationLocationId: v }, true);
+                } else {
+                  onUpdateItem({ originLocationId: v }, true);
+                }
+              }}
             />
 
             {/* Điểm đến */}
-            <ChoiceSelect
-              label="Điểm đến (Destination)"
-              required
-              value={item.destinationLocationId}
-              options={master?.locations ?? []}
-              disabled={locked}
-              error={activeItemErrors?.destinationLocationId}
-              onChange={(v) => onUpdateItem({ destinationLocationId: v }, true)}
-            />
+            {item.servicePackage === "TRUCKING" || item.servicePackage === "OCEAN" || item.servicePackage === "BORDER_GATE" ? (
+              <ChoiceSelect
+                label="Điểm đến (Destination / POD)"
+                required
+                value={item.destinationLocationId}
+                options={master?.locations ?? []}
+                disabled={locked}
+                error={activeItemErrors?.destinationLocationId}
+                onChange={(v) => onUpdateItem({ destinationLocationId: v }, true)}
+              />
+            ) : (
+              <div className="space-y-1.5 font-sans">
+                <label className="block text-xs font-semibold text-foreground">
+                  Điểm đến (Destination)
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    className={cn(inputClass, "mt-1 bg-muted/40 text-muted-foreground cursor-not-allowed text-xs")}
+                    value="Tại cơ sở / Cùng địa điểm tác nghiệp"
+                  />
+                </label>
+              </div>
+            )}
 
             {/* Thiết bị */}
             <ChoiceSelect

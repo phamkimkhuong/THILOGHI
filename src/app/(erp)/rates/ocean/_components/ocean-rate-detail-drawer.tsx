@@ -4,6 +4,7 @@ import { Ship, Pencil, Power, Calendar, DollarSign, Package, Anchor, ArrowRight 
 import { ResponsiveDrawer } from "@/components/ui/responsive-drawer";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 import {
   OceanRateItem,
   formatCurrency,
@@ -37,7 +38,7 @@ export function OceanRateDetailDrawer({
     rate.bafCafFee +
     rate.otherSurcharges;
 
-  const oceanFreightVnd = rate.oceanFreightUsd * (OCEAN_FX_RATE_USD_VND || 25700);
+  const oceanFreightVnd = rate.oceanFreightUsd * (OCEAN_FX_RATE_USD_VND || STANDARD_USD_FX_RATE);
 
   const titleNode = (
     <div className="flex items-center gap-2">

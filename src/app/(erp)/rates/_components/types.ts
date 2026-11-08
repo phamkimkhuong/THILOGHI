@@ -42,7 +42,7 @@ export const DEFAULT_ROAD_RATE_FORM: RoadRateFormData = {
   currency: "VND",
   validFrom: new Date().toISOString().split("T")[0],
   validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-  status: "APPROVED",
+  status: "DRAFT",
   remarks: "",
 };
 

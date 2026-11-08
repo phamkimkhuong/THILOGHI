@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { requireRegionScope, requireRole } from "@/server/auth/authorize";
-import { getBusinessDate, roundVnd } from "@/shared/utils/pricing";
+import { getBusinessDate, roundVnd, STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 import Decimal from "decimal.js";
 import { pool } from "@/server/db";
 import { CreateQuotationInput, createQuotationSchema } from "@/shared/schemas/quotation.schema";
@@ -36,7 +36,7 @@ export async function saveQuotationDraft(
   requireRole(actor, ["SALES", "PRICING_SPECIALIST", "PRICING_MANAGER"]);
   requireRegionScope(actor, input.regionId);
   const createdBy = `${actor.fullName} (${actor.role})`;
-  const pricingDate = getBusinessDate();
+  const pricingDate = input.pricingDate || getBusinessDate();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -92,7 +92,7 @@ export async function saveQuotationDraft(
           }
           const pRow = portRes.rows[0];
           const unitPrice = Number(pRow.unit_price);
-          const fxRate = pRow.currency === "USD" ? 25700 : 1.0;
+          const fxRate = pRow.currency === "USD" ? STANDARD_USD_FX_RATE : 1.0;
           const priceVnd = pRow.currency === "USD" ? roundVnd(unitPrice * fxRate).toNumber() : unitPrice;
 
           verifiedOriginalRate = new Decimal(unitPrice);
@@ -375,8 +375,10 @@ export async function saveQuotationDraft(
            estimated_gp = $10,
            estimated_margin_percent = $11,
            payment_terms_days = $12,
+           pricing_date = $13,
+           valid_until = $14,
            updated_at = clock_timestamp()
-         WHERE quotation_id = $13`,
+         WHERE quotation_id = $15`,
         [
           input.customerId,
           customerRow.partner_name,
@@ -390,6 +392,8 @@ export async function saveQuotationDraft(
           estimatedGp.toNumber(),
           Number(estimatedMarginPercent.toFixed(2)),
           input.paymentTermsDays,
+          pricingDate,
+          input.validUntil || null,
           quotationId,
         ]
       );
@@ -411,13 +415,15 @@ export async function saveQuotationDraft(
            region_id, commodity_id,
            status, total_sell_amount, total_estimated_buy, total_worst_case_buy,
            estimated_gp, estimated_margin_percent, payment_terms_days,
+           pricing_date, valid_until,
            immutable_locked, created_by, created_by_user_id
          ) VALUES (
            $1, 1, $2, $3, $4, $5,
            $6, $7,
            'DRAFT', $8, $9, $10,
            $11, $12, $13,
-           false, $14, $15
+           $14, $15,
+           false, $16, $17
          ) RETURNING quotation_id;`,
         [
           quotationNo,
@@ -433,6 +439,8 @@ export async function saveQuotationDraft(
           estimatedGp.toNumber(),
           Number(estimatedMarginPercent.toFixed(2)),
           input.paymentTermsDays,
+          pricingDate,
+          input.validUntil || null,
           createdBy,
           actor.userId,
         ]
@@ -566,11 +574,13 @@ export async function submitQuotationForApproval(
     const currentQuote = quoteCheck.rows[0];
 
     // Kiểm tra Region Scope của người gửi duyệt
-    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
+    try {
+      requireRegionScope(actor, currentQuote.region_id);
+    } catch (scopeErr) {
       if (!transactionClient) await client.query("ROLLBACK");
       return {
         success: false,
-        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không có quyền trình duyệt báo giá thuộc phân vùng [${currentQuote.region_id}].`,
+        error: scopeErr instanceof Error ? scopeErr.message : `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không có quyền trình duyệt báo giá thuộc phân vùng [${currentQuote.region_id}].`,
       };
     }
 
@@ -654,7 +664,7 @@ export async function approveQuotation(
     await client.query("BEGIN");
 
     const quoteCheck = await client.query(
-      `SELECT quotation_id, quotation_no, version, customer_id, region_id, status, immutable_locked, estimated_margin_percent, created_by, created_by_user_id
+      `SELECT quotation_id, quotation_no, version, customer_id, region_id, status, immutable_locked, estimated_margin_percent, created_by, created_by_user_id, pricing_date
        FROM customer_quotations 
        WHERE quotation_id = $1 FOR UPDATE`,
       [quotationId]
@@ -677,11 +687,13 @@ export async function approveQuotation(
     }
 
     // Kiểm tra Region Scope
-    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
+    try {
+      requireRegionScope(actor, currentQuote.region_id);
+    } catch (scopeErr) {
       await client.query("ROLLBACK");
       return {
         success: false,
-        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
+        error: scopeErr instanceof Error ? scopeErr.message : `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
       };
     }
 
@@ -719,7 +731,7 @@ export async function approveQuotation(
 
     const activeCustomer = await client.query("SELECT c.customer_id FROM customers c JOIN partners p ON p.partner_id=c.customer_id WHERE c.customer_id=$1 AND c.role_status='ACTIVE' AND p.status='ACTIVE' FOR SHARE OF c,p", [currentQuote.customer_id]);
     if (!activeCustomer.rows.length) throw new Error("Khách hàng đã ngừng hoạt động. Không thể duyệt báo giá.");
-    await validateApprovalRates(client, quotationId);
+    await validateApprovalRates(client, quotationId, currentQuote.pricing_date || undefined);
 
     // Cập nhật APPROVED & Khóa Bất Biến (Immutable Locked) kèm xác nhận Snapshot
     await client.query(
@@ -812,11 +824,13 @@ export async function rejectQuotation(
     }
 
     // Kiểm tra Region Scope
-    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
+    try {
+      requireRegionScope(actor, currentQuote.region_id);
+    } catch (scopeErr) {
       await client.query("ROLLBACK");
       return {
         success: false,
-        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
+        error: scopeErr instanceof Error ? scopeErr.message : `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
       };
     }
 
@@ -911,11 +925,13 @@ export async function returnQuotationToDraft(
     }
 
     // Kiểm tra Region Scope
-    if (!actor.regionScopes.includes("*") && !actor.regionScopes.includes(currentQuote.region_id)) {
+    try {
+      requireRegionScope(actor, currentQuote.region_id);
+    } catch (scopeErr) {
       await client.query("ROLLBACK");
       return {
         success: false,
-        error: `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
+        error: scopeErr instanceof Error ? scopeErr.message : `Từ chối phân quyền (403): Người dùng [${actor.fullName}] không phụ trách phân vùng [${currentQuote.region_id}].`,
       };
     }
 
@@ -1033,6 +1049,8 @@ export interface QuotationDetailResponse {
     estimatedGp: number;
     estimatedMarginPercent: number;
     paymentTermsDays: number;
+    pricingDate?: string;
+    validUntil?: string;
     immutableLocked: boolean;
     createdBy: string;
     createdByUserId?: string;
@@ -1182,6 +1200,8 @@ export async function getQuotationDetail(quotationId: string, actor: CurrentActo
        q.estimated_gp as "estimatedGp",
        q.estimated_margin_percent as "estimatedMarginPercent",
        q.payment_terms_days as "paymentTermsDays",
+       COALESCE(q.pricing_date::text, q.created_at::date::text) as "pricingDate",
+       q.valid_until::text as "validUntil",
        q.immutable_locked as "immutableLocked",
        q.created_by as "createdBy",
        q.approved_by as "approvedBy",

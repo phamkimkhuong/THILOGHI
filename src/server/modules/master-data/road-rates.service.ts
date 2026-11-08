@@ -121,6 +121,42 @@ export async function saveRoadRateService(input: SaveRoadRateInput, actor: Curre
       }
       const old = oldRes.rows[0];
 
+      // Check Region Scope trên điểm xếp hàng ban đầu của biểu cước cũ
+      const oldLocRes = await client.query("SELECT region_id FROM locations WHERE location_id = $1", [old.pickup_location_id]);
+      if (oldLocRes.rows[0]?.region_id) {
+        requireRegionScope(actor, oldLocRes.rows[0].region_id);
+      }
+
+      // P0.1 & Governance: Biểu cước đã APPROVED không được sửa trực tiếp nội dung thương mại
+      if (old.status === "APPROVED") {
+        const isCommercialChanged =
+          old.vendor_id !== vendorId ||
+          old.pickup_location_id !== pickupLocationId ||
+          old.delivery_location_id !== deliveryLocationId ||
+          old.equipment_type !== equipmentType ||
+          Number(old.buy_rate) !== buyRate ||
+          old.currency !== currency;
+
+        if (isCommercialChanged) {
+          throw new Error(
+            "Biểu cước đã được phê duyệt (APPROVED) không thể chỉnh sửa trực tiếp nội dung thương mại (NCC, Tuyến, Giá, Thiết bị). Vui lòng tạo biểu cước mới hoặc chuyển sang Ngừng áp dụng (RETIRED) để tạo Revision."
+          );
+        }
+      }
+
+      // Kiểm tra chuyển trạng thái sang APPROVED: yêu cầu thẩm quyền Manager/Director
+      const finalStatus = status;
+      if (finalStatus === "APPROVED" && old.status !== "APPROVED") {
+        requireRole(actor, ["ADMIN", "DIRECTOR", "PRICING_MANAGER"]);
+        const authorRes = await client.query(
+          "SELECT actor_id FROM master_data_audit WHERE entity_type='rates' AND entity_id=$1 AND action='SAVE' ORDER BY created_at DESC LIMIT 1",
+          [input.rateId]
+        );
+        if (authorRes.rows.length > 0 && authorRes.rows[0].actor_id === actor.userId && actor.role !== "ADMIN") {
+          throw new Error("Nguyên tắc 4 mắt (Four-Eyes Principle): Người lập biểu cước không được tự phê duyệt.");
+        }
+      }
+
       const updateQuery = `
         UPDATE road_rates
         SET vendor_id = $1, pickup_location_id = $2, delivery_location_id = $3,
@@ -137,7 +173,7 @@ export async function saveRoadRateService(input: SaveRoadRateInput, actor: Curre
         buyRate,
         currency,
         `[${validFrom},${validTo})`,
-        status,
+        finalStatus,
         remarks,
         input.rateId,
       ]);
@@ -149,6 +185,17 @@ export async function saveRoadRateService(input: SaveRoadRateInput, actor: Curre
       );
     } else {
       const rateId = randomUUID();
+
+      // P0.1 & Four-Eyes Principle: Biểu cước mới tạo từ giao diện chỉ được phép bắt đầu ở trạng thái DRAFT hoặc PENDING_APPROVAL
+      let targetStatus = status;
+      if (targetStatus === "APPROVED") {
+        if (actor.role === "PRICING_SPECIALIST") {
+          targetStatus = "DRAFT";
+        } else if (actor.role !== "ADMIN" && actor.role !== "DIRECTOR") {
+          targetStatus = "PENDING_APPROVAL";
+        }
+      }
+
       const insertQuery = `
         INSERT INTO road_rates (rate_id, vendor_id, pickup_location_id, delivery_location_id, equipment_type, buy_rate, currency, validity_range, status, remarks)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::daterange, $9, $10)
@@ -163,7 +210,7 @@ export async function saveRoadRateService(input: SaveRoadRateInput, actor: Curre
         buyRate,
         currency,
         `[${validFrom},${validTo})`,
-        status,
+        targetStatus,
         remarks,
       ]);
       savedRow = insertRes.rows[0];
@@ -201,6 +248,10 @@ export async function toggleRoadRateStatusService(rateId: string, actor: Current
       throw new Error(`Biểu cước [${rateId}] không tồn tại.`);
     }
     const rate = rateRes.rows[0];
+    const locRes = await client.query("SELECT region_id FROM locations WHERE location_id = $1", [rate.pickup_location_id]);
+    if (locRes.rows[0]?.region_id) {
+      requireRegionScope(actor, locRes.rows[0].region_id);
+    }
     const newStatus = rate.status === "APPROVED" ? "RETIRED" : "APPROVED";
 
     const updateRes = await client.query(
@@ -237,6 +288,10 @@ export async function deleteRoadRateService(rateId: string, actor: CurrentActor)
       throw new Error(`Biểu cước [${rateId}] không tồn tại.`);
     }
     const rate = rateRes.rows[0];
+    const locRes = await client.query("SELECT region_id FROM locations WHERE location_id = $1", [rate.pickup_location_id]);
+    if (locRes.rows[0]?.region_id) {
+      requireRegionScope(actor, locRes.rows[0].region_id);
+    }
 
     const [snapshotCheck, quoteCheck] = await Promise.all([
       client.query("SELECT snapshot_id FROM quotation_buy_snapshots WHERE source_rate_id = $1 LIMIT 1", [rateId]),

@@ -32,31 +32,17 @@ export interface RateLookupResult {
   message?: string;
 }
 
+import {
+  STANDARD_FX_RATES,
+  UnsupportedCurrencyError,
+  getFxRateToVnd,
+} from "@/shared/utils/pricing";
+
 /**
- * Tỷ giá quy đổi cố định nội bộ chuẩn hóa về VND (có thể mở rộng từ bảng fx_rates)
+ * Tỷ giá quy đổi cố định nội bộ chuẩn hóa về VND (kế thừa từ single source of truth: pricing.ts)
  */
-export const FX_RATES_TO_VND: Record<string, number> = {
-  VND: 1.0,
-  USD: 25450.0,
-  LAK: 1.18,
-  KHR: 6.25,
-};
-
-export class UnsupportedCurrencyError extends Error {
-  constructor(currency: string) {
-    super(`Loại tiền tệ [${currency}] chưa được cấu hình tỷ giá quy đổi sang VND. Vui lòng kiểm tra bảng tỷ giá.`);
-    this.name = "UnsupportedCurrencyError";
-  }
-}
-
-export function getFxRateToVnd(currency: string): number {
-  const code = (currency || "").trim().toUpperCase();
-  const rate = FX_RATES_TO_VND[code];
-  if (rate === undefined) {
-    throw new UnsupportedCurrencyError(currency);
-  }
-  return rate;
-}
+export const FX_RATES_TO_VND = STANDARD_FX_RATES;
+export { UnsupportedCurrencyError, getFxRateToVnd };
 
 /**
  * Thuật toán Tra cứu Giá mua Đầu vào (BUY Rate Lookup Engine v1.1)

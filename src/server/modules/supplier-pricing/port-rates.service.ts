@@ -23,7 +23,7 @@ export interface PortRateItem {
   updatedAt?: string;
 }
 
-const STANDARD_USD_FX_RATE = 25450;
+import { STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 
 /**
  * Lấy danh sách chi tiết các biểu phí Cảng trực tiếp từ PostgreSQL

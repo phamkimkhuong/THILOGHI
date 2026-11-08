@@ -1,12 +1,14 @@
 "use client";
 
-import { PieChart, AlertCircle, ShieldAlert, ShieldCheck } from "lucide-react";
-import type { calculateQuotationFinancials } from "@/shared/utils/pricing";
+import { PieChart, AlertCircle, ShieldAlert, ShieldCheck, Layers } from "lucide-react";
+import { calculateQuotationFinancials, summarizeCostComponents } from "@/shared/utils/pricing";
 import type { evaluateApprovalAuthority } from "@/features/quotation/approval-policy";
+import type { ServiceItemState } from "@/features/quotation/editor-state";
 import { money, panelClass } from "./types";
 
 interface QuotationFinancialSummaryProps {
   totals: ReturnType<typeof calculateQuotationFinancials>;
+  items?: ServiceItemState[];
   missingCount: number;
   status: string;
   authority: ReturnType<typeof evaluateApprovalAuthority>;
@@ -14,12 +16,16 @@ interface QuotationFinancialSummaryProps {
 
 export function QuotationFinancialSummary({
   totals,
+  items,
   missingCount,
   status,
   authority,
 }: QuotationFinancialSummaryProps) {
   const isDraft = status === "DRAFT";
   const hasMissing = missingCount > 0 && isDraft;
+
+  const costBreakdown = items && items.length > 0 ? summarizeCostComponents(items) : null;
+  const componentKeys = costBreakdown ? Object.keys(costBreakdown.groups) : [];
 
   return (
     <aside className={`${panelClass} self-start lg:sticky lg:top-4 font-sans`}>
@@ -89,6 +95,37 @@ export function QuotationFinancialSummary({
             {hasMissing ? "Chưa đủ dữ liệu" : `${totals.estimatedMarginPercent.toFixed(2)}%`}
           </span>
         </div>
+
+        {/* Phân rã cơ cấu giá vốn BUY (Cost Components Composition - P0.2) */}
+        {costBreakdown && componentKeys.length > 1 && (
+          <div className="pt-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>Cơ cấu giá vốn BUY ({componentKeys.length} nhóm chi phí)</span>
+            </div>
+            <div className="space-y-1.5 rounded-lg bg-background/80 p-2.5 border border-border/80">
+              {Object.values(costBreakdown.groups).map((g) => (
+                <div key={g.servicePackage} className="flex items-center justify-between text-xs py-0.5">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    <span className="font-medium text-foreground">{g.servicePackage}</span>
+                    <span className="text-[10px] text-muted-foreground">({g.itemCount} dòng)</span>
+                  </span>
+                  <div className="text-right font-mono">
+                    <span className="font-semibold text-foreground">{money(g.totalBuy)}</span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Tối đa: {money(g.totalWorstCaseBuy)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <div className="pt-1.5 mt-1.5 border-t border-border/60 flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+                <span>∑ WorstCaseBUY</span>
+                <span className="font-mono text-foreground">{money(totals.totalWorstCaseBuy)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Cấp thẩm quyền phê duyệt */}

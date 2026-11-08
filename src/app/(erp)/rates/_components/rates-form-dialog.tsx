@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Receipt, Building2, MapPin, Truck, Calendar, DollarSign, FileText } from "lucide-react";
+import { Receipt, Building2, MapPin, Truck, Calendar, DollarSign, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -63,9 +63,10 @@ export function RatesFormDialog({
       } else {
         setFormData({
           ...DEFAULT_ROAD_RATE_FORM,
-          vendorId: vendors[0]?.id || "",
-          pickupLocationId: locations[0]?.id || "",
-          deliveryLocationId: locations[1]?.id || locations[0]?.id || "",
+          vendorId: "",
+          pickupLocationId: "",
+          deliveryLocationId: "",
+          status: "DRAFT",
         });
       }
       setFormError("");
@@ -124,6 +125,8 @@ export function RatesFormDialog({
     }
   };
 
+  const isApproved = initialData?.status === "APPROVED";
+
   return (
     <ModalDialog
       open={open}
@@ -140,6 +143,18 @@ export function RatesFormDialog({
           </div>
         )}
 
+        {isApproved && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+            <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold">Biểu cước đã được phê duyệt (APPROVED) và khóa thương mại</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Các thông tin cốt lõi (NCC, Tuyến đường, Đơn giá, Thời hạn) không thể sửa trực tiếp để bảo vệ tính toàn vẹn báo giá &amp; P&amp;L. Bạn chỉ có thể cập nhật ghi chú hoặc chuyển trạng thái sang [Ngừng áp dụng]. Muốn thay đổi giá, vui lòng tạo biểu cước mới (Revision).
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Khối 1: Nhà cung cấp & Thiết bị */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
@@ -150,9 +165,10 @@ export function RatesFormDialog({
             <select
               id="rate-vendor"
               required
+              disabled={isApproved || formSubmitting}
               value={formData.vendorId}
               onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:bg-muted"
             >
               <option value="" disabled>-- Chọn Nhà xe / NCC --</option>
               {vendors.map((v) => (
@@ -171,9 +187,10 @@ export function RatesFormDialog({
             <select
               id="rate-equipment"
               required
+              disabled={isApproved || formSubmitting}
               value={formData.equipmentType}
               onChange={(e) => setFormData({ ...formData, equipmentType: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:bg-muted"
             >
               {COMMON_EQUIPMENT_OPTIONS.map((eq) => (
                 <option key={eq.id} value={eq.id}>
@@ -194,9 +211,10 @@ export function RatesFormDialog({
             <select
               id="rate-origin"
               required
+              disabled={isApproved || formSubmitting}
               value={formData.pickupLocationId}
               onChange={(e) => setFormData({ ...formData, pickupLocationId: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:bg-muted"
             >
               <option value="" disabled>-- Chọn Điểm xếp hàng --</option>
               {locations.map((loc) => (
@@ -215,9 +233,10 @@ export function RatesFormDialog({
             <select
               id="rate-dest"
               required
+              disabled={isApproved || formSubmitting}
               value={formData.deliveryLocationId}
               onChange={(e) => setFormData({ ...formData, deliveryLocationId: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:bg-muted"
             >
               <option value="" disabled>-- Chọn Điểm dỡ hàng --</option>
               {locations.map((loc) => (
@@ -238,11 +257,12 @@ export function RatesFormDialog({
             </label>
             <CurrencyInput
               id="rate-price"
+              disabled={isApproved || formSubmitting}
               value={formData.buyRate}
               onValueChange={(val) => setFormData({ ...formData, buyRate: val ?? 0 })}
               currencySuffix={formData.currency === "VND" ? " ₫" : ` ${formData.currency}`}
               placeholder="0"
-              className="w-full font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-400"
+              className="w-full font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-400 disabled:opacity-60 disabled:bg-muted"
             />
           </div>
 
@@ -253,9 +273,10 @@ export function RatesFormDialog({
             <select
               id="rate-currency"
               required
+              disabled={isApproved || formSubmitting}
               value={formData.currency}
               onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:bg-muted"
             >
               {CURRENCY_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -278,6 +299,7 @@ export function RatesFormDialog({
               onChange={(val) => setFormData({ ...formData, validFrom: val })}
               placeholder="dd/MM/yyyy"
               ariaLabel="Hiệu lực từ ngày"
+              disabled={isApproved || formSubmitting}
             />
           </div>
 
@@ -291,7 +313,11 @@ export function RatesFormDialog({
               onChange={(val) => setFormData({ ...formData, validTo: val })}
               placeholder="dd/MM/yyyy"
               ariaLabel="Hiệu lực đến ngày"
+              disabled={isApproved || formSubmitting}
             />
+            <span className="text-[10px] text-muted-foreground block mt-0.5">
+              Áp dụng đến hết ngày đã chọn (23:59:59)
+            </span>
           </div>
 
           <div>
@@ -304,9 +330,19 @@ export function RatesFormDialog({
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="APPROVED">Áp dụng (APPROVED)</option>
-              <option value="DRAFT">Bản nháp (DRAFT)</option>
-              <option value="RETIRED">Ngừng áp dụng (RETIRED)</option>
+              {isApproved ? (
+                <>
+                  <option value="APPROVED">Áp dụng (APPROVED)</option>
+                  <option value="RETIRED">Ngừng áp dụng (RETIRED)</option>
+                </>
+              ) : (
+                <>
+                  <option value="DRAFT">Bản nháp (DRAFT)</option>
+                  <option value="PENDING_APPROVAL">Chờ duyệt (PENDING_APPROVAL)</option>
+                  <option value="APPROVED">Áp dụng (APPROVED)</option>
+                  <option value="RETIRED">Ngừng áp dụng (RETIRED)</option>
+                </>
+              )}
             </select>
           </div>
         </div>

@@ -47,8 +47,13 @@ export const quotationServiceItemSchema = z.object({
   // P&L metrics
   itemGp: z.number().default(0),
   itemMarginPercent: z.number().default(0),
-}).refine(item => item.originLocationId !== item.destinationLocationId, {
-  message: "Điểm đi và điểm đến phải khác nhau.", path: ["destinationLocationId"],
+}).refine(item => {
+  if (item.servicePackage === "TRUCKING" || item.servicePackage === "OCEAN") {
+    return item.originLocationId !== item.destinationLocationId;
+  }
+  return true;
+}, {
+  message: "Điểm đi và điểm đến phải khác nhau đối với dịch vụ vận tải.", path: ["destinationLocationId"],
 });
 
 export const createQuotationSchema = z.object({
@@ -57,6 +62,8 @@ export const createQuotationSchema = z.object({
   customerId: identifier,
   regionId: identifier,
   commodityId: z.union([identifier, z.literal("")]).optional(),
+  pricingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Định dạng ngày áp dụng giá không hợp lệ").optional(),
+  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Định dạng ngày hiệu lực không hợp lệ").optional(),
   paymentTermsDays: z.number().int().min(0).max(3650).default(30),
   remarks: z.string().max(5000).optional(),
   items: z.array(quotationServiceItemSchema).min(1, "Báo giá cần ít nhất 1 dịch vụ").max(200),

@@ -1,9 +1,29 @@
 import type { PoolClient } from "pg";
 import Decimal from "decimal.js";
 import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
-import { getBusinessDate } from "@/shared/utils/pricing";
+import { getBusinessDate, STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 
-export async function validateApprovalRates(client: PoolClient, quotationId: string) {
+export async function validateApprovalRates(
+  client: PoolClient,
+  quotationId: string,
+  pricingDateOverride?: string
+) {
+  let pricingDate: string = pricingDateOverride || "";
+  if (!pricingDate) {
+    try {
+      const qRes = await client.query(
+        `SELECT COALESCE(pricing_date::text, created_at::date::text) as pricing_date FROM customer_quotations WHERE quotation_id = $1`,
+        [quotationId]
+      );
+      pricingDate = (qRes.rows[0]?.pricing_date as string | undefined) || getBusinessDate();
+    } catch {
+      pricingDate = getBusinessDate();
+    }
+  }
+  if (!pricingDate) {
+    pricingDate = getBusinessDate();
+  }
+
   const lines = await client.query(`SELECT i.service_package,i.origin_location_id,i.destination_location_id,i.equipment_type,i.selected_buy_rate_id,
     s.rate_amount,s.original_currency,s.fx_rate_to_vnd
     FROM quotation_service_items i LEFT JOIN quotation_buy_snapshots s ON s.item_id=i.item_id AND s.quotation_id=i.quotation_id
@@ -14,10 +34,10 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const portRateRes = await client.query(
         `SELECT rate_id, unit_price, currency, status, validity_range @> $2::date as is_valid
          FROM port_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const pr = portRateRes.rows[0];
-      const fxRate = pr?.currency === "USD" ? 25700 : 1.0;
+      const fxRate = pr?.currency === "USD" ? STANDARD_USD_FX_RATE : 1.0;
       if (!pr || pr.status !== "ACTIVE" || !pr.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(pr.unit_price) || line.original_currency !== pr.currency || !new Decimal(line.fx_rate_to_vnd).eq(fxRate)) {
         throw new Error("Biểu phí cảng đã thay đổi, hết hiệu lực hoặc ngừng áp dụng. Trả báo giá về nháp để tra lại giá trước khi duyệt.");
       }
@@ -28,7 +48,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const borderRateRes = await client.query(
         `SELECT rate_id, total_fee, currency, status, validity_range @> $2::date as is_valid
          FROM border_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const br = borderRateRes.rows[0];
       const fxRate = 1.0;
@@ -42,7 +62,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const oceanRateRes = await client.query(
         `SELECT rate_id, total_charges_vnd, currency, status, validity_range @> $2::date as is_valid
          FROM ocean_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const or = oceanRateRes.rows[0];
       const fxRate = 1.0;
@@ -56,7 +76,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const customsRes = await client.query(
         `SELECT rate_id, total_service_fee, customs_fee, currency, status, validity_range @> $2::date as is_valid
          FROM customs_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const cr = customsRes.rows[0];
       const fee = cr ? Number(cr.total_service_fee || cr.customs_fee || 0) : 0;
@@ -70,7 +90,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const whRes = await client.query(
         `SELECT rate_id, unit_price, currency, status, validity_range @> $2::date as is_valid
          FROM warehouse_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const wr = whRes.rows[0];
       if (!wr || wr.status !== "ACTIVE" || !wr.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(wr.unit_price)) {
@@ -83,7 +103,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const insRes = await client.query(
         `SELECT rate_id, unit_price, rate_percent, pricing_model, min_premium_vnd, currency, status, validity_range @> $2::date as is_valid
          FROM insurance_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const ir = insRes.rows[0];
       if (!ir || ir.status !== "ACTIVE" || !ir.is_valid || line.rate_amount == null) {
@@ -96,7 +116,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       const otherRes = await client.query(
         `SELECT rate_id, unit_price, currency, status, validity_range @> $2::date as is_valid
          FROM other_rates WHERE rate_id = $1`,
-        [line.selected_buy_rate_id, getBusinessDate()]
+        [line.selected_buy_rate_id, pricingDate]
       );
       const or = otherRes.rows[0];
       if (!or || or.status !== "ACTIVE" || !or.is_valid || line.rate_amount == null || !new Decimal(line.rate_amount).eq(or.unit_price)) {
@@ -105,7 +125,7 @@ export async function validateApprovalRates(client: PoolClient, quotationId: str
       continue;
     }
 
-    const rates = await lookupRoadRates({pickupLocationId:line.origin_location_id,deliveryLocationId:line.destination_location_id,equipmentType:line.equipment_type,pricingDate:getBusinessDate()},client);
+    const rates = await lookupRoadRates({pickupLocationId:line.origin_location_id,deliveryLocationId:line.destination_location_id,equipmentType:line.equipment_type,pricingDate},client);
     const selected = rates.candidates.find(rate=>rate.rateId===line.selected_buy_rate_id);
     if (rates.status === "CONFLICT_RATE" || !selected || line.rate_amount == null || !new Decimal(line.rate_amount).eq(selected.buyRate) || line.original_currency!==selected.currency || !new Decimal(line.fx_rate_to_vnd).eq(selected.fxRateToVnd)) {
       throw new Error("Giá mua đã thay đổi, hết hiệu lực hoặc NCC ngừng hoạt động. Trả báo giá về nháp để tra lại giá trước khi duyệt.");

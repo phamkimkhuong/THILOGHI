@@ -31,10 +31,12 @@ export interface OceanRateItem {
   updatedAt?: string;
 }
 
+import { STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
+
 /**
- * Tỷ giá quy đổi chuẩn USD -> VND cho vận tải biển
+ * Tỷ giá quy đổi chuẩn USD -> VND cho vận tải biển (kế thừa từ chuẩn toàn hệ thống 25.450)
  */
-export const OCEAN_FX_RATE_USD_VND = 25700;
+export const OCEAN_FX_RATE_USD_VND = STANDARD_USD_FX_RATE;
 
 /**
  * Lấy danh sách hãng tàu vận tải biển trực tiếp từ Master Data (vendors JOIN partners)

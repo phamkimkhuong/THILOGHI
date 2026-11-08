@@ -54,6 +54,7 @@ export async function getMasterCustomers(): Promise<MasterOption[]> {
       id: customers.customerId,
       name: partners.partnerName,
       code: partners.taxCode,
+      paymentTermsDays: customers.paymentTermsDays,
     })
     .from(customers)
     .innerJoin(partners, eq(customers.customerId, partners.partnerId))
@@ -64,6 +65,9 @@ export async function getMasterCustomers(): Promise<MasterOption[]> {
     id: r.id,
     name: r.name,
     code: r.code || undefined,
+    extra: {
+      paymentTermsDays: r.paymentTermsDays ?? 30,
+    },
   }));
 }
 

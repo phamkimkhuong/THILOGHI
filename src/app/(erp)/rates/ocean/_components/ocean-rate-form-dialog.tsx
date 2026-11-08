@@ -15,6 +15,7 @@ import {
   formatUsd,
   OCEAN_FX_RATE_USD_VND,
 } from "./types";
+import { STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 import { saveOceanRateAction, getCommoditiesAction } from "@/features/master-data/actions";
 
 interface OceanRateFormDialogProps {
@@ -148,7 +149,7 @@ function OceanRateFormDialogContent({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Tính tổng chi phí quy đổi VND theo thời gian thực
-  const oceanFreightVnd = Number(form.oceanFreightUsd || 0) * (OCEAN_FX_RATE_USD_VND || 25700);
+  const oceanFreightVnd = Number(form.oceanFreightUsd || 0) * (OCEAN_FX_RATE_USD_VND || STANDARD_USD_FX_RATE);
   const localChargesVnd =
     Number(form.docsFee || 0) +
     Number(form.sealFee || 0) +

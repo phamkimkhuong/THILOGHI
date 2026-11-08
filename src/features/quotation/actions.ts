@@ -92,7 +92,8 @@ export async function lookupRoadRatesAction(
 ): Promise<RateLookupResult> {
   try {
     await requireAuth();
-    return await lookupRoadRates(rateLookupSchema.parse({ ...query, pricingDate: getBusinessDate() }));
+    const effectivePricingDate = query.pricingDate || getBusinessDate();
+    return await lookupRoadRates(rateLookupSchema.parse({ ...query, pricingDate: effectivePricingDate }));
   } catch (error) {
     return {
       status: "ERROR",

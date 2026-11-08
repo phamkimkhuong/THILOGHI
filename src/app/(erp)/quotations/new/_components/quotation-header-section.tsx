@@ -1,8 +1,9 @@
 "use client";
 
-import { Building2, CalendarClock } from "lucide-react";
+import { Building2, CalendarClock, Calendar } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 import { FormError } from "@/components/ui/form";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ChoiceSelect } from "./choice-select";
 import { inputClass, panelClass, type FieldErrors, type MasterData, type QuotationHeaderState } from "./types";
 
@@ -32,7 +33,7 @@ export function QuotationHeaderSection({
         <h2 className="text-base font-bold text-foreground">1. Thông tin chung hồ sơ báo giá</h2>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         {/* Khách hàng */}
         <ChoiceSelect
           label="Khách hàng đối tác"
@@ -42,7 +43,13 @@ export function QuotationHeaderSection({
           disabled={locked}
           error={fieldErrors.customerId}
           onChange={(v) => {
-            onHeaderChange((h) => ({ ...h, customerId: v }));
+            const cust = master?.customers?.find((c) => c.id === v);
+            const extraTerms = cust?.extra?.paymentTermsDays;
+            onHeaderChange((h) => ({
+              ...h,
+              customerId: v,
+              ...(typeof extraTerms === "number" ? { paymentTermsDays: extraTerms } : {}),
+            }));
             onClearFieldError("customerId");
           }}
         />
@@ -60,6 +67,25 @@ export function QuotationHeaderSection({
             onClearFieldError("regionId");
           }}
         />
+
+        {/* Ngày áp dụng giá */}
+        <div className="space-y-1.5 font-sans">
+          <label className="block text-xs font-semibold text-foreground">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+              Ngày áp dụng giá (Pricing Date) <span className="text-red-500">*</span>
+            </span>
+            <div className="mt-1">
+              <DatePicker
+                value={header.pricingDate}
+                onChange={(val) => onHeaderChange((h) => ({ ...h, pricingDate: val }))}
+                placeholder="dd/MM/yyyy"
+                ariaLabel="Ngày áp dụng giá"
+                disabled={locked}
+              />
+            </div>
+          </label>
+        </div>
 
         {/* Hàng hóa */}
         <ChoiceSelect

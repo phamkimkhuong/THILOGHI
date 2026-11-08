@@ -7,6 +7,8 @@ export interface QuotationHeaderState {
   regionId: string;
   commodityId: string;
   paymentTermsDays: number;
+  pricingDate?: string;
+  validUntil?: string;
 }
 
 export const BLANK_HEADER: QuotationHeaderState = {
@@ -14,6 +16,8 @@ export const BLANK_HEADER: QuotationHeaderState = {
   regionId: "",
   commodityId: "",
   paymentTermsDays: 30,
+  pricingDate: new Date().toISOString().split("T")[0],
+  validUntil: "",
 };
 
 export interface FieldErrors {

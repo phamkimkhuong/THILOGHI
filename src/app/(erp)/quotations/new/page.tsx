@@ -27,7 +27,7 @@ import { createQuotationVersionAction } from "@/features/quotation/phase4-action
 import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
 import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
 import { evaluateApprovalAuthority, isQuotationAuthor } from "@/features/quotation/approval-policy";
-import { calculateQuotationFinancials, getBusinessDate } from "@/shared/utils/pricing";
+import { calculateQuotationFinancials, getBusinessDate, STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
 import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 import { createQuotationSchema, type ServicePackage } from "@/shared/schemas/quotation.schema";
 import type { QuotationDetailResponse } from "@/server/modules/quotation/quotation.service";
@@ -92,7 +92,9 @@ function Workspace() {
 
   // Tính toán tài chính
   const totals = calculateQuotationFinancials(items);
-  const missing = items.map((i, index) => ({ index, warning: rateWarning(i) })).filter((i) => i.warning);
+  const missing = items
+    .map((i, index) => ({ index, warning: rateWarning(i, header.pricingDate || getBusinessDate()) }))
+    .filter((i) => i.warning);
   const item = items[active];
   const authority = evaluateApprovalAuthority(
     detail?.quote.estimatedMarginPercent ?? totals.estimatedMarginPercent,
@@ -107,6 +109,8 @@ function Workspace() {
       regionId: d.quote.regionId,
       commodityId: d.quote.commodityId ?? "",
       paymentTermsDays: d.quote.paymentTermsDays,
+      pricingDate: d.quote.pricingDate,
+      validUntil: d.quote.validUntil,
     };
     const lines = restoreQuotationItems(d);
     setDetail(d);
@@ -277,6 +281,7 @@ function Workspace() {
   // Tra cứu giá mua NCC cho tuyến đường hoặc biểu phí cảng Chu Lai
   function lookup() {
     if (!item) return;
+    const pricingDateToUse = header.pricingDate || getBusinessDate();
 
     // Phân hệ Cảng & Depot (PORT)
     if (item.servicePackage === "PORT") {
@@ -296,7 +301,7 @@ function Workspace() {
         const res = await lookupPortRatesAction({
           portCode: item.originLocationId ? item.originLocationId : undefined,
           containerType: item.equipmentType,
-          pricingDate: getBusinessDate(),
+          pricingDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -306,7 +311,7 @@ function Workspace() {
             vendorName: `${c.portName} [${c.chargeCode}] - ${c.serviceCategory} (${c.containerType})`,
             buyRate: c.unitPrice,
             currency: c.currency,
-            fxRateToVnd: c.currency === "USD" ? 25700 : 1,
+            fxRateToVnd: c.currency === "USD" ? STANDARD_USD_FX_RATE : 1,
             buyRateVnd: c.unitPriceVnd,
             validityRange: `[${c.validFrom},${c.validTo})`,
             validityStart: c.validFrom,
@@ -348,7 +353,7 @@ function Workspace() {
     if (item.servicePackage === "BORDER_GATE") {
       void perform(async () => {
         const res = await lookupBorderRatesAction({
-          pricingDate: getBusinessDate(),
+          pricingDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -403,7 +408,7 @@ function Workspace() {
           polId: item.originLocationId ? item.originLocationId : undefined,
           podId: item.destinationLocationId ? item.destinationLocationId : undefined,
           containerType: item.equipmentType ? item.equipmentType : undefined,
-          pricingDate: getBusinessDate(),
+          pricingDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -459,7 +464,7 @@ function Workspace() {
           commodityName: header.commodityId && master?.commodities
             ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
             : undefined,
-          validityDate: getBusinessDate(),
+          validityDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -515,7 +520,7 @@ function Workspace() {
           commodityName: header.commodityId && master?.commodities
             ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
             : undefined,
-          validityDate: getBusinessDate(),
+          validityDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -570,7 +575,7 @@ function Workspace() {
           commodityName: header.commodityId && master?.commodities
             ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
             : undefined,
-          validityDate: getBusinessDate(),
+          validityDate: pricingDateToUse,
           invoiceValueVnd: item.unitSellPrice || undefined,
         });
 
@@ -623,7 +628,7 @@ function Workspace() {
     if (item.servicePackage === "OTHER") {
       void perform(async () => {
         const res = await lookupOtherRatesAction({
-          validityDate: getBusinessDate(),
+          validityDate: pricingDateToUse,
         });
 
         if (res.candidates && res.candidates.length > 0) {
@@ -707,7 +712,7 @@ function Workspace() {
         pickupLocationId: item.originLocationId,
         deliveryLocationId: item.destinationLocationId,
         equipmentType: item.equipmentType,
-        pricingDate: getBusinessDate(),
+        pricingDate: pricingDateToUse,
       });
       setItems((prev) =>
         prev.map((x) =>
@@ -984,6 +989,7 @@ function Workspace() {
             {/* Cột phải: Panel Tổng hợp tài chính P&L cố định Viewport */}
             <QuotationFinancialSummary
               totals={totals}
+              items={items}
               missingCount={missing.length}
               status={status}
               authority={authority}

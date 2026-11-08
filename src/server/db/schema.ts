@@ -337,6 +337,7 @@ export const customerQuotations = pgTable("customer_quotations", {
 
   currency: varchar("currency", { length: 3 }).default("VND"),
   paymentTermsDays: integer("payment_terms_days").default(30),
+  pricingDate: date("pricing_date"),
   validUntil: date("valid_until"),
   immutableLocked: boolean("immutable_locked").default(false),
   customerNameSnapshot: varchar("customer_name_snapshot", { length: 255 }),
