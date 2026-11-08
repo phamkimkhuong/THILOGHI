@@ -5,8 +5,6 @@ import {
   PageHeader,
   RefreshButton,
   useListFeedback,
-  TableFeedback,
-  TableContainer,
 } from "@/components/ui/list-page";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -233,33 +231,20 @@ export default function PortRatesPage() {
       />
 
       {/* 3. Bảng dữ liệu tự co giãn và cuộn ngang an toàn */}
-      {error ? (
-        <TableContainer ariaLabel="Bảng biểu phí dịch vụ Cảng & Depot Chu Lai">
-          <table className="erp-table w-full text-left text-xs font-sans">
-            <tbody>
-              <TableFeedback
-                columns={10}
-                loading={false}
-                error={error}
-                onRetry={loadData}
-              />
-            </tbody>
-          </table>
-        </TableContainer>
-      ) : (
-        <PortRatesTable
-          rates={filteredRates}
-          loading={loading}
-          onView={(rate) => setSelectedDrawerItem(rate)}
-          onEdit={(rate) => {
-            setSelectedEditItem(rate);
-            setIsFormOpen(true);
-          }}
-          onToggleStatus={(rate) => setToggleTarget(rate)}
-          onDelete={(rate) => setDeleteTarget(rate)}
-          onResetFilters={handleResetFilters}
-        />
-      )}
+      <PortRatesTable
+        rates={filteredRates}
+        loading={loading}
+        error={error}
+        onRetry={loadData}
+        onView={(rate) => setSelectedDrawerItem(rate)}
+        onEdit={(rate) => {
+          setSelectedEditItem(rate);
+          setIsFormOpen(true);
+        }}
+        onToggleStatus={(rate) => setToggleTarget(rate)}
+        onDelete={(rate) => setDeleteTarget(rate)}
+        onResetFilters={handleResetFilters}
+      />
 
       {/* 4. Slide-over Drawer xem chi tiết nhanh */}
       <PortRateDetailDrawer

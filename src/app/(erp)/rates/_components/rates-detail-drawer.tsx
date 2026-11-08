@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  X,
   Receipt,
   Building2,
   MapPin,
@@ -12,8 +11,8 @@ import {
   Trash2,
   FileText,
   Truck,
-  DollarSign,
 } from "lucide-react";
+import { ResponsiveDrawer } from "@/components/ui/responsive-drawer";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import type { RoadRateItem } from "./types";
@@ -37,142 +36,117 @@ export function RatesDetailDrawer({
 
   const isApproved = rate.status === "APPROVED" || rate.status === "Active";
 
+  const formatPrice = (price: number, curr = "VND") => {
+    return new Intl.NumberFormat("vi-VN").format(price) + ` ${curr}`;
+  };
+
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200 font-sans">
-      <div
-        className="w-full sm:max-w-md md:max-w-lg bg-surface border-l border-border h-full shadow-2xl flex flex-col transform transition-transform animate-in slide-in-from-right duration-300"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rate-drawer-title"
-      >
-        {/* Header Drawer */}
-        <div className="p-4 border-b border-border flex items-start justify-between bg-surface-hover shrink-0">
-          <div className="space-y-1 pr-3">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600 border border-blue-200 dark:border-blue-800">
-                <Receipt className="w-4 h-4" />
+    <ResponsiveDrawer
+      open={Boolean(rate)}
+      onClose={onClose}
+      title={
+        <div className="flex items-center gap-2">
+          <span className="p-1 rounded-md bg-blue-600/10 text-blue-600 border border-blue-200 dark:border-blue-800">
+            <Receipt className="w-4 h-4" />
+          </span>
+          <span>{rate.pickupName} &rarr; {rate.deliveryName}</span>
+        </div>
+      }
+      subtitle={
+        <span className="flex items-center gap-2 mt-1">
+          <span className="font-mono text-xs font-semibold text-foreground bg-surface px-2 py-0.5 rounded border border-border">
+            {rate.equipmentType}
+          </span>
+          <StatusBadge status={rate.status} />
+          <span className="text-muted-foreground text-xs">• {rate.vendorName}</span>
+        </span>
+      }
+    >
+      <div className="space-y-5 text-xs font-sans pb-4">
+        {/* Card Đơn giá mua nổi bật */}
+        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20">
+          <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300 block mb-1">
+            Đơn giá mua đầu vào (Chưa VAT)
+          </span>
+          <div className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
+            {formatPrice(rate.buyRate, rate.currency)}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Áp dụng cho cấu hình thiết bị <strong>{rate.equipmentType}</strong> nguyên chuyến.
+          </p>
+        </div>
+
+        {/* Khối Tuyến đường vận chuyển */}
+        <div className="p-3.5 rounded-xl border border-border bg-surface space-y-3">
+          <h4 className="font-semibold text-foreground flex items-center gap-2 border-b border-border/60 pb-2">
+            <Truck className="w-4 h-4 text-blue-600" /> Tuyến đường vận tải
+          </h4>
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <span className="p-1.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 shrink-0 mt-0.5">
+                <MapPin className="w-3.5 h-3.5" />
               </span>
-              <span className="font-mono text-xs font-semibold text-foreground bg-surface px-2 py-0.5 rounded border border-border">
-                {rate.equipmentType}
-              </span>
-              <StatusBadge status={rate.status} />
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Điểm xếp hàng (Origin)</span>
+                <span className="font-semibold text-foreground text-xs">{rate.pickupName}</span>
+                <span className="font-mono text-[10px] text-muted-foreground ml-1.5">({rate.pickupCode})</span>
+              </div>
             </div>
-            <h2 id="rate-drawer-title" className="text-base font-bold text-foreground leading-snug">
-              {rate.pickupName} &rarr; {rate.deliveryName}
-            </h2>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Building2 className="w-3.5 h-3.5" /> Nhà cung cấp:{" "}
-              <strong className="text-foreground">{rate.vendorName}</strong>
+
+            <div className="ml-3 pl-3 border-l border-dashed border-border py-1 text-muted-foreground text-[10px]">
+              &darr; Tuyến đường bộ tiêu chuẩn
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <span className="p-1.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 shrink-0 mt-0.5">
+                <MapPin className="w-3.5 h-3.5" />
+              </span>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Điểm dỡ hàng (Destination)</span>
+                <span className="font-semibold text-foreground text-xs">{rate.deliveryName}</span>
+                <span className="font-mono text-[10px] text-muted-foreground ml-1.5">({rate.deliveryCode})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Khối Thông tin Đối tác & Thời hạn hiệu lực */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl border border-border bg-surface space-y-1">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5" /> Nhà cung cấp
+            </span>
+            <p className="font-semibold text-foreground text-xs">{rate.vendorName}</p>
+            <p className="font-mono text-[10px] text-muted-foreground">ID: {rate.vendorId}</p>
+          </div>
+
+          <div className="p-3 rounded-xl border border-border bg-surface space-y-1">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" /> Thời hạn hiệu lực
+            </span>
+            <p className="font-mono text-xs text-foreground font-medium">
+              {rate.validFrom || "—"} &rarr; {rate.validTo || "—"}
+            </p>
+            <span className="inline-block mt-0.5">
+              <StatusBadge status={rate.status} />
+            </span>
+          </div>
+        </div>
+
+        {/* Khối Ghi chú / Điều khoản phụ */}
+        {rate.remarks && (
+          <div className="p-3.5 rounded-xl border border-border bg-surface space-y-1.5">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5" /> Ghi chú &amp; Điều khoản
+            </span>
+            <p className="text-xs text-foreground leading-relaxed italic bg-surface-hover p-2.5 rounded-lg border border-border">
+              &ldquo;{rate.remarks}&rdquo;
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-surface border border-border transition-colors cursor-pointer"
-            aria-label="Đóng ngăn chi tiết"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        )}
 
-        {/* Nội dung chi tiết Drawer */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-foreground scrollbar-thin">
-          {/* Card 1: Tuyến vận chuyển */}
-          <div className="p-3.5 rounded-xl bg-background border border-border space-y-3">
-            <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider block">
-              Thông tin Tuyến vận tải
-            </span>
-            <div className="space-y-2">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-[11px] text-muted-foreground block">Điểm xếp hàng (Origin):</span>
-                  <p className="font-semibold text-foreground text-xs">{rate.pickupName}</p>
-                  <span className="text-[11px] font-mono text-muted-foreground">{rate.pickupCode}</span>
-                </div>
-              </div>
-              <div className="border-l-2 border-dashed border-border ml-2 pl-4 py-1" />
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-[11px] text-muted-foreground block">Điểm dỡ hàng (Destination):</span>
-                  <p className="font-semibold text-foreground text-xs">{rate.deliveryName}</p>
-                  <span className="text-[11px] font-mono text-muted-foreground">{rate.deliveryCode}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Thiết bị & Đơn giá mua */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-background border border-border">
-              <span className="text-muted-foreground text-[11px] block">Thiết bị / Cont</span>
-              <div className="mt-1 font-semibold text-foreground text-sm flex items-center gap-1.5">
-                <Truck className="w-4 h-4 text-blue-600" />
-                <span>{rate.equipmentType}</span>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-background border border-border">
-              <span className="text-muted-foreground text-[11px] block">Đơn giá mua đầu vào</span>
-              <div className="mt-1 font-bold text-emerald-700 dark:text-emerald-400 text-sm flex items-center gap-1 font-mono">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
-                <span>
-                  {new Intl.NumberFormat("vi-VN", {
-                    maximumFractionDigits: rate.currency === "VND" ? 0 : 2,
-                  }).format(rate.buyRate)}{" "}
-                  {rate.currency}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Hiệu lực thời gian */}
-          <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
-            <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider block">
-              Thời hạn hiệu lực cước
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                <span>Từ ngày:</span>
-                <strong className="font-mono text-foreground">{rate.validFrom || "Không giới hạn"}</strong>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                <span>Đến ngày:</span>
-                <strong className="font-mono text-foreground">{rate.validTo || "Không thời hạn"}</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4: Nhà cung cấp & Mã định danh */}
-          <div className="p-3.5 rounded-xl bg-background border border-border space-y-1.5 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>Mã định danh cước:</span>
-              <strong className="font-mono text-foreground">{rate.rateId}</strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Mã nhà cung cấp:</span>
-              <strong className="font-mono text-foreground">{rate.vendorId}</strong>
-            </div>
-          </div>
-
-          {/* Card 5: Ghi chú điều kiện cước */}
-          {rate.remarks && (
-            <div className="p-3.5 rounded-xl bg-background border border-border space-y-1.5">
-              <span className="text-muted-foreground text-[11px] flex items-center gap-1 font-medium">
-                <FileText className="w-3.5 h-3.5 text-blue-600" /> Ghi chú & Điều kiện cước:
-              </span>
-              <p className="text-foreground text-xs leading-relaxed bg-surface p-2.5 rounded-lg border border-border">
-                {rate.remarks}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Drawer: Thao tác Quản trị */}
-        <div className="p-4 border-t border-border bg-surface-hover space-y-2 shrink-0">
+        {/* Thao tác Quản trị biểu cước */}
+        <div className="p-3.5 border-t border-border bg-surface-hover/50 rounded-xl space-y-2 mt-4">
           <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
             Thao tác Quản trị biểu cước
           </span>
@@ -212,7 +186,6 @@ export function RatesDetailDrawer({
           </div>
         </div>
       </div>
-    </div>
+    </ResponsiveDrawer>
   );
 }
-

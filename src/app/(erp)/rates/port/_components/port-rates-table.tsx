@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, Pencil, Power, Trash2, Anchor, Calendar } from "lucide-react";
-import { TableContainer } from "@/components/ui/list-page";
+import { TableContainer, TableFeedback } from "@/components/ui/list-page";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import {
 interface PortRatesTableProps {
   rates: PortRateItem[];
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onView: (rate: PortRateItem) => void;
   onEdit: (rate: PortRateItem) => void;
   onToggleStatus: (rate: PortRateItem) => void;
@@ -25,13 +27,15 @@ interface PortRatesTableProps {
 export function PortRatesTable({
   rates,
   loading = false,
+  error = null,
+  onRetry,
   onView,
   onEdit,
   onToggleStatus,
   onDelete,
   onResetFilters,
 }: PortRatesTableProps) {
-  if (!loading && rates.length === 0) {
+  if (!loading && !error && rates.length === 0) {
     return (
       <EmptyState
         title="Không tìm thấy biểu phí cảng nào"
@@ -65,7 +69,15 @@ export function PortRatesTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {rates.map((item, index) => {
+          {loading || error ? (
+            <TableFeedback
+              columns={10}
+              loading={loading}
+              error={error}
+              onRetry={onRetry ?? (() => {})}
+            />
+          ) : (
+            rates.map((item, index) => {
             const chargeBadge = getChargeCodeBadge(item.chargeCode);
             const cargoBadge = getCargoTypeBadge(item.cargoType);
 
@@ -208,7 +220,8 @@ export function PortRatesTable({
                 </td>
               </tr>
             );
-          })}
+          })
+        )}
         </tbody>
       </table>
     </TableContainer>

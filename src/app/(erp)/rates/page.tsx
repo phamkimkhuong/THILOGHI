@@ -21,7 +21,12 @@ import { RatesTable } from "./_components/rates-table";
 import { RatesImportDialog } from "./_components/rates-import-dialog";
 import { RatesDetailDrawer } from "./_components/rates-detail-drawer";
 import { RatesFormDialog } from "./_components/rates-form-dialog";
-import type { RoadRateItem, RoadRateSortOption, OptionItem } from "./_components/types";
+import {
+  type RoadRateItem,
+  type RoadRateSortOption,
+  type OptionItem,
+  removeVietnameseTones,
+} from "./_components/types";
 
 export default function RoadRatesLibraryPage() {
   useDocumentTitle("Giá mua đường bộ");
@@ -169,17 +174,18 @@ export default function RoadRatesLibraryPage() {
   const filteredRates = useMemo(() => {
     let list = [...rates];
 
-    // Tìm kiếm tức thì theo từ khóa
+    // Tìm kiếm tức thì theo từ khóa không dấu (Accent-Insensitive)
     if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase().trim();
+      const q = removeVietnameseTones(searchTerm.trim());
       list = list.filter(
         (r) =>
-          r.vendorName.toLowerCase().includes(q) ||
-          r.pickupName.toLowerCase().includes(q) ||
-          r.deliveryName.toLowerCase().includes(q) ||
-          r.pickupCode.toLowerCase().includes(q) ||
-          r.deliveryCode.toLowerCase().includes(q) ||
-          r.equipmentType.toLowerCase().includes(q)
+          removeVietnameseTones(r.vendorName).includes(q) ||
+          removeVietnameseTones(r.pickupName).includes(q) ||
+          removeVietnameseTones(r.deliveryName).includes(q) ||
+          removeVietnameseTones(r.pickupCode).includes(q) ||
+          removeVietnameseTones(r.deliveryCode).includes(q) ||
+          removeVietnameseTones(r.equipmentType).includes(q) ||
+          removeVietnameseTones(r.remarks || "").includes(q)
       );
     }
 

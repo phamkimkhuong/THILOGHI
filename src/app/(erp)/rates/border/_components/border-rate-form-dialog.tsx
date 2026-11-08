@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ShieldCheck, DollarSign, Calculator } from "lucide-react";
 import {
   BorderRateItem,
@@ -470,15 +471,15 @@ function BorderRateFormDialogContent({
               <label className="block text-xs font-semibold text-foreground mb-1">
                 Hiệu lực từ ngày <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.validFrom}
-                onChange={(e) => setForm((prev) => ({ ...prev, validFrom: e.target.value }))}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={(val) => {
+                  setForm((prev) => ({ ...prev, validFrom: val }));
+                  setErrors((prev) => ({ ...prev, validFrom: "" }));
+                }}
+                error={errors.validFrom}
+                placeholder="dd/MM/yyyy"
               />
-              {errors.validFrom && (
-                <span className="text-[11px] text-red-500 mt-0.5 block">{errors.validFrom}</span>
-              )}
             </div>
 
             {/* Hiệu lực đến ngày */}
@@ -486,15 +487,15 @@ function BorderRateFormDialogContent({
               <label className="block text-xs font-semibold text-foreground mb-1">
                 Hiệu lực đến ngày <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.validTo}
-                onChange={(e) => setForm((prev) => ({ ...prev, validTo: e.target.value }))}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={(val) => {
+                  setForm((prev) => ({ ...prev, validTo: val }));
+                  setErrors((prev) => ({ ...prev, validTo: "" }));
+                }}
+                error={errors.validTo}
+                placeholder="dd/MM/yyyy"
               />
-              {errors.validTo && (
-                <span className="text-[11px] text-red-500 mt-0.5 block">{errors.validTo}</span>
-              )}
             </div>
 
             {/* Trạng thái */}

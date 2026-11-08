@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Anchor } from "lucide-react";
 import {
   PortRateItem,
@@ -416,34 +417,30 @@ function PortRateFormDialogContent({
             <label className="block font-medium text-foreground mb-1">
               Hiệu lực từ ngày <span className="text-destructive">*</span>
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={formData.validFrom}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, validFrom: e.target.value }))
-              }
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(val) => {
+                setFormData((prev) => ({ ...prev, validFrom: val }));
+                setErrors((prev) => ({ ...prev, validFrom: "" }));
+              }}
+              error={errors.validFrom}
+              placeholder="dd/MM/yyyy"
             />
-            {errors.validFrom && (
-              <p className="text-destructive text-[11px] mt-1">{errors.validFrom}</p>
-            )}
           </div>
 
           <div>
             <label className="block font-medium text-foreground mb-1">
               Hiệu lực đến ngày <span className="text-destructive">*</span>
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={formData.validTo}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, validTo: e.target.value }))
-              }
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(val) => {
+                setFormData((prev) => ({ ...prev, validTo: val }));
+                setErrors((prev) => ({ ...prev, validTo: "" }));
+              }}
+              error={errors.validTo}
+              placeholder="dd/MM/yyyy"
             />
-            {errors.validTo && (
-              <p className="text-destructive text-[11px] mt-1">{errors.validTo}</p>
-            )}
           </div>
         </div>
 

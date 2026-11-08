@@ -84,6 +84,22 @@ import {
   type CustomsRateItem,
   type SaveCustomsRateInput,
 } from "@/server/modules/supplier-pricing/customs-rates.service";
+import {
+  getWarehouseRatesDetailedList,
+  getWarehouseLocationsList,
+  getWarehouseProvidersList,
+  saveWarehouseRateService,
+  toggleWarehouseRateStatusService,
+  deleteWarehouseRateService,
+  lookupWarehouseRate,
+  type WarehouseRateItem,
+  type SaveWarehouseRateInput,
+} from "@/server/modules/supplier-pricing/warehouse-rates.service";
+
+export type {
+  WarehouseRateItem,
+  SaveWarehouseRateInput,
+};
 
 export type {
   PortRateItem,
@@ -1094,6 +1110,125 @@ export async function lookupCustomsRatesAction(query: {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí dịch vụ Hải quan",
+      candidates: [],
+    };
+  }
+}
+
+// ====================================================================
+// PHÂN HỆ BIỂU PHÍ DỊCH VỤ KHO BÃI & LƯU TRỮ (WAREHOUSE RATES)
+// ====================================================================
+
+export async function getWarehouseRatesAction(filters?: {
+  search?: string;
+  warehouseId?: string;
+  warehouseType?: string;
+  serviceCode?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getWarehouseRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải biểu phí dịch vụ Kho bãi & Lưu trữ",
+    };
+  }
+}
+
+export async function getWarehouseLocationsAction() {
+  try {
+    await requireAuth();
+    const data = await getWarehouseLocationsList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục Kho bãi",
+    };
+  }
+}
+
+export async function getWarehouseProvidersAction() {
+  try {
+    await requireAuth();
+    const data = await getWarehouseProvidersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục đơn vị vận hành kho",
+    };
+  }
+}
+
+export async function saveWarehouseRateAction(input: SaveWarehouseRateInput) {
+  try {
+    const actor = await requireAuth();
+    const result = await saveWarehouseRateService(input, actor);
+    return result;
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí dịch vụ Kho bãi",
+    };
+  }
+}
+
+export async function toggleWarehouseRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleWarehouseRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã ${status === "ACTIVE" ? "kích hoạt" : "tạm dừng"} biểu phí Kho bãi thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí Kho bãi",
+    };
+  }
+}
+
+export async function deleteWarehouseRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteWarehouseRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí dịch vụ Kho bãi thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí dịch vụ Kho bãi",
+    };
+  }
+}
+
+export async function lookupWarehouseRatesAction(query: {
+  warehouseId?: string;
+  warehouseType?: string;
+  serviceCode?: string;
+  commodityId?: string;
+  commodityName?: string;
+  validityDate?: string;
+}) {
+  try {
+    await requireAuth();
+    const res = await lookupWarehouseRate(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí dịch vụ Kho bãi",
       candidates: [],
     };
   }

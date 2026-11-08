@@ -5,6 +5,7 @@ import { Receipt, Building2, MapPin, Truck, Calendar, DollarSign, FileText } fro
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { saveRoadRateAction } from "@/features/master-data/actions";
 import {
@@ -268,32 +269,28 @@ export function RatesFormDialog({
         {/* Khối 4: Thời hạn hiệu lực & Trạng thái */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div>
-            <label htmlFor="rate-valid-from" className="font-medium text-foreground mb-1 flex items-center gap-1.5">
+            <label className="font-medium text-foreground mb-1 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
               Hiệu lực từ ngày <span className="text-rose-500">*</span>
             </label>
-            <input
-              id="rate-valid-from"
-              type="date"
-              required
+            <DatePicker
               value={formData.validFrom}
-              onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(val) => setFormData({ ...formData, validFrom: val })}
+              placeholder="dd/MM/yyyy"
+              ariaLabel="Hiệu lực từ ngày"
             />
           </div>
 
           <div>
-            <label htmlFor="rate-valid-to" className="font-medium text-foreground mb-1 flex items-center gap-1.5">
+            <label className="font-medium text-foreground mb-1 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
               Hiệu lực đến ngày <span className="text-rose-500">*</span>
             </label>
-            <input
-              id="rate-valid-to"
-              type="date"
-              required
+            <DatePicker
               value={formData.validTo}
-              onChange={(e) => setFormData({ ...formData, validTo: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(val) => setFormData({ ...formData, validTo: val })}
+              placeholder="dd/MM/yyyy"
+              ariaLabel="Hiệu lực đến ngày"
             />
           </div>
 
