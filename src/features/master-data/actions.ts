@@ -73,6 +73,17 @@ import {
   type SaveOceanRateInput,
   type OceanRateLookupQuery,
 } from "@/server/modules/supplier-pricing/ocean-rates.service";
+import {
+  getCustomsRatesDetailedList,
+  saveCustomsRateService,
+  toggleCustomsRateStatusService,
+  deleteCustomsRateService,
+  lookupCustomsRate,
+  getCustomsBrokersList,
+  getCustomsOfficesList,
+  type CustomsRateItem,
+  type SaveCustomsRateInput,
+} from "@/server/modules/supplier-pricing/customs-rates.service";
 
 export type {
   PortRateItem,
@@ -84,6 +95,8 @@ export type {
   OceanRateItem,
   SaveOceanRateInput,
   OceanRateLookupQuery,
+  CustomsRateItem,
+  SaveCustomsRateInput,
   PortDepotPartnerOption,
 };
 
@@ -958,6 +971,129 @@ export async function lookupOceanRatesAction(query: OceanRateLookupQuery) {
       success: false,
       status: "MISSING_RATE" as const,
       message: err instanceof Error ? err.message : "Lỗi tra cứu biểu cước vận tải biển",
+      candidates: [],
+    };
+  }
+}
+
+// ====================================================================
+// ACTIONS CHO PHÂN HỆ BIỂU PHÍ DỊCH VỤ HẢI QUAN (CUSTOMS RATES)
+// ====================================================================
+
+export async function getCustomsRatesAction(filters?: {
+  search?: string;
+  customsOfficeId?: string;
+  procedure?: string;
+  serviceCode?: string;
+  status?: string;
+}) {
+  try {
+    await requireAuth();
+    const data = await getCustomsRatesDetailedList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải biểu phí dịch vụ Hải quan",
+    };
+  }
+}
+
+export async function getCustomsBrokersAction() {
+  try {
+    await requireAuth();
+    const data = await getCustomsBrokersList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục đại lý Hải quan",
+    };
+  }
+}
+
+export async function getCustomsOfficesAction() {
+  try {
+    await requireAuth();
+    const data = await getCustomsOfficesList();
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục chi cục Hải quan",
+    };
+  }
+}
+
+export async function saveCustomsRateAction(input: SaveCustomsRateInput) {
+  try {
+    const actor = await requireAuth();
+    const result = await saveCustomsRateService(input, actor);
+    return {
+      success: true,
+      message: result.message,
+      rateId: result.rateId,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu biểu phí dịch vụ Hải quan",
+    };
+  }
+}
+
+export async function toggleCustomsRateStatusAction(rateId: string, status: string) {
+  try {
+    const actor = await requireAuth();
+    await toggleCustomsRateStatusService(rateId, status, actor);
+    return {
+      success: true,
+      message: `Đã ${status === "ACTIVE" ? "kích hoạt" : "tạm dừng"} biểu phí Hải quan thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái biểu phí Hải quan",
+    };
+  }
+}
+
+export async function deleteCustomsRateAction(rateId: string) {
+  try {
+    const actor = await requireAuth();
+    await deleteCustomsRateService(rateId, actor);
+    return {
+      success: true,
+      message: "Đã xóa biểu phí dịch vụ Hải quan thành công.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi xóa biểu phí dịch vụ Hải quan",
+    };
+  }
+}
+
+export async function lookupCustomsRatesAction(query: {
+  customsOfficeId?: string;
+  customsProcedure?: string;
+  serviceCode?: string;
+  commodityId?: string;
+  commodityName?: string;
+  validityDate?: string;
+}) {
+  try {
+    await requireAuth();
+    const res = await lookupCustomsRate(query);
+    return { success: true, ...res };
+  } catch (err) {
+    return {
+      success: false,
+      status: "MISSING_RATE" as const,
+      message: err instanceof Error ? err.message : "Lỗi tra cứu biểu phí dịch vụ Hải quan",
       candidates: [],
     };
   }

@@ -14,7 +14,12 @@ import {
   rejectQuotationAction,
   returnQuotationToDraftAction,
 } from "@/features/quotation/actions";
-import { lookupPortRatesAction, lookupBorderRatesAction, lookupOceanRatesAction } from "@/features/master-data/actions";
+import {
+  lookupPortRatesAction,
+  lookupBorderRatesAction,
+  lookupOceanRatesAction,
+  lookupCustomsRatesAction,
+} from "@/features/master-data/actions";
 import { createQuotationVersionAction } from "@/features/quotation/phase4-actions";
 import { restoreQuotationItems, type ServiceItemState } from "@/features/quotation/editor-state";
 import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
@@ -438,6 +443,62 @@ function Workspace() {
           setMessage("Chọn hãng tàu và tuyến vận tải biển phù hợp từ bảng bên dưới.");
         } else {
           toast.error(res.message || "Không tìm thấy biểu cước vận tải biển phù hợp.");
+        }
+      });
+      return;
+    }
+
+    // Phân hệ Dịch vụ Hải quan & Thông quan (CUSTOMS)
+    if (item.servicePackage === "CUSTOMS") {
+      void perform(async () => {
+        const res = await lookupCustomsRatesAction({
+          customsOfficeId: item.originLocationId || item.destinationLocationId || undefined,
+          commodityName: header.commodityId && master?.commodities
+            ? master.commodities.find((c: { id: string; name: string }) => c.id === header.commodityId)?.name
+            : undefined,
+          validityDate: getBusinessDate(),
+        });
+
+        if (res.candidates && res.candidates.length > 0) {
+          const candidates = res.candidates.map((c) => ({
+            rateId: c.rateId,
+            vendorId: c.vendorId,
+            vendorName: c.vendorName,
+            buyRate: c.buyRate,
+            currency: c.currency || "VND",
+            fxRateToVnd: 1,
+            buyRateVnd: c.buyRate,
+            validityRange: `[${c.validFrom},${c.validTo})`,
+            validityStart: c.validFrom,
+            validityEnd: c.validTo,
+          }));
+
+          const worstCase = Math.max(...candidates.map((c) => c.buyRateVnd));
+          const bestCandidate = candidates[0];
+
+          setItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id
+                ? {
+                    ...x,
+                    lookupResult: {
+                      status: (candidates.length === 1 ? "APPLY" : "MULTIPLE_CANDIDATES") as "APPLY" | "MULTIPLE_CANDIDATES",
+                      candidates,
+                      worstCaseBuy: worstCase,
+                      message: `Tìm thấy ${candidates.length} biểu phí Hải quan phù hợp.`,
+                    },
+                    selectedBuyRateId: candidates.length === 1 ? bestCandidate.rateId : undefined,
+                    selectedCandidate: candidates.length === 1 ? bestCandidate : undefined,
+                    unitBuyPrice: candidates.length === 1 ? bestCandidate.buyRateVnd : 0,
+                    worstCaseBuyPrice: worstCase,
+                  }
+                : x
+            )
+          );
+          toast.success(`Tìm thấy ${candidates.length} biểu phí Hải quan phù hợp.`);
+          setMessage("Chọn biểu phí dịch vụ Hải quan phù hợp từ bảng bên dưới.");
+        } else {
+          toast.error(res.message || "Không tìm thấy biểu phí dịch vụ Hải quan phù hợp.");
         }
       });
       return;

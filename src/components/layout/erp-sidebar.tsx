@@ -1,28 +1,37 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, Ship, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, Ship, FileCheck, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 export const navigation = [
-  { label: "Danh mục", items: [
-    { label: "Đối tác", href: "/master/customers", icon: Building2 },
-    { label: "Địa điểm", href: "/master/locations", icon: MapPin },
-    { label: "Hàng hóa", href: "/master/commodities", icon: Package },
-    { label: "Đội xe", href: "/master/fleet", icon: Truck },
-    { label: "Dịch vụ", href: "/master/services", icon: Layers },
-  ] },
-  { label: "Giá mua", items: [
-    { label: "Giá mua đường bộ", href: "/rates", icon: Receipt },
-    { label: "Biểu phí Cảng & Depot", href: "/rates/port", icon: Anchor },
-    { label: "Biểu phí Cửa khẩu", href: "/rates/border", icon: ShieldCheck },
-    { label: "Biểu cước Vận tải biển", href: "/rates/ocean", icon: Ship },
-  ] },
-  { label: "Báo giá", items: [
-    { label: "Danh sách báo giá", href: "/quotations", icon: FileText },
-    { label: "Lập báo giá", href: "/quotations/new", icon: Plus },
-  ] },
-  { label: "Hệ thống", items: [
-    { label: "Người dùng", href: "/master/users", icon: Users },
-  ] },
+  {
+    label: "Danh mục", items: [
+      { label: "Đối tác", href: "/master/customers", icon: Building2 },
+      { label: "Địa điểm", href: "/master/locations", icon: MapPin },
+      { label: "Hàng hóa", href: "/master/commodities", icon: Package },
+      { label: "Đội xe", href: "/master/fleet", icon: Truck },
+      { label: "Dịch vụ", href: "/master/services", icon: Layers },
+    ]
+  },
+  {
+    label: "Giá mua", items: [
+      { label: "Giá mua đường bộ", href: "/rates", icon: Receipt },
+      { label: "Biểu phí Cảng & Depot", href: "/rates/port", icon: Anchor },
+      { label: "Biểu phí Cửa khẩu", href: "/rates/border", icon: ShieldCheck },
+      { label: "Biểu cước Vận tải biển", href: "/rates/ocean", icon: Ship },
+      { label: "Biểu phí Hải quan", href: "/rates/customs", icon: FileCheck },
+    ]
+  },
+  {
+    label: "Báo giá", items: [
+      { label: "Danh sách báo giá", href: "/quotations", icon: FileText },
+      { label: "Lập báo giá", href: "/quotations/new", icon: Plus },
+    ]
+  },
+  {
+    label: "Hệ thống", items: [
+      { label: "Người dùng", href: "/master/users", icon: Users },
+    ]
+  },
 ];
 export function ErpSidebar({ isCollapsed, onToggleCollapse, onNavigate, mobile = false }: { isCollapsed: boolean; onToggleCollapse: () => void; onNavigate?: () => void; mobile?: boolean }) {
   const pathname = usePathname();
