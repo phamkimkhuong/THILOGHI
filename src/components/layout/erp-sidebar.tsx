@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, MapPin, Package, Truck, Layers, Receipt, Anchor, ShieldCheck, Ship, FileCheck, Warehouse, Shield, MoreHorizontal, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { Building2, MapPin, Package, Truck, Layers, Container, Receipt, Anchor, ShieldCheck, Ship, FileCheck, Warehouse, Shield, MoreHorizontal, FileText, Plus, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 export const navigation = [
   {
     label: "Danh mục", items: [
@@ -10,6 +10,7 @@ export const navigation = [
       { label: "Hàng hóa", href: "/master/commodities", icon: Package },
       { label: "Đội xe", href: "/master/fleet", icon: Truck },
       { label: "Dịch vụ", href: "/master/services", icon: Layers },
+      { label: "Loại thiết bị", href: "/master/equipment", icon: Container },
     ]
   },
   {
