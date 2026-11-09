@@ -991,7 +991,7 @@ function Workspace() {
               active={active}
               setActive={setActive}
               onAddItem={() => {
-                setItems((prev) => [...prev, emptyServiceItem(crypto.randomUUID())]);
+                setItems((prev) => [...prev, emptyServiceItem()]);
                 setActive(items.length);
               }}
               onRemoveItem={(i) => {

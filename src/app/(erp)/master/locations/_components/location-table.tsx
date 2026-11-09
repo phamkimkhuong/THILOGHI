@@ -20,6 +20,7 @@ import {
   Phone,
 } from "lucide-react";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableFeedback, Pagination, usePagination, TableContainer } from "@/components/ui/list-page";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -66,7 +67,7 @@ export function LocationTable({
   const pagination = usePagination(locations.length, filterKey);
 
   const handleCopyGps = (gps: string, id: string) => {
-    navigator.clipboard.writeText(gps);
+    void copyToClipboard(gps);
     setCopiedId(id);
     toast.success(`Đã sao chép tọa độ: ${gps}`);
     setTimeout(() => setCopiedId(null), 2000);

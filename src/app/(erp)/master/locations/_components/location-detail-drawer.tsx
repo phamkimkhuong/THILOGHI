@@ -24,6 +24,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { COUNTRY_CONFIG, type LocationRecord } from "./types";
@@ -48,7 +49,7 @@ export function LocationDetailDrawer({
   if (!location) return null;
 
   const handleCopyGps = (gps: string) => {
-    navigator.clipboard.writeText(gps);
+    void copyToClipboard(gps);
     setCopiedGps(true);
     toast.success(`Đã sao chép tọa độ: ${gps}`);
     setTimeout(() => setCopiedGps(false), 2000);

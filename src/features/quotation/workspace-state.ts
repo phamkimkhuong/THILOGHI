@@ -1,8 +1,11 @@
 import type { ServiceItemState } from "./editor-state";
 import { getBusinessDate } from "@/shared/utils/pricing";
+import { generateSafeId } from "@/shared/utils/id";
 
-export function emptyServiceItem(id: string): ServiceItemState {
-  return { id, servicePackage: "TRUCKING", pricingInclusion: "INCLUDED", originLocationId: "", destinationLocationId: "", equipmentType: "", plannedQuantity: 1, unit: "TRIP", unitBuyPrice: 0, worstCaseBuyPrice: 0, unitSellPrice: 0 };
+export { generateSafeId };
+
+export function emptyServiceItem(id?: string): ServiceItemState {
+  return { id: id || generateSafeId(), servicePackage: "TRUCKING", pricingInclusion: "INCLUDED", originLocationId: "", destinationLocationId: "", equipmentType: "", plannedQuantity: 1, unit: "TRIP", unitBuyPrice: 0, worstCaseBuyPrice: 0, unitSellPrice: 0 };
 }
 export function rateWarning(item: ServiceItemState, date = getBusinessDate()): string | null {
   if (!item.selectedBuyRateId) return "Chưa chọn giá mua";

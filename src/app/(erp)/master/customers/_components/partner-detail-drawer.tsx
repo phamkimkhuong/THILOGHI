@@ -24,6 +24,7 @@ import {
   Tag,
 } from "lucide-react";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/shared/utils/clipboard";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,7 +110,7 @@ export function PartnerDetailDrawer({
   const countryBadge = getCountryBadge(country);
 
   const handleCopy = (text: string, fieldName: string) => {
-    void navigator.clipboard.writeText(text);
+    void copyToClipboard(text);
     setCopiedField(fieldName);
     toast.success(`Đã sao chép ${fieldName}!`);
     setTimeout(() => setCopiedField(null), 2000);
