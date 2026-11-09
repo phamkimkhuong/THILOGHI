@@ -40,6 +40,9 @@ import {
   toggleServiceStatus,
   type MasterServicePackage,
   type SaveServicePackageInput,
+  getMasterEquipmentTypesList,
+  saveEquipmentType,
+  toggleEquipmentTypeStatus,
 } from "@/server/modules/master-data/master-data.service";
 import {
   getPortRatesDetailedList,
@@ -732,6 +735,61 @@ export async function toggleServiceStatusAction(serviceId: string, isActive: boo
     return {
       success: false,
       error: err instanceof Error ? err.message : "Lỗi cập nhật trạng thái gói dịch vụ",
+    };
+  }
+}
+
+export async function getMasterEquipmentTypesAction(filters?: {
+  search?: string;
+  category?: string;
+  isActive?: boolean;
+}) {
+  try {
+    await requireAuth();
+    const data = await getMasterEquipmentTypesList(filters);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      data: [],
+      error: err instanceof Error ? err.message : "Lỗi tải danh mục thiết bị",
+    };
+  }
+}
+
+export async function saveEquipmentTypeAction(input: {
+  equipmentTypeId: string;
+  equipmentName: string;
+  category: string;
+  isReefer?: boolean;
+  aliases?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+}) {
+  try {
+    const actor = await requireAuth();
+    const res = await saveEquipmentType(input, actor);
+    return { success: true, message: res.message };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi lưu loại thiết bị",
+    };
+  }
+}
+
+export async function toggleEquipmentTypeStatusAction(equipmentTypeId: string, isActive: boolean) {
+  try {
+    const actor = await requireAuth();
+    await toggleEquipmentTypeStatus(equipmentTypeId, isActive, actor);
+    return {
+      success: true,
+      message: `Đã ${isActive ? "kích hoạt" : "tạm dừng"} loại thiết bị [${equipmentTypeId}] thành công.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Lỗi đổi trạng thái loại thiết bị",
     };
   }
 }

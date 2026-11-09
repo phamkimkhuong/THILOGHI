@@ -199,6 +199,18 @@ export const commodities = pgTable("commodities", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export const equipmentTypes = pgTable("equipment_types", {
+  equipmentTypeId: varchar("equipment_type_id", { length: 30 }).primaryKey(),
+  equipmentName: varchar("equipment_name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  isReefer: boolean("is_reefer").default(false).notNull(),
+  aliases: jsonb("aliases").default([]).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 // --------------------------------------------------------------------
 // 2.6. Fleet & Logistics Assets Tables
 // --------------------------------------------------------------------
@@ -781,4 +793,7 @@ export type NewTrailer = typeof trailers.$inferInsert;
 
 export type Driver = typeof drivers.$inferSelect;
 export type NewDriver = typeof drivers.$inferInsert;
+
+export type EquipmentType = typeof equipmentTypes.$inferSelect;
+export type NewEquipmentType = typeof equipmentTypes.$inferInsert;
 

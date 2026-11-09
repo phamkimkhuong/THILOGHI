@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import Decimal from "decimal.js";
 import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
 import { getBusinessDate, getFxRateToVnd, roundVnd } from "@/shared/utils/pricing";
+import { isReeferEquipment } from "@/shared/utils/equipment";
 
 export async function validateApprovalRates(
   client: PoolClient,
@@ -32,17 +33,15 @@ export async function validateApprovalRates(
   }
 
   let quoteCommodityName = "";
-  try {
-    const qCommRes = await client.query(
-      `SELECT c.commodity_name 
-       FROM customer_quotations q
-       LEFT JOIN commodities c ON q.commodity_id = c.commodity_id
-       WHERE q.quotation_id = $1`,
-      [quotationId]
-    );
-    quoteCommodityName = String(qCommRes.rows[0]?.commodity_name || "").trim();
-  } catch {
-    quoteCommodityName = "";
+  const qCommRes = await client.query(
+    `SELECT c.name AS commodity_name 
+     FROM customer_quotations q
+     LEFT JOIN commodities c ON q.commodity_id = c.commodity_id
+     WHERE q.quotation_id = $1`,
+    [quotationId]
+  );
+  if (qCommRes.rows.length > 0 && qCommRes.rows[0]?.commodity_name) {
+    quoteCommodityName = String(qCommRes.rows[0].commodity_name).trim();
   }
 
   const lines = await client.query(
@@ -93,7 +92,7 @@ export async function validateApprovalRates(
     if (compRows.length > 0) {
       if (
         line.service_package === "PORT" &&
-        ["20HR", "40HR"].includes(line.equipment_type)
+        isReeferEquipment(line.equipment_type)
       ) {
         const hasLolo = compRows.some((c) => c.cost_code === "LOLO");
         const hasThc = compRows.some((c) => c.cost_code === "THC_PORT");

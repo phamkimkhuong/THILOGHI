@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { roundVnd } from "@/shared/utils/pricing";
 import { rateLookupSchema } from "@/shared/schemas/quotation.schema";
 import { pool } from "@/server/db";
+import { getEquivalentEquipmentCodes } from "@/shared/utils/equipment";
 
 export interface RateLookupQuery {
   pickupLocationId: string;
@@ -82,7 +83,26 @@ export async function lookupRoadRates(input: RateLookupQuery, client: Pick<PoolC
     query.pricingDate,
   ]);
 
-  if (rows.length === 0) {
+  let matchedRows = rows;
+  if (!matchedRows || matchedRows.length === 0) {
+    const equivalents = getEquivalentEquipmentCodes(query.equipmentType).filter(
+      (eq) => eq !== query.equipmentType
+    );
+    for (const alt of equivalents) {
+      const altRes = await client.query(sql, [
+        query.pickupLocationId,
+        query.deliveryLocationId,
+        alt,
+        query.pricingDate,
+      ]);
+      if (altRes.rows && altRes.rows.length > 0) {
+        matchedRows = altRes.rows;
+        break;
+      }
+    }
+  }
+
+  if (!matchedRows || matchedRows.length === 0) {
     return {
       status: "MISSING_RATE",
       candidates: [],
@@ -91,7 +111,7 @@ export async function lookupRoadRates(input: RateLookupQuery, client: Pick<PoolC
   }
 
   // 2. Chuẩn hóa tỷ giá ngoại tệ về VND cho từng candidate
-  const candidates: RateCandidate[] = rows.map((r) => {
+  const candidates: RateCandidate[] = matchedRows.map((r) => {
     const rawRate = Number(r.buy_rate);
     const curr = (r.currency || "VND").trim().toUpperCase();
     const fx = getFxRateToVnd(curr);

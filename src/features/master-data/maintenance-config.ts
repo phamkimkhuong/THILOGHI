@@ -35,16 +35,24 @@ export const catalogs = {
     { key: "vendor_id", label: "Nhà cung cấp", required: true, lookup: "vendors" },
     { key: "pickup_location_id", label: "Điểm đi", required: true, lookup: "locations" },
     { key: "delivery_location_id", label: "Điểm đến", required: true, lookup: "locations" },
-    { key: "equipment_type", label: "Thiết bị", required: true, options: ["40HC", "40RH", "20DC", "20RF", "TRUCK_15T", "TRUCK_FO", "RMS", "General"] },
+    { key: "equipment_type", label: "Thiết bị", required: true, options: ["40HC", "40HR", "40RH", "20GP", "20HR", "20DC", "20RF", "TRUCK_15T", "TRUCK_FO", "RMS", "General"] },
     { key: "buy_rate", label: "Giá mua", required: true, type: "number" },
     { key: "currency", label: "Tiền tệ", required: true, options: ["VND", "USD", "LAK", "KHR"] },
     { key: "valid_from", label: "Hiệu lực từ (bao gồm)", required: true, type: "date" },
     { key: "valid_to", label: "Hiệu lực đến (không bao gồm)", required: true, type: "date" },
     { key: "remarks", label: "Ghi chú" },
   ] },
+  equipment: { title: "Loại thiết bị & Container", table: "equipment_types", id: "equipment_type_id", name: "equipment_name", fields: [
+    { key: "equipment_type_id", label: "Mã loại thiết bị", required: true, max: 30 },
+    { key: "equipment_name", label: "Tên loại thiết bị", required: true, max: 255 },
+    { key: "category", label: "Phân loại", required: true, options: ["REEFER_CONT", "DRY_CONT", "TRUCK", "TRAILER", "GENERAL"] },
+    { key: "is_reefer", label: "Container Lạnh", required: true, options: ["true", "false"] },
+    { key: "sort_order", label: "Thứ tự sắp xếp", type: "number" },
+    { key: "is_active", label: "Đang sử dụng", required: true, options: ["true", "false"] },
+  ] },
 } satisfies Record<string, {title: string; table: string; id: string; name: string; fields: Field[]}>;
 export type Catalog = keyof typeof catalogs;
-export const catalogSchema = z.enum(["partners", "customers", "vendors", "locations", "commodities", "rates"]);
+export const catalogSchema = z.enum(["partners", "customers", "vendors", "locations", "commodities", "rates", "equipment"]);
 export function validateFields(kind: Catalog, raw: unknown): Record<string, string | null> {
   const shape: Record<string, z.ZodType> = {};
   for (const f of catalogs[kind].fields as Field[]) {

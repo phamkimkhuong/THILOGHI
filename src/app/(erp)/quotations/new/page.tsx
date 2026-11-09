@@ -28,6 +28,7 @@ import { restoreQuotationItems, type ServiceItemState } from "@/features/quotati
 import { commercialFingerprint, emptyServiceItem, rateWarning } from "@/features/quotation/workspace-state";
 import { evaluateApprovalAuthority, isQuotationAuthor } from "@/features/quotation/approval-policy";
 import { calculateQuotationFinancials, getBusinessDate, STANDARD_USD_FX_RATE } from "@/shared/utils/pricing";
+import { isReeferEquipment } from "@/shared/utils/equipment";
 import { useDocumentTitle } from "@/shared/hooks/use-document-title";
 import { createQuotationSchema, type ServicePackage } from "@/shared/schemas/quotation.schema";
 import type { QuotationDetailResponse } from "@/server/modules/quotation/quotation.service";
@@ -305,7 +306,7 @@ function Workspace() {
         });
 
         if (res.candidates && res.candidates.length > 0) {
-          const isReefer = ["20HR", "40HR"].includes(item.equipmentType || "");
+          const isReefer = isReeferEquipment(item.equipmentType);
           const thcCandidate = isReefer ? res.candidates.find((c) => c.chargeCode === "THC_PORT") : undefined;
 
           const candidates = res.candidates.map((c) => {

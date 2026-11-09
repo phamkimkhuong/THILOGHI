@@ -8,6 +8,8 @@ import {
   vendors,
 } from "@/server/db/schema";
 import { eq, and, asc, ilike, or } from "drizzle-orm";
+import { CANONICAL_EQUIPMENT_TYPES } from "@/shared/utils/equipment";
+import { getMasterEquipmentTypesList } from "./equipment-types.service";
 
 export interface MasterOption {
   id: string;
@@ -16,16 +18,30 @@ export interface MasterOption {
   extra?: Record<string, unknown>;
 }
 
-export const EQUIPMENT_TYPES = [
-  { id: "40HC", name: "Container 40' Cao (40HC)" },
-  { id: "40RH", name: "Container 40' Lạnh (40RH)" },
-  { id: "20DC", name: "Container 20' Tiêu chuẩn (20DC)" },
-  { id: "20RF", name: "Container 20' Lạnh (20RF)" },
-  { id: "TRUCK_15T", name: "Xe tải thùng 15 Tấn" },
-  { id: "TRUCK_FO", name: "Xe bồn chuyên dụng chất lỏng" },
-  { id: "RMS", name: "Rơ moóc sàn (RMS)" },
-  { id: "General", name: "Phương tiện đa dụng (General)" },
-];
+/**
+ * Danh sách thiết bị chuẩn hóa fallback cho các module import tĩnh
+ */
+export const EQUIPMENT_TYPES = CANONICAL_EQUIPMENT_TYPES.map((e) => ({
+  id: e.code,
+  name: e.name,
+}));
+
+/**
+ * Lấy danh sách Loại thiết bị & Container thực tế từ PostgreSQL (equipment_types)
+ * Fail-Closed: Query trực tiếp CSDL, hỗ trợ alias mapping
+ */
+export async function getMasterEquipmentTypes(): Promise<MasterOption[]> {
+  const items = await getMasterEquipmentTypesList({ isActive: true });
+  return items.map((e) => ({
+    id: e.equipmentTypeId,
+    name: e.equipmentName,
+    code: e.category,
+    extra: {
+      isReefer: e.isReefer,
+      aliases: e.aliases,
+    },
+  }));
+}
 
 /**
  * Lấy danh sách Phân vùng nghiệp vụ thực tế từ PostgreSQL (regions) qua Drizzle ORM

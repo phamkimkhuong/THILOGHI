@@ -7,6 +7,11 @@ import { CreateQuotationInput, createQuotationSchema } from "@/shared/schemas/qu
 import { CurrentActor } from "@/server/auth/types";
 import { lookupRoadRates } from "@/server/modules/supplier-pricing/rate-lookup.service";
 import { validateApprovalRates } from "./approval-rates";
+import {
+  areEquipmentTypesCompatible,
+  isReeferEquipment,
+  getEquivalentEquipmentCodes,
+} from "@/shared/utils/equipment";
 
 export interface QuotationFinancialSummary {
   totalSellAmount: number;
@@ -109,11 +114,11 @@ export async function saveQuotationDraft(
 
     if (effectiveCommodityId) {
       const commRes = await client.query(
-        'SELECT commodity_name FROM commodities WHERE commodity_id = $1',
+        'SELECT name FROM commodities WHERE commodity_id = $1',
         [effectiveCommodityId]
       );
-      if (commRes.rows.length > 0) {
-        quoteCommodityName = String(commRes.rows[0].commodity_name || "").trim();
+      if (commRes.rows.length > 0 && commRes.rows[0]?.name) {
+        quoteCommodityName = String(commRes.rows[0].name).trim();
       }
     }
 
@@ -152,7 +157,7 @@ export async function saveQuotationDraft(
             throw new Error("Biểu phí cảng đã chọn không còn hiệu lực hoặc đã ngừng áp dụng. Vui lòng tra cứu lại.");
           }
           const pRow = portRes.rows[0];
-          if (item.equipmentType && pRow.container_type !== "ALL" && pRow.container_type !== item.equipmentType) {
+          if (item.equipmentType && pRow.container_type !== "ALL" && !areEquipmentTypesCompatible(item.equipmentType, pRow.container_type)) {
             throw new Error(`Biểu phí cảng (${pRow.container_type}) không phù hợp với loại container [${item.equipmentType}] của báo giá.`);
           }
           const unitPrice = Number(pRow.unit_price);
@@ -179,13 +184,13 @@ export async function saveQuotationDraft(
             worstCaseCostVnd: loloEstVnd,
           });
 
-          // Nếu là container lạnh (20HR, 40HR) và gói LOLO, tự động kiểm tra phụ phí THC cảng bắt buộc
-          if (["20HR", "40HR"].includes(pRow.container_type) && pRow.charge_code === "LOLO") {
+          // Nếu là container lạnh (20HR, 40HR...) và gói LOLO, tự động kiểm tra phụ phí THC cảng bắt buộc
+          if (isReeferEquipment(pRow.container_type) && pRow.charge_code === "LOLO") {
             const thcRes = await client.query(
               `SELECT rate_id, port_code, port_name, charge_code, unit_price, currency, notes
                FROM port_rates
-               WHERE port_code = $1 AND charge_code = 'THC_PORT' AND container_type = $2 AND status = 'ACTIVE' AND validity_range @> $3::date`,
-              [pRow.port_code, pRow.container_type, pricingDate]
+               WHERE port_code = $1 AND charge_code = 'THC_PORT' AND container_type = ANY($2::varchar[]) AND status = 'ACTIVE' AND validity_range @> $3::date`,
+              [pRow.port_code, getEquivalentEquipmentCodes(pRow.container_type), pricingDate]
             );
             if (thcRes.rows.length === 0) {
               throw new Error(
@@ -351,7 +356,7 @@ export async function saveQuotationDraft(
           if (item.destinationLocationId && oRow.pod_id && oRow.pod_id !== item.destinationLocationId) {
             throw new Error(`Cảng dỡ (POD) [${oRow.pod_name}] không khớp với điểm đến [${item.destinationLocationId}] của dịch vụ.`);
           }
-          if (item.equipmentType && oRow.container_type && oRow.container_type !== item.equipmentType) {
+          if (item.equipmentType && oRow.container_type && !areEquipmentTypesCompatible(item.equipmentType, oRow.container_type)) {
             throw new Error(`Loại container cước biển [${oRow.container_type}] không khớp với [${item.equipmentType}] của báo giá.`);
           }
           if (quoteCommodityName && oRow.commodity_name) {

@@ -2,6 +2,7 @@ import { pool } from "@/server/db";
 import { requireRole } from "@/server/auth/authorize";
 import type { CurrentActor } from "@/server/auth/types";
 import { roundVnd } from "@/shared/utils/pricing";
+import { getEquivalentEquipmentCodes } from "@/shared/utils/equipment";
 
 export interface PortRateItem {
   rateId: string;
@@ -73,8 +74,9 @@ export async function getPortRatesDetailedList(filters?: {
   }
 
   if (filters?.containerType && filters.containerType !== "ALL") {
-    params.push(filters.containerType);
-    query += ` AND container_type = $${params.length}`;
+    const eqCodes = getEquivalentEquipmentCodes(filters.containerType);
+    params.push(eqCodes);
+    query += ` AND container_type = ANY($${params.length}::varchar[])`;
   }
 
   if (filters?.status && filters.status !== "ALL") {
@@ -330,8 +332,9 @@ export async function lookupPortRates(
       if (!matchPort(r.portCode)) return false;
     }
     if (query.chargeCode && r.chargeCode !== query.chargeCode) return false;
-    if (query.containerType && r.containerType !== "ALL" && r.containerType !== query.containerType) {
-      return false;
+    if (query.containerType && r.containerType !== "ALL") {
+      const eqCodes = getEquivalentEquipmentCodes(query.containerType);
+      if (!eqCodes.includes(r.containerType)) return false;
     }
     if (query.cargoType && r.cargoType !== query.cargoType) return false;
     if (targetDate) {

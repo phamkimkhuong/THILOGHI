@@ -2,6 +2,7 @@ import { pool } from "@/server/db";
 import { requireRole } from "@/server/auth/authorize";
 import type { CurrentActor } from "@/server/auth/types";
 import { roundVnd } from "@/shared/utils/pricing";
+import { getEquivalentEquipmentCodes } from "@/shared/utils/equipment";
 
 export interface OceanRateItem {
   rateId: string;
@@ -138,8 +139,9 @@ export async function getOceanRatesDetailedList(filters?: {
   }
 
   if (filters?.containerType && filters.containerType !== "ALL") {
-    params.push(filters.containerType);
-    query += ` AND container_type = $${params.length}`;
+    const eqCodes = getEquivalentEquipmentCodes(filters.containerType);
+    params.push(eqCodes);
+    query += ` AND container_type = ANY($${params.length}::varchar[])`;
   }
 
   if (filters?.status && filters.status !== "ALL") {
@@ -487,8 +489,9 @@ export async function lookupOceanRates(
     if (query.podId && query.podId !== "ALL" && r.podId !== query.podId) {
       return false;
     }
-    if (query.containerType && query.containerType !== "ALL" && r.containerType !== query.containerType) {
-      return false;
+    if (query.containerType && query.containerType !== "ALL") {
+      const eqCodes = getEquivalentEquipmentCodes(query.containerType);
+      if (!eqCodes.includes(r.containerType)) return false;
     }
     if (targetDate) {
       if (r.validFrom && targetDate < r.validFrom) return false;

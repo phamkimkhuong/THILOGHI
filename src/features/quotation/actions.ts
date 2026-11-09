@@ -6,6 +6,7 @@ import {
   getMasterLocations,
   getMasterCommodities,
   EQUIPMENT_TYPES,
+  getMasterEquipmentTypes,
   getMasterServicesList,
 } from "@/server/modules/master-data/master-data.service";
 import {
@@ -49,12 +50,13 @@ export async function getQuotationRegionsAction() {
 export async function getQuotationMasterDataAction() {
   try {
     const actor = await requireAuth();
-    const [customers, regions, locations, commodities, services] = await Promise.all([
+    const [customers, regions, locations, commodities, services, equipmentTypes] = await Promise.all([
       getMasterCustomers(),
       getMasterRegions(),
       getMasterLocations(),
       getMasterCommodities(),
       getMasterServicesList({ status: "ACTIVE" }),
+      getMasterEquipmentTypes(),
     ]);
 
     return {
@@ -69,7 +71,7 @@ export async function getQuotationMasterDataAction() {
       ),
       locations,
       commodities,
-      equipmentTypes: EQUIPMENT_TYPES,
+      equipmentTypes: equipmentTypes && equipmentTypes.length > 0 ? equipmentTypes : EQUIPMENT_TYPES,
       services,
       error: null,
     };
